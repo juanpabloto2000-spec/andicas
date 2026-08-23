@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F3DB8B"/>
+      <stop offset="50%" stop-color="#D4AF37"/>
+      <stop offset="100%" stop-color="#C5A059"/>
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E3A2B"/>
+      <stop offset="100%" stop-color="#09140E"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="28" fill="url(#emeraldGrad)" stroke="#D4AF37" stroke-width="3"/>
+  <text x="50" y="68" font-family="Georgia, serif" font-size="52" font-weight="bold" fill="url(#goldGrad)" text-anchor="middle">Q</text>
+  <circle cx="50" cy="18" r="4" fill="#D4AF37" />
+</svg>
