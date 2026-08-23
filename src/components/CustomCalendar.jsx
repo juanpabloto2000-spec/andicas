@@ -104,9 +104,6 @@ export default function CustomCalendar({
             }`}>
               {MONTH_NAMES[currentMonth]} {currentYear}
             </h4>
-            <span className="text-[7px] sm:text-[9px] uppercase tracking-wider text-gold-400 font-cartoon block truncate">
-              {mode === "range" ? "Check-In → Out" : "Visita"}
-            </span>
           </div>
         </div>
 
@@ -207,22 +204,20 @@ export default function CustomCalendar({
       </div>
 
       {/* Range Status Bar */}
-      {mode === "range" && (
-        <div className={`border-t border-white/10 flex flex-col sm:flex-row items-center justify-between text-xs gap-1 ${
+      {mode === "range" && nightCount > 0 && (
+        <div className={`border-t border-white/10 flex items-center justify-between text-xs gap-1 ${
           compact ? 'mt-1.5 pt-1.5' : 'mt-3 pt-2.5'
         }`}>
-          <div className="flex items-center gap-1 text-[8px] sm:text-[11px] font-fredoka">
-            <span className="text-gold-300 font-bold truncate max-w-[65px] sm:max-w-none">{startDate || 'Check-in'}</span>
+          <div className="flex items-center gap-1 text-[8px] sm:text-[11px] font-fredoka text-gold-300 font-bold">
+            <span className="truncate">{startDate}</span>
             <span>➔</span>
-            <span className="text-gold-300 font-bold truncate max-w-[65px] sm:max-w-none">{endDate || 'Check-out'}</span>
+            <span className="truncate">{endDate}</span>
           </div>
 
-          {nightCount > 0 && (
-            <div className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-gold-500/20 border border-gold-400 text-gold-300 text-[8px] sm:text-[10px] font-cartoon font-bold">
-              <Sparkles className="w-2 h-2" />
-              <span>{nightCount} {nightCount === 1 ? 'Noche' : 'Noches'}</span>
-            </div>
-          )}
+          <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gold-500/20 border border-gold-400 text-gold-300 text-[8px] sm:text-[10px] font-cartoon font-bold">
+            <Sparkles className="w-2 h-2" />
+            <span>{nightCount} {nightCount === 1 ? 'Noche' : 'Noches'}</span>
+          </div>
         </div>
       )}
     </div>

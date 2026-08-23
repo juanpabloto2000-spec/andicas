@@ -383,12 +383,6 @@ export default function CabanasPage({ onNavigate, onShowToast }) {
                 
                 <div className="absolute inset-0 bg-gradient-to-t from-jade-950 via-transparent to-transparent pointer-events-none" />
 
-                {/* Rating Badge */}
-                <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-jade-950/80 backdrop-blur-md border border-gold-500/40 text-gold-400 font-cartoon text-xs flex items-center gap-1 shadow-md">
-                  <span>★</span>
-                  <span className="font-bold text-linen-100">{selectedCabin.rating}</span>
-                </div>
-
                 {/* Price Display */}
                 <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none">
                   <div>
