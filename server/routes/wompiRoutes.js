@@ -2,6 +2,7 @@ import express from 'express';
 import { supabase, mockStore } from '../config/supabase.js';
 import { generateWompiIntegritySignature, verifyWompiWebhookSignature, getWompiPublicKey } from '../services/wompiService.js';
 import { sendBookingConfirmationEmail } from '../services/emailService.js';
+import { recordAuditLog } from './bookingRoutes.js';
 
 const router = express.Router();
 
@@ -238,6 +239,17 @@ router.post('/webhook', async (req, res) => {
 
       console.log(`🎉 [PAGO APROBADO & CONFIRMADO] Ref: ${reference} | 50% Verificado: $${booking.deposit_amount_cop.toLocaleString('es-CO')} COP`);
 
+      // Registrar en historial de auditoría
+      await recordAuditLog({
+        booking_reference: reference,
+        client_name: booking.client_name,
+        cabin_name: booking.cabin_name,
+        previous_status: 'PENDING_PAYMENT',
+        new_status: 'AGENDADA',
+        changed_by: '⚡ Pasarela Wompi (Automático)',
+        notes: `Pago del 50% verificado vía ${booking.wompi_payment_method || 'Wompi'} (Tx: ${transaction.id})`,
+      });
+
       // 4. Enviar correo de confirmación con Voucher al cliente
       await sendBookingConfirmationEmail(booking);
     }
@@ -365,6 +377,17 @@ router.post('/simulate-payment', async (req, res) => {
     Object.assign(booking, updateData);
 
     console.log(`🎉 [SIMULACIÓN APROBADA] Ref: ${reference} | Fechas bloqueadas: ${datesToBlock.map(d=>d.blocked_date).join(', ')}`);
+
+    // Registrar en historial de auditoría
+    await recordAuditLog({
+      booking_reference: reference,
+      client_name: booking.client_name,
+      cabin_name: booking.cabin_name,
+      previous_status: 'PENDING_PAYMENT',
+      new_status: 'AGENDADA',
+      changed_by: '⚡ Modo Demo (Simulación)',
+      notes: `Pago simulado del 50% ($${Number(booking.deposit_amount_cop).toLocaleString('es-CO')} COP)`,
+    });
 
     // 4. Enviar correo transaccional
     const emailResult = await sendBookingConfirmationEmail(booking);

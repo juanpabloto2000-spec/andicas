@@ -4,9 +4,16 @@ import {
   ShieldCheck, DollarSign, Users, CheckCircle2, AlertCircle, Ban, 
   Search, RefreshCw, LogOut, Phone, Mail, MessageCircle, Home, 
   Clock, ChevronLeft, ChevronRight, Plus, X, Trash2, Calendar as CalendarIcon,
-  Filter, Check, ArrowUpRight, ArrowLeft
+  Filter, Check, ArrowUpRight, ArrowLeft, Lock, History, User, FileText
 } from 'lucide-react';
-import { adminLogin, getAdminBookings, blockDatesAdmin, updateBookingStatusAdmin, cancelBookingAdmin } from '../services/api';
+import { 
+  adminLogin, 
+  getAdminBookings, 
+  blockDatesAdmin, 
+  updateBookingStatusAdmin, 
+  cancelBookingAdmin,
+  getAdminAuditLogs 
+} from '../services/api';
 import { cabinsData } from '../data/cabins';
 
 export default function AdminDashboard({ onNavigate }) {
@@ -16,6 +23,9 @@ export default function AdminDashboard({ onNavigate }) {
   const [adminKey, setAdminKey] = useState(() => {
     return localStorage.getItem('andicas_admin_token') || '';
   });
+  const [userRole, setUserRole] = useState(() => {
+    return localStorage.getItem('andicas_user_role') || 'admin';
+  });
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,7 +33,9 @@ export default function AdminDashboard({ onNavigate }) {
   // Data states
   const [bookings, setBookings] = useState([]);
   const [blockedDates, setBlockedDates] = useState([]);
-  const [activeTab, setActiveTab] = useState('agendas'); // 'agendas' | 'calendario'
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditSearchQuery, setAuditSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('agendas'); // 'agendas' | 'calendario' | 'auditoria'
   const [calendarViewMode, setCalendarViewMode] = useState('month'); // 'month' | 'week'
   const [selectedCabinFilter, setSelectedCabinFilter] = useState(cabinsData[0]?.id || 'casa-del-arbol');
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,10 +57,20 @@ export default function AdminDashboard({ onNavigate }) {
   const fetchDashboardData = async (key) => {
     setIsLoading(true);
     try {
-      const data = await getAdminBookings(key || adminKey);
+      const targetKey = key || adminKey;
+      const data = await getAdminBookings(targetKey);
       if (data.success) {
         setBookings(data.bookings || []);
         setBlockedDates(data.blocked_dates || []);
+        if (data.role) setUserRole(data.role);
+      }
+
+      // Si es admin, consultar el historial de auditoría
+      if ((data.role || userRole) === 'admin') {
+        const auditData = await getAdminAuditLogs(targetKey);
+        if (auditData.success) {
+          setAuditLogs(auditData.logs || []);
+        }
       }
     } catch (err) {
       console.error('Error fetching admin data:', err);
@@ -71,12 +93,15 @@ export default function AdminDashboard({ onNavigate }) {
     try {
       const res = await adminLogin(passwordInput);
       if (res.success && res.token) {
+        const role = res.role || 'admin';
         localStorage.setItem('andicas_admin_token', res.token);
+        localStorage.setItem('andicas_user_role', role);
         setAdminKey(res.token);
+        setUserRole(role);
         setIsAuthenticated(true);
         fetchDashboardData(res.token);
       } else {
-        setLoginError('Contraseña de administrador incorrecta.');
+        setLoginError('Contraseña incorrecta.');
       }
     } catch (err) {
       setLoginError('No se pudo conectar con el servidor backend.');
@@ -87,8 +112,10 @@ export default function AdminDashboard({ onNavigate }) {
 
   const handleLogout = () => {
     localStorage.removeItem('andicas_admin_token');
+    localStorage.removeItem('andicas_user_role');
     setIsAuthenticated(false);
     setAdminKey('');
+    setUserRole('admin');
   };
 
   // Change booking status handler
@@ -316,9 +343,22 @@ export default function AdminDashboard({ onNavigate }) {
       {/* 1. TOP HEADER & ACTIONS */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-white/10">
         <div>
-          <span className="text-xs font-cartoon text-gold-400 uppercase tracking-widest block">
-            Andicas Bioparque Temático & Eco-Resort
-          </span>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-cartoon text-gold-400 uppercase tracking-widest">
+              Andicas Bioparque Temático & Eco-Resort
+            </span>
+            {userRole === 'admin' ? (
+              <span className="px-2 py-0.5 rounded-full bg-gold-500/20 border border-gold-400 text-gold-300 text-[10px] font-cartoon font-bold flex items-center gap-1">
+                <span>👑</span>
+                <span>Administrador (Acceso Total)</span>
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400 text-cyan-300 text-[10px] font-cartoon font-bold flex items-center gap-1">
+                <span>👤</span>
+                <span>Usuario Estándar / Recepción</span>
+              </span>
+            )}
+          </div>
           <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-black text-linen-100 uppercase tracking-wide">
             Panel de Agendas & Recaudo
           </h1>
@@ -362,23 +402,35 @@ export default function AdminDashboard({ onNavigate }) {
       {/* 2. METRICS CARDS WITH CONSISTENT CARTOON TYPOGRAPHY */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
-        {/* Recaudado Total */}
+        {/* Recaudado Total (Restringido para Staff) */}
         <div className="p-5 rounded-2xl glass-dark border border-gold-500/40 shadow-gold-glow space-y-1.5">
           <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
             Total Recaudado en Caja
           </span>
           <div className="flex items-baseline justify-between">
-            <span className="font-mono text-2xl sm:text-3xl font-black text-gold-gradient">
-              {formatCOP(totalRecaudado)}
-            </span>
+            {userRole === 'admin' ? (
+              <span className="font-mono text-2xl sm:text-3xl font-black text-gold-gradient">
+                {formatCOP(totalRecaudado)}
+              </span>
+            ) : (
+              <div className="flex items-center gap-1.5 py-1">
+                <Lock className="w-5 h-5 text-gold-400/80" />
+                <span className="font-cartoon text-xs text-gold-400/90 font-bold uppercase tracking-wider">
+                  Restringido (Solo Admin)
+                </span>
+              </div>
+            )}
             <DollarSign className="w-6 h-6 text-gold-400" />
           </div>
           <span className="text-[10px] font-fredoka text-linen-400 block">
-            {pagasBookings.length} Pagas (100%) + {agendadasBookings.length} Anticipos (50%)
+            {userRole === 'admin' 
+              ? `${pagasBookings.length} Pagas (100%) + ${agendadasBookings.length} Anticipos (50%)`
+              : 'Información financiera confidencial'
+            }
           </span>
         </div>
 
-        {/* Saldo Faltante por Pagar */}
+        {/* Saldo Faltante por Pagar (Visible para Staff y Admin) */}
         <div className="p-5 rounded-2xl glass-dark border border-white/10 space-y-1.5">
           <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
             Saldo Faltante por Cobrar
@@ -430,7 +482,7 @@ export default function AdminDashboard({ onNavigate }) {
 
       {/* 3. MAIN NAVIGATION TABS */}
       <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveTab('agendas')}
             className={`px-4 py-2.5 rounded-xl text-xs font-cartoon uppercase tracking-wider transition-all cursor-pointer ${
@@ -452,6 +504,20 @@ export default function AdminDashboard({ onNavigate }) {
           >
             📅 Calendario de Ocupación
           </button>
+
+          {userRole === 'admin' && (
+            <button
+              onClick={() => setActiveTab('auditoria')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-cartoon uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'auditoria'
+                  ? 'bg-gold-500 text-jade-950 font-bold shadow-gold-glow'
+                  : 'text-linen-300 hover:text-white bg-white/5'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>🕒 Historial de Movimientos ({auditLogs.length})</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -570,7 +636,7 @@ export default function AdminDashboard({ onNavigate }) {
 
                       <div className="flex items-center gap-4 text-xs font-mono">
                         <span className="text-linen-300">
-                          Recaudado: <strong className="text-emerald-400">{formatCOP(groupRecaudado)}</strong>
+                          Recaudado: <strong className="text-emerald-400">{userRole === 'admin' ? formatCOP(groupRecaudado) : '🔒 Privado'}</strong>
                         </span>
                         <span className="text-linen-300">
                           Faltante: <strong className="text-gold-400">{formatCOP(groupFaltante)}</strong>
@@ -650,7 +716,7 @@ export default function AdminDashboard({ onNavigate }) {
 
                                 {/* Recaudado */}
                                 <td className="py-3 px-3 font-mono font-bold text-emerald-400">
-                                  {formatCOP(recaudado)}
+                                  {userRole === 'admin' ? formatCOP(recaudado) : <span className="text-linen-400 text-[11px] font-cartoon">🔒 Privado</span>}
                                 </td>
 
                                 {/* Falta por Pagar */}
@@ -673,7 +739,11 @@ export default function AdminDashboard({ onNavigate }) {
                                   >
                                     <option value="AGENDADA" className="bg-jade-950 text-amber-300">🟡 Agendada (50%)</option>
                                     <option value="PAGA" className="bg-jade-950 text-emerald-300">🟢 Paga (100%)</option>
-                                    <option value="CANCELADA" className="bg-jade-950 text-red-300">🔴 Cancelada</option>
+                                    {userRole === 'admin' ? (
+                                      <option value="CANCELADA" className="bg-jade-950 text-red-300">🔴 Cancelada</option>
+                                    ) : (
+                                      <option value="CANCELADA" disabled className="bg-jade-950 text-linen-500">🚫 Cancelar (Solo Admin)</option>
+                                    )}
                                   </select>
                                 </td>
 
@@ -1098,6 +1168,169 @@ export default function AdminDashboard({ onNavigate }) {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* ======================================================================= */}
+      {/* VISTA 3: HISTORIAL DE MOVIMIENTOS & AUDITORÍA (EXCLUSIVO ADMINISTRADOR) */}
+      {/* ======================================================================= */}
+      {activeTab === 'auditoria' && userRole === 'admin' && (
+        <div className="space-y-4">
+          {/* Header de la sección */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 rounded-3xl glass-dark border border-white/10 shadow-2xl">
+            <div>
+              <span className="text-xs font-cartoon text-gold-400 uppercase tracking-widest block">
+                Auditoría & Trazabilidad
+              </span>
+              <h2 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
+                Historial de Movimientos en Agendas
+              </h2>
+              <p className="text-xs font-fredoka text-linen-400 mt-0.5">
+                Registro cronológico de quién, cuándo y qué cambios se realizaron en las reservas.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="w-4 h-4 text-linen-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar por código, huésped, cabaña o responsable..."
+                  value={auditSearchQuery}
+                  onChange={(e) => setAuditSearchQuery(e.target.value)}
+                  className="bg-jade-950 border border-white/15 rounded-xl pl-9 pr-3 py-2.5 text-xs text-linen-100 placeholder-linen-500 focus:border-gold-400 focus:outline-none w-64 sm:w-80 font-fredoka"
+                />
+              </div>
+
+              <button
+                onClick={() => fetchDashboardData()}
+                className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-linen-300 hover:text-white transition-colors cursor-pointer"
+                title="Recargar Historial"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Tabla de Registros de Auditoría */}
+          <div className="rounded-3xl glass-dark border border-white/10 overflow-hidden shadow-2xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-fredoka">
+                <thead className="border-b border-white/10 text-gold-400 font-cartoon uppercase tracking-wider text-[10px] bg-black/30">
+                  <tr>
+                    <th className="py-3 px-4">Fecha & Hora Exacta</th>
+                    <th className="py-3 px-4">Código Reserva</th>
+                    <th className="py-3 px-4">Huésped & Cabaña</th>
+                    <th className="py-3 px-4">Cambio de Estado</th>
+                    <th className="py-3 px-4">Responsable</th>
+                    <th className="py-3 px-4">Detalle / Notas</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {(() => {
+                    const filteredLogs = auditLogs.filter((log) => {
+                      if (!auditSearchQuery) return true;
+                      const q = auditSearchQuery.toLowerCase();
+                      return (
+                        (log.booking_reference && log.booking_reference.toLowerCase().includes(q)) ||
+                        (log.client_name && log.client_name.toLowerCase().includes(q)) ||
+                        (log.cabin_name && log.cabin_name.toLowerCase().includes(q)) ||
+                        (log.changed_by && log.changed_by.toLowerCase().includes(q)) ||
+                        (log.new_status && log.new_status.toLowerCase().includes(q)) ||
+                        (log.notes && log.notes.toLowerCase().includes(q))
+                      );
+                    });
+
+                    if (filteredLogs.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan="6" className="py-14 text-center text-linen-400 font-fredoka">
+                            <History className="w-8 h-8 mx-auto mb-2 opacity-40 text-gold-400" />
+                            <p className="text-sm">No se encontraron movimientos registrados con ese filtro.</p>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return filteredLogs.map((log, idx) => {
+                      const logDate = log.created_at ? new Date(log.created_at) : new Date();
+                      const dateStr = logDate.toLocaleDateString('es-CO', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                      });
+                      const timeStr = logDate.toLocaleTimeString('es-CO', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                      });
+
+                      const isCancel = log.new_status === 'CANCELADA';
+                      const isPaga = log.new_status === 'PAGA';
+
+                      return (
+                        <tr key={log.id || idx} className="hover:bg-white/[0.03] transition-colors">
+                          {/* Fecha y Hora */}
+                          <td className="py-3.5 px-4">
+                            <strong className="text-linen-100 text-xs block font-mono">{dateStr}</strong>
+                            <span className="text-[10px] text-gold-400/90 font-mono block">{timeStr}</span>
+                          </td>
+
+                          {/* Código */}
+                          <td className="py-3.5 px-4 font-mono font-bold text-gold-300">
+                            {log.booking_reference}
+                          </td>
+
+                          {/* Huésped & Cabaña */}
+                          <td className="py-3.5 px-4">
+                            <strong className="text-linen-100 text-xs block">{log.client_name}</strong>
+                            <span className="text-[10px] text-linen-400 font-cartoon">{log.cabin_name}</span>
+                          </td>
+
+                          {/* Transición de Estado */}
+                          <td className="py-3.5 px-4">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-cartoon font-bold uppercase border bg-black/20">
+                              <span className="text-linen-400">{log.previous_status || 'INICIO'}</span>
+                              <span className="text-gold-400 font-bold">➔</span>
+                              <span className={
+                                isPaga 
+                                  ? 'text-emerald-300' 
+                                  : isCancel 
+                                  ? 'text-red-300' 
+                                  : 'text-amber-300'
+                              }>
+                                {log.new_status}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Responsable */}
+                          <td className="py-3.5 px-4">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-cartoon font-bold uppercase border ${
+                              String(log.changed_by).includes('Admin')
+                                ? 'bg-gold-500/15 text-gold-300 border-gold-400/40'
+                                : String(log.changed_by).includes('Staff') || String(log.changed_by).includes('Recep')
+                                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-400/40'
+                                : 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40'
+                            }`}>
+                              {String(log.changed_by).includes('Admin') ? '👑 ' : String(log.changed_by).includes('Staff') ? '👤 ' : '⚡ '}
+                              {log.changed_by}
+                            </span>
+                          </td>
+
+                          {/* Detalle */}
+                          <td className="py-3.5 px-4 text-linen-300 text-[11px] max-w-xs truncate">
+                            {log.notes || 'Actualización de agenda registrada'}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

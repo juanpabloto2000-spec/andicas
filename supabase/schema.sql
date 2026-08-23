@@ -66,6 +66,19 @@ CREATE TABLE IF NOT EXISTS wompi_payment_logs (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 6. TABLA: HISTORIAL DE MOVIMIENTOS Y AUDITORÍA DE AGENDAS
+CREATE TABLE IF NOT EXISTS booking_audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_reference VARCHAR(50) NOT NULL,
+    client_name VARCHAR(150),
+    cabin_name VARCHAR(150),
+    previous_status VARCHAR(50),
+    new_status VARCHAR(50) NOT NULL,
+    changed_by VARCHAR(100) NOT NULL, -- 'Administrador', 'Recepcionista (Staff)', 'Pasarela Wompi'
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 6. POBLACIÓN INICIAL DE CABAÑAS
 INSERT INTO cabins (id, name, type, price_per_night, max_guests, image_url, description)
 VALUES 

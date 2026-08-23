@@ -175,3 +175,13 @@ export async function cancelBookingAdmin(bookingReference, adminKey) {
   });
   return res.json();
 }
+
+/**
+ * Obtiene el historial de movimientos y auditoría (Exclusivo para Administrador)
+ */
+export async function getAdminAuditLogs(adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/audit-logs`, {
+    headers: { 'x-admin-key': adminKey },
+  });
+  return res.json();
+}
