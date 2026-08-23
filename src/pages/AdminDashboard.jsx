@@ -296,54 +296,38 @@ export default function AdminDashboard({ onNavigate }) {
 
           <form onSubmit={handleLogin} className="space-y-4 font-fredoka">
             {/* Selector Rápido de Cuenta / Rol */}
-            <div className="space-y-1.5 text-left">
+            <div className="space-y-2 text-left">
               <label className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-                Seleccionar Cuenta o Rol
+                Selecciona tu Cuenta
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={() => setUsernameInput('admin')}
-                  className={`p-2.5 rounded-xl border text-xs font-cartoon uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-3 rounded-2xl border text-xs font-cartoon uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     usernameInput === 'admin'
-                      ? 'bg-gold-500/20 border-gold-400 text-gold-300 shadow-gold-glow font-bold'
-                      : 'bg-jade-950/60 border-white/10 text-linen-400 hover:border-white/20'
+                      ? 'bg-gold-500/25 border-gold-400 text-gold-300 shadow-gold-glow font-bold ring-1 ring-gold-400/50'
+                      : 'bg-jade-950/60 border-white/10 text-linen-400 hover:border-white/20 hover:text-linen-200'
                   }`}
                 >
-                  <span className="text-sm">👑</span>
-                  <span>Admin</span>
+                  <span className="text-xl">👑</span>
+                  <span className="font-bold">Administrador</span>
+                  <span className="text-[9px] font-fredoka opacity-75 lowercase tracking-normal">acceso total</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setUsernameInput('recepcion')}
-                  className={`p-2.5 rounded-xl border text-xs font-cartoon uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-3 rounded-2xl border text-xs font-cartoon uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     usernameInput === 'recepcion' || usernameInput === 'staff'
-                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-md font-bold'
-                      : 'bg-jade-950/60 border-white/10 text-linen-400 hover:border-white/20'
+                      ? 'bg-cyan-500/25 border-cyan-400 text-cyan-300 shadow-md font-bold ring-1 ring-cyan-400/50'
+                      : 'bg-jade-950/60 border-white/10 text-linen-400 hover:border-white/20 hover:text-linen-200'
                   }`}
                 >
-                  <span className="text-sm">👤</span>
-                  <span>Recepción</span>
+                  <span className="text-xl">👤</span>
+                  <span className="font-bold">Recepción</span>
+                  <span className="text-[9px] font-fredoka opacity-75 lowercase tracking-normal">estándar / staff</span>
                 </button>
-              </div>
-            </div>
-
-            {/* Input Usuario */}
-            <div className="space-y-1.5 text-left">
-              <label className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-                Usuario / Cuenta
-              </label>
-              <div className="relative">
-                <User className="w-4 h-4 text-linen-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={usernameInput}
-                  onChange={(e) => setUsernameInput(e.target.value)}
-                  placeholder="admin o recepcion"
-                  className="w-full bg-jade-950 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-sm text-linen-100 placeholder-linen-500 focus:border-gold-400 focus:outline-none"
-                  required
-                />
               </div>
             </div>
 
