@@ -193,7 +193,7 @@ router.post('/admin/block-dates', requireAdminOrStaffAuth, async (req, res) => {
       cabin_name: cabin_id,
       previous_status: 'DISPONIBLE',
       new_status: 'BLOQUEADO',
-      changed_by: req.userRole === 'admin' ? 'Administrador' : 'Recepcionista (Staff)',
+      changed_by: req.userRole === 'admin' ? 'Admin' : 'Recepción',
       notes: `Bloqueo manual de ${dates.length} fechas: ${dates.join(', ')}`,
     });
 
@@ -325,7 +325,7 @@ router.post('/admin/update-status', requireAdminOrStaffAuth, async (req, res) =>
       cabin_name: cabinName,
       previous_status: previousStatus,
       new_status: normalizedStatus,
-      changed_by: req.userRole === 'admin' ? 'Administrador' : 'Recepcionista (Staff)',
+      changed_by: req.userRole === 'admin' ? 'Admin' : 'Recepción',
       notes: `Estado modificado manualmente de ${previousStatus} a ${normalizedStatus}`,
     });
 
@@ -377,7 +377,7 @@ router.post('/admin/cancel-booking', requireAdminOrStaffAuth, async (req, res) =
       cabin_name: cabinName,
       previous_status: 'AGENDADA',
       new_status: 'CANCELADA',
-      changed_by: 'Administrador',
+      changed_by: 'Admin',
       notes: 'Cancelación directa de reserva con liberación de fechas',
     });
 

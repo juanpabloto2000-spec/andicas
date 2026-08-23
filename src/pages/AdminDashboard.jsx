@@ -389,14 +389,14 @@ export default function AdminDashboard({ onNavigate }) {
               Andicas Bioparque Temático & Eco-Resort
             </span>
             {userRole === 'admin' ? (
-              <span className="px-2 py-0.5 rounded-full bg-gold-500/20 border border-gold-400 text-gold-300 text-[10px] font-cartoon font-bold flex items-center gap-1">
+              <span className="px-2.5 py-0.5 rounded-full bg-gold-500/20 border border-gold-400 text-gold-300 text-[11px] font-cartoon font-bold flex items-center gap-1">
                 <span>👑</span>
-                <span>Administrador (Acceso Total)</span>
+                <span>Admin</span>
               </span>
             ) : (
-              <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400 text-cyan-300 text-[10px] font-cartoon font-bold flex items-center gap-1">
+              <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400 text-cyan-300 text-[11px] font-cartoon font-bold flex items-center gap-1">
                 <span>👤</span>
-                <span>Usuario Estándar / Recepción</span>
+                <span>Recepción</span>
               </span>
             )}
           </div>
@@ -503,10 +503,10 @@ export default function AdminDashboard({ onNavigate }) {
           </span>
         </div>
 
-        {/* Canceladas */}
+        {/* Cancelado */}
         <div className="p-5 rounded-2xl glass-dark border border-white/10 space-y-1.5">
           <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-            Agendas Canceladas
+            Agendas en Cancelado
           </span>
           <div className="flex items-baseline justify-between">
             <span className="font-display text-3xl font-black text-red-400">
@@ -632,7 +632,7 @@ export default function AdminDashboard({ onNavigate }) {
                     statusFilter === 'CANCELADA' ? 'bg-red-500 text-white font-bold' : 'text-red-300'
                   }`}
                 >
-                  Canceladas
+                  Cancelado
                 </button>
               </div>
             </div>
@@ -781,9 +781,9 @@ export default function AdminDashboard({ onNavigate }) {
                                     <option value="AGENDADA" className="bg-jade-950 text-amber-300">🟡 Agendada (50%)</option>
                                     <option value="PAGA" className="bg-jade-950 text-emerald-300">🟢 Paga (100%)</option>
                                     {userRole === 'admin' ? (
-                                      <option value="CANCELADA" className="bg-jade-950 text-red-300">🔴 Cancelada</option>
+                                      <option value="CANCELADA" className="bg-jade-950 text-red-300">🔴 Cancelado</option>
                                     ) : (
-                                      <option value="CANCELADA" disabled className="bg-jade-950 text-linen-500">🚫 Cancelar (Solo Admin)</option>
+                                      <option value="CANCELADA" disabled className="bg-jade-950 text-linen-500">🚫 Cancelado (Solo Admin)</option>
                                     )}
                                   </select>
                                 </td>
@@ -1346,17 +1346,31 @@ export default function AdminDashboard({ onNavigate }) {
                             </div>
                           </td>
 
-                          {/* Responsable */}
+                          {/* Responsable (Usuario que hizo el cambio) */}
                           <td className="py-3.5 px-4">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-cartoon font-bold uppercase border ${
-                              String(log.changed_by).includes('Admin')
-                                ? 'bg-gold-500/15 text-gold-300 border-gold-400/40'
-                                : String(log.changed_by).includes('Staff') || String(log.changed_by).includes('Recep')
-                                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-400/40'
-                                : 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40'
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-cartoon font-bold uppercase border ${
+                              String(log.changed_by).toLowerCase().includes('admin')
+                                ? 'bg-gold-500/20 text-gold-300 border-gold-400/40 shadow-sm'
+                                : String(log.changed_by).toLowerCase().includes('recep') || String(log.changed_by).toLowerCase().includes('staff')
+                                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/40 shadow-sm'
+                                : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40 shadow-sm'
                             }`}>
-                              {String(log.changed_by).includes('Admin') ? '👑 ' : String(log.changed_by).includes('Staff') ? '👤 ' : '⚡ '}
-                              {log.changed_by}
+                              {String(log.changed_by).toLowerCase().includes('admin') ? (
+                                <>
+                                  <span className="text-xs">👑</span>
+                                  <span>Admin</span>
+                                </>
+                              ) : String(log.changed_by).toLowerCase().includes('recep') || String(log.changed_by).toLowerCase().includes('staff') ? (
+                                <>
+                                  <span className="text-xs">👤</span>
+                                  <span>Recepción</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-xs">⚡</span>
+                                  <span>{log.changed_by}</span>
+                                </>
+                              )}
                             </span>
                           </td>
 
