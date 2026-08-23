@@ -55,6 +55,22 @@ export default function AdminDashboard({ onNavigate }) {
 
   const formatCOP = (num) => `$${Number(num || 0).toLocaleString('es-CO')} COP`;
 
+  const getStatusTextColor = (status) => {
+    const s = String(status || '').toUpperCase();
+    if (s === 'PAGA' || s === 'CONFIRMED') return 'text-emerald-400';
+    if (s === 'AGENDADA' || s === 'PENDIENTE') return 'text-amber-400';
+    if (s === 'CANCELADA' || s === 'CANCELADO' || s === 'CANCELLED') return 'text-red-400';
+    if (s === 'PENDING_PAYMENT' || s === 'INICIO' || s === 'CREACIÓN') return 'text-cyan-400';
+    if (s === 'BLOQUEADO' || s === 'BLOQUEO_MANUAL') return 'text-orange-400';
+    return 'text-gold-300';
+  };
+
+  const formatStatusLabel = (status) => {
+    const s = String(status || '').toUpperCase();
+    if (s === 'CANCELADA' || s === 'CANCELLED') return 'CANCELADO';
+    return s;
+  };
+
   const fetchDashboardData = async (key) => {
     setIsLoading(true);
     try {
@@ -304,28 +320,28 @@ export default function AdminDashboard({ onNavigate }) {
                 <button
                   type="button"
                   onClick={() => setUsernameInput('admin')}
-                  className={`p-3 rounded-2xl border text-xs font-cartoon uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                  className={`p-3 rounded-2xl border text-xs font-display uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     usernameInput === 'admin'
-                      ? 'bg-gold-500/25 border-gold-400 text-gold-300 shadow-gold-glow font-bold ring-1 ring-gold-400/50'
+                      ? 'bg-gold-500/25 border-gold-400 text-gold-300 shadow-gold-glow font-black ring-1 ring-gold-400/50'
                       : 'bg-jade-950/60 border-white/10 text-linen-400 hover:border-white/20 hover:text-linen-200'
                   }`}
                 >
                   <span className="text-xl">👑</span>
-                  <span className="font-bold">Administrador</span>
+                  <span className="font-black text-sm">ADMIN</span>
                   <span className="text-[9px] font-fredoka opacity-75 lowercase tracking-normal">acceso total</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setUsernameInput('recepcion')}
-                  className={`p-3 rounded-2xl border text-xs font-cartoon uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                  className={`p-3 rounded-2xl border text-xs font-display uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     usernameInput === 'recepcion' || usernameInput === 'staff'
-                      ? 'bg-cyan-500/25 border-cyan-400 text-cyan-300 shadow-md font-bold ring-1 ring-cyan-400/50'
+                      ? 'bg-cyan-500/25 border-cyan-400 text-cyan-300 shadow-md font-black ring-1 ring-cyan-400/50'
                       : 'bg-jade-950/60 border-white/10 text-linen-400 hover:border-white/20 hover:text-linen-200'
                   }`}
                 >
                   <span className="text-xl">👤</span>
-                  <span className="font-bold">Recepción</span>
+                  <span className="font-black text-sm">RECEPCIÓN</span>
                   <span className="text-[9px] font-fredoka opacity-75 lowercase tracking-normal">estándar / staff</span>
                 </button>
               </div>
@@ -383,24 +399,23 @@ export default function AdminDashboard({ onNavigate }) {
       
       {/* 1. TOP HEADER & ACTIONS */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-white/10">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-cartoon text-gold-400 uppercase tracking-widest">
-              Andicas Bioparque Temático & Eco-Resort
-            </span>
-            {userRole === 'admin' ? (
-              <span className="px-2.5 py-0.5 rounded-full bg-gold-500/20 border border-gold-400 text-gold-300 text-[11px] font-cartoon font-bold flex items-center gap-1">
-                <span>👑</span>
-                <span>Admin</span>
+        <div className="space-y-1.5">
+          {userRole === 'admin' ? (
+            <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-2xl bg-gold-500/20 border border-gold-400 text-gold-300 shadow-gold-glow">
+              <span className="text-2xl">👑</span>
+              <span className="font-display text-xl sm:text-2xl font-black uppercase tracking-wider text-gold-gradient">
+                ADMIN
               </span>
-            ) : (
-              <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400 text-cyan-300 text-[11px] font-cartoon font-bold flex items-center gap-1">
-                <span>👤</span>
-                <span>Recepción</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-2xl bg-cyan-500/20 border border-cyan-400 text-cyan-300 shadow-md">
+              <span className="text-2xl">👤</span>
+              <span className="font-display text-xl sm:text-2xl font-black uppercase tracking-wider text-cyan-300">
+                RECEPCION
               </span>
-            )}
-          </div>
-          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-black text-linen-100 uppercase tracking-wide">
+            </div>
+          )}
+          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-black text-linen-100 uppercase tracking-wide block">
             Panel de Agendas & Recaudo
           </h1>
         </div>
@@ -601,35 +616,35 @@ export default function AdminDashboard({ onNavigate }) {
               </div>
 
               {/* Filtro de Estado */}
-              <div className="flex items-center gap-1 bg-jade-950 p-1 rounded-xl border border-white/10 text-xs font-cartoon">
+              <div className="flex items-center gap-1 bg-jade-950 p-1 rounded-xl border border-white/10 text-xs font-display">
                 <button
                   onClick={() => setStatusFilter('ALL')}
-                  className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                    statusFilter === 'ALL' ? 'bg-gold-500 text-jade-950 font-bold' : 'text-linen-300'
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer uppercase tracking-wider font-black ${
+                    statusFilter === 'ALL' ? 'bg-gold-500 text-jade-950 shadow-gold-glow' : 'text-linen-300'
                   }`}
                 >
                   Todos
                 </button>
                 <button
                   onClick={() => setStatusFilter('AGENDADA')}
-                  className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                    statusFilter === 'AGENDADA' ? 'bg-amber-500 text-jade-950 font-bold' : 'text-amber-300'
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer uppercase tracking-wider font-black ${
+                    statusFilter === 'AGENDADA' ? 'bg-amber-500 text-jade-950 shadow-md' : 'text-amber-300'
                   }`}
                 >
                   Agendadas
                 </button>
                 <button
                   onClick={() => setStatusFilter('PAGA')}
-                  className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                    statusFilter === 'PAGA' ? 'bg-emerald-500 text-jade-950 font-bold' : 'text-emerald-300'
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer uppercase tracking-wider font-black ${
+                    statusFilter === 'PAGA' ? 'bg-emerald-500 text-jade-950 shadow-md' : 'text-emerald-300'
                   }`}
                 >
                   Pagas (100%)
                 </button>
                 <button
                   onClick={() => setStatusFilter('CANCELADA')}
-                  className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                    statusFilter === 'CANCELADA' ? 'bg-red-500 text-white font-bold' : 'text-red-300'
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer uppercase tracking-wider font-black ${
+                    statusFilter === 'CANCELADA' ? 'bg-red-500 text-white shadow-md' : 'text-red-300'
                   }`}
                 >
                   Cancelado
@@ -770,7 +785,7 @@ export default function AdminDashboard({ onNavigate }) {
                                   <select
                                     value={isPaga ? 'PAGA' : isCancelada ? 'CANCELADA' : 'AGENDADA'}
                                     onChange={(e) => handleStatusChange(b.booking_reference, e.target.value)}
-                                    className={`px-2.5 py-1 rounded-xl text-[11px] font-cartoon uppercase tracking-wider font-bold border cursor-pointer focus:outline-none ${
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-display uppercase tracking-wider font-black border cursor-pointer focus:outline-none ${
                                       isPaga
                                         ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                                         : isCancelada
@@ -778,12 +793,12 @@ export default function AdminDashboard({ onNavigate }) {
                                         : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                                     }`}
                                   >
-                                    <option value="AGENDADA" className="bg-jade-950 text-amber-300">🟡 Agendada (50%)</option>
-                                    <option value="PAGA" className="bg-jade-950 text-emerald-300">🟢 Paga (100%)</option>
+                                    <option value="AGENDADA" className="bg-jade-950 text-amber-300 font-display">🟡 Agendada (50%)</option>
+                                    <option value="PAGA" className="bg-jade-950 text-emerald-300 font-display">🟢 Paga (100%)</option>
                                     {userRole === 'admin' ? (
-                                      <option value="CANCELADA" className="bg-jade-950 text-red-300">🔴 Cancelado</option>
+                                      <option value="CANCELADA" className="bg-jade-950 text-red-300 font-display">🔴 Cancelado</option>
                                     ) : (
-                                      <option value="CANCELADA" disabled className="bg-jade-950 text-linen-500">🚫 Cancelado (Solo Admin)</option>
+                                      <option value="CANCELADA" disabled className="bg-jade-950 text-linen-500 font-display">🚫 Cancelado (Solo Admin)</option>
                                     )}
                                   </select>
                                 </td>
@@ -1329,46 +1344,42 @@ export default function AdminDashboard({ onNavigate }) {
                             <span className="text-[10px] text-linen-400 font-cartoon">{log.cabin_name}</span>
                           </td>
 
-                          {/* Transición de Estado */}
+                          {/* Transición de Estado con Colores Reales */}
                           <td className="py-3.5 px-4">
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-cartoon font-bold uppercase border bg-black/20">
-                              <span className="text-linen-400">{log.previous_status || 'INICIO'}</span>
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-display font-black uppercase tracking-wider border border-white/10 bg-black/40 shadow-inner">
+                              <span className={getStatusTextColor(log.previous_status)}>
+                                {formatStatusLabel(log.previous_status || 'INICIO')}
+                              </span>
                               <span className="text-gold-400 font-bold">➔</span>
-                              <span className={
-                                isPaga 
-                                  ? 'text-emerald-300' 
-                                  : isCancel 
-                                  ? 'text-red-300' 
-                                  : 'text-amber-300'
-                              }>
-                                {log.new_status}
+                              <span className={getStatusTextColor(log.new_status)}>
+                                {formatStatusLabel(log.new_status)}
                               </span>
                             </div>
                           </td>
 
                           {/* Responsable (Usuario que hizo el cambio) */}
                           <td className="py-3.5 px-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-cartoon font-bold uppercase border ${
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-display font-black uppercase tracking-wider border ${
                               String(log.changed_by).toLowerCase().includes('admin')
-                                ? 'bg-gold-500/20 text-gold-300 border-gold-400/40 shadow-sm'
+                                ? 'bg-gold-500/20 text-gold-300 border-gold-400/50 shadow-gold-glow'
                                 : String(log.changed_by).toLowerCase().includes('recep') || String(log.changed_by).toLowerCase().includes('staff')
-                                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/40 shadow-sm'
-                                : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40 shadow-sm'
+                                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-md'
+                                : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50 shadow-md'
                             }`}>
                               {String(log.changed_by).toLowerCase().includes('admin') ? (
                                 <>
-                                  <span className="text-xs">👑</span>
-                                  <span>Admin</span>
+                                  <span className="text-sm">👑</span>
+                                  <span>ADMIN</span>
                                 </>
                               ) : String(log.changed_by).toLowerCase().includes('recep') || String(log.changed_by).toLowerCase().includes('staff') ? (
                                 <>
-                                  <span className="text-xs">👤</span>
-                                  <span>Recepción</span>
+                                  <span className="text-sm">👤</span>
+                                  <span>RECEPCION</span>
                                 </>
                               ) : (
                                 <>
-                                  <span className="text-xs">⚡</span>
-                                  <span>{log.changed_by}</span>
+                                  <span className="text-sm">⚡</span>
+                                  <span>{String(log.changed_by).toUpperCase()}</span>
                                 </>
                               )}
                             </span>
