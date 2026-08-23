@@ -283,77 +283,92 @@ export default function CabanasPage({ onNavigate, onShowToast }) {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
           
           {/* ========================================================= */}
-          {/* DESKTOP ONLY: Full Left Column Selector (lg:block hidden) */}
+          {/* MOBILE ONLY: Horizontal Photo Selector Strip */}
+          {/* ========================================================= */}
+          <div className="lg:hidden flex items-center gap-2 overflow-x-auto pb-1 px-1 scrollbar-none">
+            {cabinsData.map((cabin) => {
+              const isSelected = selectedCabin.id === cabin.id;
+
+              return (
+                <button
+                  type="button"
+                  key={cabin.id}
+                  onClick={() => {
+                    setSelectedCabin(cabin);
+                    setActiveGalleryIndex(0);
+                  }}
+                  className={`w-14 h-14 rounded-2xl overflow-hidden border-2 cursor-pointer relative flex-shrink-0 transition-all ${
+                    isSelected
+                      ? 'border-gold-400 shadow-gold-glow ring-2 ring-gold-400/60 scale-105'
+                      : 'border-white/10 opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <img 
+                    src={cabin.image} 
+                    alt={cabin.name} 
+                    className="w-full h-full object-cover" 
+                  />
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ========================================================= */}
+          {/* DESKTOP ONLY: Minimalist Visual Photo Rail (lg:block hidden) */}
           {/* ========================================================= */}
           <motion.div 
-            initial={{ opacity: 0, x: -40 }}
+            initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ type: "spring", stiffness: 80, damping: 15, delay: 0.1 }}
-            className="hidden lg:block lg:col-span-3 space-y-3"
+            className="hidden lg:flex lg:col-span-2 flex-col gap-2 p-3 rounded-3xl glass-dark border border-gold-600/20 shadow-2xl max-h-[660px] overflow-y-auto scrollbar-thin scrollbar-thumb-gold-500/20"
           >
-            <div className="p-4 rounded-3xl glass-dark border border-gold-600/30 shadow-2xl space-y-3">
-              <div className="pb-2.5 border-b border-white/10 text-left">
-                <span className="text-[10px] font-cartoon font-bold text-gold-400 uppercase tracking-widest block">
-                  Catálogo Oficial
-                </span>
-                <h3 className="font-display text-base font-black text-linen-100 uppercase tracking-wide">
-                  Elige Tu Alojamiento
-                </h3>
-              </div>
+            <div className="pb-1 text-center border-b border-white/10">
+              <span className="text-[10px] font-cartoon font-bold text-gold-400 uppercase tracking-widest block">
+                Cabañas
+              </span>
+            </div>
 
-              {/* 10 Cabins Full List on Desktop */}
-              <div className="space-y-2 max-h-[640px] overflow-y-auto pr-1">
-                {cabinsData.map((cabin) => {
-                  const isSelected = selectedCabin.id === cabin.id;
+            {/* 10 Cabins Clean Photo Grid */}
+            <div className="grid grid-cols-2 gap-2">
+              {cabinsData.map((cabin) => {
+                const isSelected = selectedCabin.id === cabin.id;
 
-                  return (
-                    <div
-                      key={cabin.id}
-                      onClick={() => {
-                        setSelectedCabin(cabin);
-                        setActiveGalleryIndex(0);
-                      }}
-                      className={`p-2.5 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 text-left group ${
-                        isSelected
-                          ? 'bg-white/[0.09] border-gold-400 shadow-gold-glow ring-1 ring-gold-400/50'
-                          : 'bg-jade-950/60 border-white/10 hover:border-gold-500/40 hover:bg-white/[0.04]'
-                      }`}
-                    >
-                      <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 relative">
-                        <img 
-                          src={cabin.image} 
-                          alt={cabin.name} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                        />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-display text-xs sm:text-sm font-black text-linen-100 uppercase truncate leading-tight group-hover:text-gold-300 transition-colors">
-                          {cabin.name}
-                        </h4>
-                        <span className="font-mono text-xs font-bold text-gold-gradient block mt-0.5">
-                          {cabin.priceFormatted}
-                        </span>
-                      </div>
-
-                      {isSelected && (
-                        <div className="w-2 h-2 rounded-full bg-gold-400 shadow-gold-glow flex-shrink-0" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                return (
+                  <div
+                    key={cabin.id}
+                    onClick={() => {
+                      setSelectedCabin(cabin);
+                      setActiveGalleryIndex(0);
+                    }}
+                    title={`${cabin.name} — ${cabin.priceFormatted}`}
+                    className={`aspect-square rounded-2xl overflow-hidden border-2 cursor-pointer relative group transition-all duration-300 ${
+                      isSelected
+                        ? 'border-gold-400 shadow-gold-glow scale-[1.04] ring-2 ring-gold-400/60 z-10'
+                        : 'border-white/10 opacity-65 hover:opacity-100 hover:border-gold-500/50 hover:scale-[1.02]'
+                    }`}
+                  >
+                    <img 
+                      src={cabin.image} 
+                      alt={cabin.name} 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                    />
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-gold-500/10 pointer-events-none" />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </motion.div>
 
           {/* ========================================================================= */}
-          {/* SHOWCASE COLUMN: Left Image Rail + Center Feature Showcase */}
+          {/* SHOWCASE COLUMN: Center Feature Showcase */}
           {/* ========================================================================= */}
           <motion.div 
             initial={{ opacity: 0, y: 30, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ type: "spring", stiffness: 85, damping: 15, delay: 0.15 }}
-            className="lg:col-span-5 space-y-4"
+            className="lg:col-span-6 space-y-4"
           >
             {/* Main Showcase Card */}
             <div className="rounded-3xl glass-dark border border-gold-500/30 overflow-hidden shadow-2xl space-y-4 p-3.5 sm:p-5 text-left">
