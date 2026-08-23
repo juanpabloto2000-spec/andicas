@@ -180,6 +180,20 @@ export default function CabanasPage({ onNavigate, onShowToast }) {
 
   // Simulación de prueba directa para desarrollo
   const handleSimulatePaymentDev = async () => {
+    let start = dateRange.startDate;
+    let end = dateRange.endDate;
+
+    // Si no ha seleccionado fechas, asignamos automáticamente 2 noches próximas para la prueba
+    if (!start || !end) {
+      const d1 = new Date();
+      d1.setDate(d1.getDate() + 2);
+      const d2 = new Date();
+      d2.setDate(d2.getDate() + 4);
+      start = d1.toISOString().split('T')[0];
+      end = d2.toISOString().split('T')[0];
+      setDateRange({ startDate: start, endDate: end });
+    }
+
     const finalName = clientName.trim() || 'Juan Pablo Huésped';
     const finalEmail = clientEmail.trim() || 'juanpabloto2000@gmail.com';
     const finalPhone = clientPhone.trim() || '3104567890';
@@ -199,8 +213,8 @@ export default function CabanasPage({ onNavigate, onShowToast }) {
         client_name: finalName,
         client_email: finalEmail,
         client_phone: finalPhone,
-        check_in_date: dateRange.startDate,
-        check_out_date: dateRange.endDate,
+        check_in_date: start,
+        check_out_date: end,
         guests_count: selectedCabin.pricingModel === 'por-persona' ? 1 : 2,
         addons_cost: addonsCost,
         notes: formattedNotes,
@@ -219,10 +233,14 @@ export default function CabanasPage({ onNavigate, onShowToast }) {
             subtext: `Voucher enviado a ${simRes.booking.client_email}`
           });
         }
+      } else {
+        throw new Error(simRes.error || 'Error procesando la simulación en el servidor.');
       }
     } catch (err) {
       console.error('Error simulando:', err);
-      if (onShowToast) onShowToast({ message: 'Error de simulación', subtext: err.message });
+      if (onShowToast) {
+        onShowToast({ message: 'Error de simulación', subtext: err.message || 'Verifica la conexión con el servidor backend.' });
+      }
     } finally {
       setIsProcessingWompi(false);
     }
