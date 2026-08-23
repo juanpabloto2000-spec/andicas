@@ -110,13 +110,13 @@ export async function simulatePayment(reference) {
 }
 
 /**
- * Login del Administrador
+ * Login del Administrador o Recepción / Estándar
  */
-export async function adminLogin(password) {
+export async function adminLogin(password, username = 'admin') {
   const res = await fetch(`${API_BASE}/api/bookings/admin/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ password, username }),
   });
   return res.json();
 }

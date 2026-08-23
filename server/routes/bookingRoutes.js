@@ -90,11 +90,16 @@ router.get('/availability/:cabinId', async (req, res) => {
 
 /**
  * 2. POST /api/admin/login
- * Valida la clave de acceso para rol Administrador (Total) o Estándar (Staff)
+ * Valida usuario y clave de acceso para rol Administrador (Total) o Estándar (Staff)
  */
 router.post('/admin/login', (req, res) => {
-  const { password } = req.body;
-  if (password === ADMIN_SECRET) {
+  const { username = '', password = '' } = req.body;
+  const cleanUser = String(username).trim().toLowerCase();
+
+  const isAdminUser = !cleanUser || cleanUser === 'admin' || cleanUser === 'administrador';
+  const isStaffUser = !cleanUser || cleanUser === 'recepcion' || cleanUser === 'staff' || cleanUser === 'estandar' || cleanUser === 'recepcionista';
+
+  if (isAdminUser && password === ADMIN_SECRET) {
     return res.status(200).json({ 
       success: true, 
       token: ADMIN_SECRET, 
@@ -102,7 +107,7 @@ router.post('/admin/login', (req, res) => {
       roleLabel: 'Administrador General (Acceso Total)'
     });
   }
-  if (password === STAFF_SECRET) {
+  if (isStaffUser && password === STAFF_SECRET) {
     return res.status(200).json({ 
       success: true, 
       token: STAFF_SECRET, 
@@ -110,7 +115,7 @@ router.post('/admin/login', (req, res) => {
       roleLabel: 'Usuario Estándar / Recepción'
     });
   }
-  return res.status(401).json({ error: 'Contraseña de acceso incorrecta.' });
+  return res.status(401).json({ error: 'Usuario o contraseña de acceso incorrectos.' });
 });
 
 /**

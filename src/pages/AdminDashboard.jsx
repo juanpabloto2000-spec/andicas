@@ -26,6 +26,7 @@ export default function AdminDashboard({ onNavigate }) {
   const [userRole, setUserRole] = useState(() => {
     return localStorage.getItem('andicas_user_role') || 'admin';
   });
+  const [usernameInput, setUsernameInput] = useState('admin');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -91,7 +92,7 @@ export default function AdminDashboard({ onNavigate }) {
     setIsLoading(true);
 
     try {
-      const res = await adminLogin(passwordInput);
+      const res = await adminLogin(passwordInput, usernameInput);
       if (res.success && res.token) {
         const role = res.role || 'admin';
         localStorage.setItem('andicas_admin_token', res.token);
@@ -101,7 +102,7 @@ export default function AdminDashboard({ onNavigate }) {
         setIsAuthenticated(true);
         fetchDashboardData(res.token);
       } else {
-        setLoginError('Contraseña incorrecta.');
+        setLoginError('Usuario o contraseña incorrectos.');
       }
     } catch (err) {
       setLoginError('No se pudo conectar con el servidor backend.');
@@ -294,18 +295,74 @@ export default function AdminDashboard({ onNavigate }) {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4 font-fredoka">
+            {/* Selector Rápido de Cuenta / Rol */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+                Seleccionar Cuenta o Rol
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUsernameInput('admin')}
+                  className={`p-2.5 rounded-xl border text-xs font-cartoon uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    usernameInput === 'admin'
+                      ? 'bg-gold-500/20 border-gold-400 text-gold-300 shadow-gold-glow font-bold'
+                      : 'bg-jade-950/60 border-white/10 text-linen-400 hover:border-white/20'
+                  }`}
+                >
+                  <span className="text-sm">👑</span>
+                  <span>Admin</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setUsernameInput('recepcion')}
+                  className={`p-2.5 rounded-xl border text-xs font-cartoon uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    usernameInput === 'recepcion' || usernameInput === 'staff'
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-md font-bold'
+                      : 'bg-jade-950/60 border-white/10 text-linen-400 hover:border-white/20'
+                  }`}
+                >
+                  <span className="text-sm">👤</span>
+                  <span>Recepción</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Input Usuario */}
+            <div className="space-y-1.5 text-left">
+              <label className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+                Usuario / Cuenta
+              </label>
+              <div className="relative">
+                <User className="w-4 h-4 text-linen-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={usernameInput}
+                  onChange={(e) => setUsernameInput(e.target.value)}
+                  placeholder="admin o recepcion"
+                  className="w-full bg-jade-950 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-sm text-linen-100 placeholder-linen-500 focus:border-gold-400 focus:outline-none"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Input Clave */}
             <div className="space-y-1.5 text-left">
               <label className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
                 Clave de Seguridad
               </label>
-              <input
-                type="password"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="Introduce la contraseña"
-                className="w-full bg-jade-950 border border-white/15 rounded-xl px-4 py-3 text-sm text-linen-100 placeholder-linen-500 focus:border-gold-400 focus:outline-none"
-                required
-              />
+              <div className="relative">
+                <Lock className="w-4 h-4 text-linen-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="Introduce tu contraseña"
+                  className="w-full bg-jade-950 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-sm text-linen-100 placeholder-linen-500 focus:border-gold-400 focus:outline-none"
+                  required
+                />
+              </div>
             </div>
 
             {loginError && (
