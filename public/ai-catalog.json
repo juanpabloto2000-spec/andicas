@@ -1,0 +1,12 @@
+{
+  "catalogVersion": "1.0.0",
+  "organization": "Andicas Bioparque Temático & Eco-Resort",
+  "endpoints": {
+    "llms": "https://andicas.vercel.app/llms.txt",
+    "llmsFull": "https://andicas.vercel.app/llms-full.txt",
+    "mcpServerCard": "https://andicas.vercel.app/.well-known/mcp/server-card.json",
+    "agentSkills": "https://andicas.vercel.app/.well-known/agent-skills/index.json",
+    "agentmap": "https://andicas.vercel.app/.well-known/agentmap.json",
+    "apiCatalog": "https://andicas.vercel.app/api-catalog.json"
+  }
+}

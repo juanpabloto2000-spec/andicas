@@ -16,17 +16,25 @@
     <meta name="keywords" content="Andicas Bioparque Temático, Andicas Bioparque, Glamping Colombia, Cabañas Luxury, Cabañas en los árboles, Piscina Natural Caverna, Pasadía Familiar, Hotel Boutique Ecoturístico, Turismo Pet Friendly Colombia, Planes románticos naturaleza" />
     <meta name="author" content="Andicas Bioparque S.A.S." />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
-    <link rel="canonical" href="https://www.andicasbioparque.com/" />
+    <!-- Canonical & Agent Discovery Links -->
+    <link rel="canonical" href="https://andicas.vercel.app/" />
+    <link rel="alternate" type="text/markdown" href="/llms.txt" title="LLM Documentation" />
+    <link rel="mcp-server-card" href="/.well-known/mcp/server-card.json" />
+    <link rel="agent-skills" href="/.well-known/agent-skills/index.json" />
+    <link rel="agentmap" href="/.well-known/agentmap.json" />
+    <link rel="api-catalog" href="/api-catalog.json" />
 
-    <!-- Geo Localization Tags (Reserva Natural Los Andicas) -->
-    <meta name="geo.region" content="CO" />
-    <meta name="geo.placename" content="Valle del Sol, Reserva Natural Los Andicas, Colombia" />
+    <!-- Geo Localization Tags (Quimbaya, Quindío, Colombia) -->
+    <meta name="geo.region" content="CO-QUI" />
+    <meta name="geo.placename" content="Quimbaya, Quindío, Colombia" />
+    <meta name="geo.position" content="4.6231;-75.7628" />
+    <meta name="ICBM" content="4.6231, -75.7628" />
 
     <!-- Open Graph / Facebook / WhatsApp -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://www.andicasbioparque.com/" />
+    <meta property="og:url" content="https://andicas.vercel.app/" />
     <meta property="og:title" content="Andicas Bioparque Temático | Eco-Resort & Cabañas Luxury" />
-    <meta property="og:description" content="Piscina natural con caverna, cabañas suspendidas en los árboles y experiencias memorables en la naturaleza. 100% Pet Friendly." />
+    <meta property="og:description" content="Cabañas temáticas en árboles con jacuzzi privado, piscinas de manantial natural, santuario de fauna rescatada y pasadías en Quimbaya, Quindío." />
     <meta property="og:image" content="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&h=630&q=85" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -36,9 +44,9 @@
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://www.andicasbioparque.com/" />
+    <meta name="twitter:url" content="https://andicas.vercel.app/" />
     <meta name="twitter:title" content="Andicas Bioparque Temático | Eco-Resort & Cabañas Luxury" />
-    <meta name="twitter:description" content="El lujo de conectar con la naturaleza. Cabañas en árboles, piscinas naturales y experiencias inolvidables." />
+    <meta name="twitter:description" content="El lujo de conectar con la naturaleza. Cabañas en árboles, jacuzzis climatizados y experiencias inolvidables en el Quindío." />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&h=630&q=85" />
 
     <!-- Performance: Preconnect & DNS-Prefetch -->
@@ -48,43 +56,90 @@
     <link rel="dns-prefetch" href="https://images.unsplash.com" />
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Luckiest+Guy&family=Titan+One&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 
-    <!-- Schema.org Rich Snippets / Structured Data for Google (JSON-LD) -->
+    <!-- Schema.org Rich Snippets & AEO Structured Data (JSON-LD) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@graph": [
         {
           "@type": ["Resort", "TouristAttraction", "LodgingBusiness"],
-          "@id": "https://www.andicasbioparque.com/#resort",
-          "name": "Andicas Bioparque Temático",
-          "alternateName": "Andicas Bioparque Eco-Resort",
-          "url": "https://www.andicasbioparque.com/",
+          "@id": "https://andicas.vercel.app/#resort",
+          "name": "Andicas Bioparque Temático & Eco-Resort",
+          "alternateName": ["Andicas Bioparque", "Andicas Eco-Resort Quimbaya"],
+          "url": "https://andicas.vercel.app/",
           "image": "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&q=80",
-          "description": "Plataforma eco-resort y bioparque temático con cabañas en árboles, piscina natural con caverna y santuario animal.",
+          "description": "Eco-resort de lujo y bioparque natural en Quimbaya, Quindío. Cabañas suspendidas en árboles con jacuzzi privado, piscinas de manantial, santuario animal y pasadía.",
           "priceRange": "$$$",
-          "telephone": "+573000000000",
+          "telephone": "+573105988350",
           "address": {
             "@type": "PostalAddress",
-            "streetAddress": "Km 4 Vía Valle del Sol",
-            "addressLocality": "Reserva Natural Los Andicas",
-            "addressRegion": "Ecoturismo",
+            "streetAddress": "Vereda El Laurel, Km 3 Vía Panaca",
+            "addressLocality": "Quimbaya",
+            "addressRegion": "Quindío",
+            "postalCode": "633001",
             "addressCountry": "CO"
           },
-          "openingHoursSpecification": [
-            {
-              "@type": "OpeningHoursSpecification",
-              "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-              "opens": "09:00",
-              "closes": "17:00"
-            }
-          ],
+          "geo": {
+            "@type": "GeoCoordinates",
+            "latitude": 4.6231,
+            "longitude": -75.7628
+          },
+          "checkinTime": "15:00:00-05:00",
+          "checkoutTime": "13:00:00-05:00",
           "amenityFeature": [
-            { "@type": "LocationFeatureSpecification", "name": "Piscina Natural con Caverna", "value": true },
-            { "@type": "LocationFeatureSpecification", "name": "Cabañas con Jacuzzi Privado", "value": true },
-            { "@type": "LocationFeatureSpecification", "name": "100% Pet Friendly con Piscina Canina", "value": true },
-            { "@type": "LocationFeatureSpecification", "name": "Wi-Fi Gratuito", "value": true },
-            { "@type": "LocationFeatureSpecification", "name": "Parqueadero Privado", "value": true },
-            { "@type": "LocationFeatureSpecification", "name": "Restaurante Gourmet", "value": true }
+            { "@type": "LocationFeatureSpecification", "name": "Jacuzzi Privado Climatizado", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "Piscinas Naturales de Manantial", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "Desayuno Campestre Incluido", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "100% Pet Friendly", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "Parqueadero Privado Gratuito", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "Senderos Ecológicos y Bioparque", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "Restaurante Campestre Típico", "value": true }
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://andicas.vercel.app/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "¿Cuáles son las cabañas disponibles en Andicas y cuánto cuestan?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Andicas cuenta con 6 cabañas exclusivas: Casa del Árbol ($350.000 COP/noche, 2-4 personas), Refugio del Río ($390.000 COP/noche, 2 personas), Cueva del Sol ($420.000 COP/noche, 2-3 personas con jacuzzi), Manantial Secreto ($450.000 COP/noche, 2-3 personas con piscina privada), Nido Ancestral ($480.000 COP/noche, 2 personas con jacuzzi panorámico) y Santuario de las Palmas ($520.000 COP/noche, suite luxury 2-4 personas con jacuzzi 360°). Todas incluyen desayuno campestre y acceso total al bioparque."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Qué cabañas tienen jacuzzi privado climatizado?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Las cabañas con jacuzzi privado e hidromasaje son: Santuario de las Palmas ($520.000 COP), Nido Ancestral ($480.000 COP) y Cueva del Sol ($420.000 COP)."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Cómo funciona la política de reservas y pagos?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Se requiere un anticipo del 50% en línea mediante pasarela de pago segura (Wompi, Nequi, PSE, Tarjetas Débito/Crédito y Bancolombia) para bloquear las fechas en el calendario. El 50% restante se cancela directamente al llegar en la recepción durante el Check-in."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Cuáles son los horarios de Check-in y Check-out?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "El Check-in es a partir de las 3:00 PM y el Check-out es hasta la 1:00 PM."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Dónde está ubicado Andicas Bioparque?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Está ubicado en Quimbaya, Quindío, Colombia, a solo 15 minutos de Panaca y a 30 minutos del Parque del Café. El acceso es por carretera totalmente pavimentada y cuenta con parqueadero privado vigilado sin costo adicional."
+              }
+            }
           ]
         }
       ]

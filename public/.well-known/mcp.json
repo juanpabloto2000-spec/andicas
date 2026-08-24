@@ -1,0 +1,6 @@
+{
+  "serverCard": "https://andicas.vercel.app/.well-known/mcp/server-card.json",
+  "name": "andicas-resort-mcp",
+  "description": "Andicas Bioparque & Eco-Resort MCP Endpoint",
+  "status": "active"
+}

@@ -1,0 +1,75 @@
+# Andicas Bioparque Temático & Eco-Resort — Base de Conocimiento Completa para LLMs
+
+## 1. DESCRIPCIÓN GENERAL DEL RESORT
+Andicas Bioparque Temático & Eco-Resort es un complejo ecoturístico y hotel boutique de naturaleza ubicado en Quimbaya, Quindío, Colombia. Integra cabañas de arquitectura sostenible de autor suspendidas entre árboles centenarios, piscinas de manantial natural con cavernas de piedra, santuario de fauna rescatada, senderos ecológicos entre cafetales y restaurante campestre con gastronomía típica del Quindío.
+
+## 2. UBICACIÓN Y CÓMO LLEGAR
+- **Municipio**: Quimbaya, Quindío, Colombia (Eje Cafetero / Paisaje Cultural Cafetero declarado Patrimonio de la Humanidad por la UNESCO).
+- **Distancias clave**:
+  - A 15 minutos del Parque Nacional de la Cultura Agropecuaria (PANACA).
+  - A 30 minutos del Parque Nacional del Café (Montenegro, Quindío).
+  - A 45 minutos de Armenia y del Aeropuerto Internacional El Edén (AXM).
+  - A 60 minutos de Salento y el Valle de Cocora.
+- **Acceso vial**: Vía totalmente pavimentada apta para todo tipo de vehículos.
+- **Parqueadero**: Parqueadero privado cerrado con vigilancia las 24 horas, gratuito para huéspedes.
+
+## 3. CATÁLOGO DETALLADO DE CABAÑAS
+
+### 3.1. Casa del Árbol
+- **Tarifa**: $350.000 COP por noche.
+- **Capacidad**: 2 a 4 personas (Cama King + sofá cama).
+- **Características**: Cabaña construida sobre estructura de madera en altura entre las copas de los árboles, balcón con vista 180° a la reserva natural, baño privado con ducha de lluvia y zona de descanso.
+
+### 3.2. Refugio del Río
+- **Tarifa**: $390.000 COP por noche.
+- **Capacidad**: 2 personas (Cama Queen).
+- **Características**: Ubicada en la zona baja cerca al cauce de agua cristalina, balcón exterior con hamacas tradicionales, ventilación natural y ambiente relajante con el sonido de la corriente.
+
+### 3.3. Cueva del Sol
+- **Tarifa**: $420.000 COP por noche.
+- **Capacidad**: 2 a 3 personas (Cama King).
+- **Características**: Diseño bioclimático integrado en piedra natural y maderas nobles. Incluye tina de hidromasaje / jacuzzi privado climatizado interior y amplios ventanales.
+
+### 3.4. Manantial Secreto
+- **Tarifa**: $450.000 COP por noche.
+- **Capacidad**: 2 a 3 personas.
+- **Características**: Cabaña exclusiva rodeada de jardines botánicos con acceso directo a una piscina natural de manantial privada, terraza exterior privada y acabados rústicos de lujo.
+
+### 3.5. Nido Ancestral
+- **Tarifa**: $480.000 COP por noche.
+- **Capacidad**: 2 personas (Ideal para parejas / aniversarios).
+- **Características**: Cabaña suspendida con jacuzzi panorámico exterior climatizado y un mirador en forma de nido tejido para contemplar los atardeceres y las estrellas.
+
+### 3.6. Santuario de las Palmas
+- **Tarifa**: $520.000 COP por noche.
+- **Capacidad**: 2 a 4 personas.
+- **Características**: La suite más espaciosa y lujosa de Andicas. Cuenta con jacuzzi privado exterior con hidromasaje, mirador 360°, sala de estar independiente, acabados premium y máxima privacidad.
+
+## 4. SERVICIOS Y EXPERIENCIAS ADICIONALES (PAQUETES)
+Los huéspedes pueden añadir servicios especiales al momento de hacer la reserva en la web:
+1. **Decoración Romántica Mágica ($85.000 COP)**: Pétalos de rosa naturales sobre la cama, camino de velas LED aromatizadas, botella de vino tinto de la casa, globos y mensaje personalizado.
+2. **Tabla de Quesos & Frutos Secos ($65.000 COP)**: Selección de quesos madurados, jamón serrano, frutos secos y uvas frescas.
+3. **Frigobar / Nevera Llena ($45.000 COP)**: Surtido de cervezas artesanales frías, bebidas hidratantes, aguas minerales y snacks.
+*Total del paquete "Con Todo": $195.000 COP (se paga una sola vez por estadía).*
+
+## 5. POLÍTICA DE RESERVAS Y PAGOS
+- **Anticipo obligatorio**: 50% del valor total de la reserva mediante la pasarela segura en línea (Wompi, Nequi, PSE, Tarjetas Débito/Crédito y Botón Bancolombia).
+- **Saldo restante**: 50% al momento del Check-in en la recepción del hotel (Efectivo, Tarjeta o Transferencia).
+- **Confirmación**: La plataforma bloquea automáticamente las fechas en el calendario en tiempo real y emite un comprobante con código de reserva único vía correo electrónico y WhatsApp.
+
+## 6. HORARIOS
+- **Check-in**: A partir de las 3:00 PM. (Si el huésped llega antes, puede disfrutar de las piscinas naturales y del restaurante).
+- **Check-out**: Hasta la 1:00 PM.
+
+## 7. BIOPARQUE Y PASADÍA
+- Avistamiento e interacción responsable con animales y fauna rescatada.
+- Senderos ecológicos autoguiados y guiados.
+- Piscinas naturales de agua pura de manantial sin cloro químico.
+- Restaurante campestre con desayunos, almuerzos típicos quindianos y cenas a la carta.
+- Tirolesa / Canopy y miradores fotográficos.
+- Política 100% Pet Friendly (admite mascotas educadas).
+
+## 8. CONTACTO OFICIAL
+- **Página Web**: https://andicas.vercel.app/
+- **WhatsApp Asesoría y Reservas**: +57 310 598 8350
+- **Correo Electrónico**: reservas@andicasbioparque.com

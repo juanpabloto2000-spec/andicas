@@ -1,0 +1,36 @@
+# Andicas Bioparque Temático & Eco-Resort
+
+> Eco-Resort de lujo y bioparque natural en Quimbaya, Quindío, Colombia (Eje Cafetero). Cabañas temáticas en árboles con jacuzzis climatizados, piscinas de manantial natural, santuario de fauna y experiencias románticas.
+
+## Información Principal & Resumen
+
+- **Ubicación**: Quimbaya, Quindío, Colombia. A 15 min de Panaca, 30 min del Parque del Café y 45 min de Armenia.
+- **Sitio Web Oficial**: https://andicas.vercel.app/
+- **WhatsApp Oficial**: +57 310 598 8350
+- **Check-in**: A partir de las 3:00 PM
+- **Check-out**: Hasta la 1:00 PM
+- **Política de Reserva**: 50% de anticipo en línea mediante pasarela segura (Wompi, Nequi, PSE, Tarjetas Débito/Crédito y Bancolombia) para congelar fechas en el calendario; el 50% restante se abona al llegar en recepción.
+- **Incluido en todas las estadías**: Desayuno típico campestre y acceso ilimitado a las instalaciones del bioparque, senderos ecológicos y piscinas naturales.
+
+## Catálogo de Cabañas y Tarifas Oficiales
+
+- [Casa del Árbol](https://andicas.vercel.app/#/cabanas): $350.000 COP / noche (Capacidad: 2-4 personas). Suspendida en el bosque nativo con terraza en altura.
+- [Refugio del Río](https://andicas.vercel.app/#/cabanas): $390.000 COP / noche (Capacidad: 2 personas). Experiencia serena con balcón, hamacas y sonido del río.
+- [Cueva del Sol](https://andicas.vercel.app/#/cabanas): $420.000 COP / noche (Capacidad: 2-3 personas). Arquitectura bioclimática en piedra y madera con jacuzzi privado.
+- [Manantial Secreto](https://andicas.vercel.app/#/cabanas): $450.000 COP / noche (Capacidad: 2-3 personas). Rodeada de vegetación con acceso a piscina natural privada.
+- [Nido Ancestral](https://andicas.vercel.app/#/cabanas): $480.000 COP / noche (Capacidad: 2 personas). Cabaña elevada con jacuzzi panorámico climatizado y nido exterior.
+- [Santuario de las Palmas](https://andicas.vercel.app/#/cabanas): $520.000 COP / noche (Capacidad: 2-4 personas). Nuestra suite de lujo más exclusiva con jacuzzi exterior y mirador panorámico 360°.
+
+## Paquetes Adicionales (Experiencias)
+
+- **Decoración Romántica Mágica ($85.000 COP)**: Pétalos de rosa, velas LED aromatizadas, botella de vino tinto y globos.
+- **Tabla de Quesos & Frutos Secos ($65.000 COP)**: Selección de quesos madurados, jamón serrano y uvas frescas.
+- **Frigobar / Nevera Llena ($45.000 COP)**: Cervezas artesanales frías, bebidas hidratantes y snacks.
+- **Paquete "Con Todo" ($195.000 COP)**: Incluye los tres adicionales anteriores (pago único por estadía).
+
+## Documentación Completa y Recursos para Agentes IA
+
+- [Información Completa para LLMs](https://andicas.vercel.app/llms-full.txt): Base de conocimiento exhaustiva y detallada.
+- [Tarjeta de Servidor MCP](https://andicas.vercel.app/.well-known/mcp/server-card.json): Herramientas para Model Context Protocol.
+- [Habilidades de Agente (Agent Skills)](https://andicas.vercel.app/.well-known/agent-skills/index.json): Registro de capacidades para agentes autónomos.
+- [Catálogo API](https://andicas.vercel.app/api-catalog.json): Especificación de endpoints de disponibilidad y cotización.

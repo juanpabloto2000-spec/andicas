@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "name": "andicas-agent-skills",
+  "description": "Agent Skills registry for Andicas Bioparque & Eco-Resort following agentskills.io standard",
+  "skills": [
+    {
+      "id": "andicas-lodging-concierge",
+      "name": "Andicas Lodging & Eco-Resort Concierge",
+      "description": "Guides travelers on selecting the best cabins with jacuzzis, computing stay budgets with 50% deposit calculations, and discovering activities in Quimbaya, Quindío.",
+      "url": "https://andicas.vercel.app/.well-known/agent-skills/resort-booking/SKILL.md",
+      "version": "1.0.0",
+      "tags": ["travel", "hospitality", "ecotourism", "colombia", "booking", "glamping"]
+    }
+  ]
+}

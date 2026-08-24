@@ -1,0 +1,54 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Andicas Bioparque & Eco-Resort AI API",
+    "description": "API for querying cabin information, calculating vacation budgets, and AI assistant interaction.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://andicas.vercel.app",
+      "description": "Production Web & API"
+    }
+  ],
+  "paths": {
+    "/api/ai/chat": {
+      "post": {
+        "summary": "Chat with AndiBot AI Concierge",
+        "description": "Engage in conversational interaction with the Andicas virtual assistant powered by Gemini 3.6 Flash.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": { "type": "string" },
+                  "conversationHistory": { "type": "array" }
+                },
+                "required": ["message"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful AI response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "reply": { "type": "string" },
+                    "provider": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

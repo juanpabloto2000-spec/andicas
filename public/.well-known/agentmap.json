@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "name": "Andicas Eco-Resort Agentmap",
+  "homepage": "https://andicas.vercel.app/",
+  "resources": [
+    {
+      "type": "llm-summary",
+      "url": "https://andicas.vercel.app/llms.txt",
+      "format": "text/markdown"
+    },
+    {
+      "type": "llm-full-docs",
+      "url": "https://andicas.vercel.app/llms-full.txt",
+      "format": "text/markdown"
+    },
+    {
+      "type": "mcp-server",
+      "url": "https://andicas.vercel.app/.well-known/mcp/server-card.json",
+      "format": "application/json"
+    },
+    {
+      "type": "agent-skills",
+      "url": "https://andicas.vercel.app/.well-known/agent-skills/index.json",
+      "format": "application/json"
+    },
+    {
+      "type": "api-catalog",
+      "url": "https://andicas.vercel.app/api-catalog.json",
+      "format": "application/json"
+    }
+  ]
+}

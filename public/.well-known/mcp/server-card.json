@@ -1,0 +1,74 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schemas/server-card.json",
+  "name": "andicas-resort-mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) Server for Andicas Bioparque & Eco-Resort. Allows AI agents to query cabin availability, pricing, romantic packages, and booking policies.",
+  "homepage": "https://andicas.vercel.app/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/juanpabloto2000-spec/andicas.git"
+  },
+  "capabilities": {
+    "tools": [
+      {
+        "name": "get_cabins",
+        "description": "Returns the complete catalog of luxury cabins at Andicas Eco-Resort including official rates, capacities, and private jacuzzi features.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "has_jacuzzi": {
+              "type": "boolean",
+              "description": "Filter by cabins with private hot tubs / jacuzzis"
+            },
+            "min_capacity": {
+              "type": "integer",
+              "description": "Minimum number of guests"
+            }
+          }
+        }
+      },
+      {
+        "name": "calculate_stay_budget",
+        "description": "Calculates the exact total budget for a stay at Andicas Eco-Resort, including nights, recommended cabin, add-on packages (romantic decor, cheeseboard, minibar), 50% deposit required to book, and remaining balance due at check-in.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "cabin_id": {
+              "type": "string",
+              "description": "ID of the cabin (e.g. santuario-palmas, nido-ancestral, casa-arbol, cueva-sol, refugio-rio, manantial-secreto)"
+            },
+            "nights": {
+              "type": "integer",
+              "description": "Number of nights (e.g. 2, 3)"
+            },
+            "include_all_extras": {
+              "type": "boolean",
+              "description": "Whether to include the complete $195.000 COP experience package"
+            }
+          },
+          "required": ["nights"]
+        }
+      },
+      {
+        "name": "get_resort_info",
+        "description": "Returns location, directions from Panaca / Armenia, check-in and check-out hours, pet-friendly policies, and official contact channels.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "resources": [
+      {
+        "uri": "andicas://catalog/cabins",
+        "name": "Cabins & Lodging Catalog",
+        "mimeType": "application/json"
+      },
+      {
+        "uri": "andicas://docs/llms.txt",
+        "name": "Full LLM Documentation",
+        "mimeType": "text/markdown"
+      }
+    ]
+  }
+}
