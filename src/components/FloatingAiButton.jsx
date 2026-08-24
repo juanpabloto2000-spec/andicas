@@ -33,28 +33,27 @@ export default function FloatingAiButton({ onOpenAiChat }) {
         )}
       </AnimatePresence>
 
-      {/* Main Trigger: Circular Robot Button */}
+      {/* Main Trigger: Circular Robot Button with Chatbot Logo */}
       <motion.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         onClick={onOpenAiChat}
-        aria-label="Abrir asistente virtual de Inteligencia Artificial"
+        aria-label="Abrir asistente virtual"
         className="relative group w-14 h-14 rounded-full bg-gradient-to-br from-jade-800 via-jade-900 to-jade-950 text-gold-300 border-2 border-gold-400 shadow-2xl shadow-gold-glow flex items-center justify-center cursor-pointer transition-all hover:border-gold-300"
       >
         <div className="relative flex items-center justify-center">
-          <Bot className="w-7 h-7 text-gold-400 group-hover:scale-110 transition-transform" />
+          <img 
+            src="/chatbot%20logo.png" 
+            alt="Chatbot Andicas" 
+            className="w-9 h-9 object-contain group-hover:scale-110 transition-transform"
+          />
           
-          {/* Subtle AI indicator */}
-          <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gold-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border border-jade-950"></span>
+          {/* Subtle online indicator */}
+          <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border border-jade-950"></span>
           </span>
         </div>
-
-        {/* Small AI label badge */}
-        <span className="absolute -bottom-1 px-1.5 py-0.2 rounded-md bg-gold-500 text-jade-950 font-display text-[9px] font-black uppercase tracking-wider shadow-md">
-          IA
-        </span>
       </motion.button>
     </div>
   );

@@ -151,16 +151,20 @@ export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
         {/* Top Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-jade-900 via-jade-800 to-jade-950 border-b border-gold-400/30 flex items-center justify-between shadow-md">
           <div className="flex items-center gap-3">
-            <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-jade-950 shadow-gold-glow">
-              <Bot className="w-6 h-6" />
+            <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-jade-950 shadow-gold-glow overflow-hidden p-1">
+              <img 
+                src="/chatbot%20logo.png" 
+                alt="AndiBot" 
+                className="w-full h-full object-contain" 
+              />
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-jade-950" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-display text-sm font-black text-linen-100 uppercase tracking-wide">
-                  AndiBot IA
+                  AndiBot
                 </h3>
-                <span className="px-1.5 py-0.2 rounded-full bg-gold-400/20 border border-gold-400/40 text-gold-300 text-[9px] font-cartoon font-bold">
+                <span className="px-1.5 py-0.2 rounded-full bg-gold-400/20 border border-gold-400/40 text-gold-300 text-[9px] font-fredoka font-semibold">
                   En línea
                 </span>
               </div>
@@ -179,14 +183,13 @@ export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
           </button>
         </div>
 
-        {/* Quick Question Chips Banner */}
-        <div className="px-3 py-2 bg-jade-950/80 border-b border-white/5 overflow-x-auto flex items-center gap-1.5 no-scrollbar">
-          <Sparkles className="w-3.5 h-3.5 text-gold-400 shrink-0 ml-1" />
+        {/* Quick Question Chips Banner (Legible Typography, No Star Icon) */}
+        <div className="px-3 py-2.5 bg-jade-950/90 border-b border-white/10 overflow-x-auto flex items-center gap-2 no-scrollbar">
           {quickQuestions.map((q, idx) => (
             <button
               key={idx}
               onClick={() => handleSendMessage(q.query)}
-              className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-gold-500/20 border border-white/10 hover:border-gold-400/40 text-linen-200 hover:text-gold-300 text-[10px] font-cartoon font-bold whitespace-nowrap transition-all cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-gold-500/20 border border-white/15 hover:border-gold-400/50 text-linen-100 hover:text-gold-300 text-xs font-fredoka font-medium whitespace-nowrap transition-all cursor-pointer shadow-sm"
             >
               {q.label}
             </button>
@@ -202,8 +205,12 @@ export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
             >
               <div className="flex items-end gap-2 max-w-[88%]">
                 {m.sender === 'bot' && (
-                  <div className="w-6 h-6 rounded-lg bg-gold-500/20 border border-gold-400/40 flex items-center justify-center text-gold-300 shrink-0 mb-1">
-                    <Bot className="w-3.5 h-3.5" />
+                  <div className="w-7 h-7 rounded-xl bg-gold-500/15 border border-gold-400/40 flex items-center justify-center shrink-0 mb-1 p-1">
+                    <img 
+                      src="/chatbot%20logo.png" 
+                      alt="AndiBot" 
+                      className="w-full h-full object-contain" 
+                    />
                   </div>
                 )}
 
@@ -237,9 +244,9 @@ export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
                           href="https://wa.me/573105988350?text=Hola%20Andicas,%20quisiera%20asesoría%20sobre%20las%20cabañas%20y%20el%20bioparque"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-3 py-1.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white font-cartoon text-[10px] uppercase flex items-center gap-1.5 transition-all"
+                          className="px-3 py-1.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white font-fredoka font-semibold text-xs flex items-center gap-1.5 transition-all"
                         >
-                          <MessageCircle className="w-3 h-3" />
+                          <MessageCircle className="w-3.5 h-3.5" />
                           <span>WhatsApp Asesor</span>
                         </a>
                       )}
@@ -252,8 +259,12 @@ export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
 
           {isTyping && (
             <div className="flex items-center gap-2 text-linen-400 text-xs">
-              <div className="w-6 h-6 rounded-lg bg-gold-500/20 border border-gold-400/40 flex items-center justify-center text-gold-300 shrink-0">
-                <Bot className="w-3.5 h-3.5" />
+              <div className="w-7 h-7 rounded-xl bg-gold-500/15 border border-gold-400/40 flex items-center justify-center shrink-0 p-1">
+                <img 
+                  src="/chatbot%20logo.png" 
+                  alt="AndiBot" 
+                  className="w-full h-full object-contain" 
+                />
               </div>
               <div className="px-3.5 py-2 rounded-2xl bg-jade-950/80 border border-white/10 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-gold-400 animate-bounce" style={{ animationDelay: '0ms' }}></span>
