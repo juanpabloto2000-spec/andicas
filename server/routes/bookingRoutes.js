@@ -444,4 +444,102 @@ router.get('/admin/audit-logs', requireAdminOrStaffAuth, requireAdminOnly, async
   }
 });
 
+/**
+ * 8. POST /api/admin/delete-booking
+ * Elimina una reserva específica de forma permanente (Exclusivo Admin)
+ */
+router.post('/admin/delete-booking', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+  try {
+    const { booking_reference } = req.body;
+
+    if (!booking_reference) {
+      return res.status(400).json({ error: 'Referencia de reserva requerida.' });
+    }
+
+    let clientName = 'Huésped';
+    let cabinName = 'Cabaña';
+
+    if (supabase) {
+      const { data: b } = await supabase.from('bookings').select('*').eq('booking_reference', booking_reference).single();
+      if (b) {
+        clientName = b.client_name;
+        cabinName = b.cabin_name;
+        await supabase.from('blocked_dates').delete().eq('booking_id', b.id);
+        await supabase.from('bookings').delete().eq('id', b.id);
+      }
+    } else {
+      const bIdx = (mockStore.bookings || []).findIndex((x) => x.booking_reference === booking_reference);
+      if (bIdx !== -1) {
+        const b = mockStore.bookings[bIdx];
+        clientName = b.client_name;
+        cabinName = b.cabin_name;
+        mockStore.blocked_dates = (mockStore.blocked_dates || []).filter((x) => x.booking_id !== b.id);
+        mockStore.bookings.splice(bIdx, 1);
+      }
+    }
+
+    await recordAuditLog({
+      booking_reference,
+      client_name: clientName,
+      cabin_name: cabinName,
+      previous_status: 'CANCELADO',
+      new_status: 'ELIMINADO',
+      changed_by: 'Admin',
+      notes: `Reserva ${booking_reference} eliminada permanentemente del sistema`,
+    });
+
+    return res.status(200).json({ success: true, message: `Reserva ${booking_reference} eliminada con éxito.` });
+  } catch (err) {
+    console.error('Error eliminando reserva:', err);
+    return res.status(500).json({ error: 'Error al eliminar reserva.' });
+  }
+});
+
+/**
+ * 9. POST /api/admin/purge-all-data
+ * Elimina absolutamente todas las agendas y movimientos del sistema tras verificar contraseña (Exclusivo Admin)
+ */
+router.post('/admin/purge-all-data', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password || password !== ADMIN_SECRET) {
+      return res.status(401).json({ error: 'Contraseña de Administrador incorrecta. No se autorizó la eliminación total.' });
+    }
+
+    if (supabase) {
+      await supabase.from('blocked_dates').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('bookings').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      try {
+        await supabase.from('booking_audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      } catch (e) {}
+      try {
+        await supabase.from('wompi_payment_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      } catch (e) {}
+    }
+
+    mockStore.bookings = [];
+    mockStore.blocked_dates = [];
+    mockStore.booking_audit_logs = [];
+    mockStore.logs = [];
+
+    // Log inicial de sistema reseteado
+    await recordAuditLog({
+      booking_reference: 'SISTEMA_REINICIADO',
+      client_name: 'Administración General',
+      cabin_name: 'Todas las cabañas',
+      previous_status: 'ACTIVO',
+      new_status: 'LIMPIEZA_TOTAL',
+      changed_by: 'Admin',
+      notes: 'Se ejecutó una purga total de agendas, movimientos y bloqueos manuales.',
+    });
+
+    console.log('⚠️ [PURGA TOTAL EJECUTADA] Todas las reservas y registros de auditoría fueron borrados por el Administrador.');
+    return res.status(200).json({ success: true, message: 'Todos los datos de agendas y movimientos han sido eliminados por completo.' });
+  } catch (err) {
+    console.error('Error en purga total:', err);
+    return res.status(500).json({ error: 'Error ejecutando la purga total de datos.' });
+  }
+});
+
 export default router;

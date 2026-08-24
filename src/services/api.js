@@ -185,3 +185,33 @@ export async function getAdminAuditLogs(adminKey) {
   });
   return res.json();
 }
+
+/**
+ * Elimina una reserva cancelada permanentemente (Exclusivo Admin)
+ */
+export async function deleteBookingPermanentlyAdmin(bookingReference, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/delete-booking`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ booking_reference: bookingReference }),
+  });
+  return res.json();
+}
+
+/**
+ * Purga todos los datos de agendas y movimientos con contraseña de admin (Exclusivo Admin)
+ */
+export async function purgeAllDataAdmin(password, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/purge-all-data`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ password }),
+  });
+  return res.json();
+}

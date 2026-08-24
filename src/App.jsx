@@ -7,6 +7,8 @@ import AnimalesPage from './pages/AnimalesPage';
 import AdminDashboard from './pages/AdminDashboard';
 import Footer from './components/Footer';
 import FloatingContactHub from './components/FloatingContactHub';
+import FloatingAiButton from './components/FloatingAiButton';
+import AiAssistantModal from './components/AiAssistantModal';
 import BookingModal from './components/BookingModal';
 import BookingSummaryModal from './components/BookingSummaryModal';
 import ParkRulesModal from './components/ParkRulesModal';
@@ -26,6 +28,7 @@ export default function App() {
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
+  const [aiChatModalOpen, setAiChatModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   const navigateTo = (page) => {
@@ -170,12 +173,26 @@ export default function App() {
         />
       )}
 
-      {/* Floating Contact Hub with Hover Trigger (Hidden on Admin page /dsb) */}
+      {/* Floating Contact Hub with Hover Trigger (Derecha, Oculto en panel admin /dsb) */}
       {!isAdminView && (
         <FloatingContactHub
           onOpenWhatsAppMenu={() => handleOpenBooking('cabana')}
         />
       )}
+
+      {/* Floating AI Assistant Button with Robot Icon (Izquierda, Oculto en panel admin /dsb) */}
+      {!isAdminView && (
+        <FloatingAiButton
+          onOpenAiChat={() => setAiChatModalOpen(true)}
+        />
+      )}
+
+      {/* AI Assistant Chat Modal */}
+      <AiAssistantModal
+        isOpen={aiChatModalOpen}
+        onClose={() => setAiChatModalOpen(false)}
+        onOpenBooking={handleOpenBooking}
+      />
 
       {/* Modals */}
       <BookingModal

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldCheck, DollarSign, Users, CheckCircle2, AlertCircle, Ban, 
   Search, RefreshCw, LogOut, Phone, Mail, MessageCircle, Home, 
-  Clock, ChevronLeft, ChevronRight, Plus, X, Trash2, Calendar as CalendarIcon,
+  Clock, ChevronLeft, ChevronRight, ChevronDown, Plus, X, Trash2, Calendar as CalendarIcon,
   Filter, Check, ArrowUpRight, ArrowLeft, Lock, History, User, FileText
 } from 'lucide-react';
 import { 
@@ -12,7 +12,9 @@ import {
   blockDatesAdmin, 
   updateBookingStatusAdmin, 
   cancelBookingAdmin,
-  getAdminAuditLogs 
+  getAdminAuditLogs,
+  deleteBookingPermanentlyAdmin,
+  purgeAllDataAdmin
 } from '../services/api';
 import { cabinsData } from '../data/cabins';
 
@@ -38,6 +40,14 @@ export default function AdminDashboard({ onNavigate }) {
   const [auditSearchQuery, setAuditSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('agendas'); // 'agendas' | 'calendario' | 'auditoria'
   const [calendarViewMode, setCalendarViewMode] = useState('month'); // 'month' | 'week'
+  const [revenuePeriod, setRevenuePeriod] = useState('month'); // 'month' | 'week'
+  const [revenueDropdownOpen, setRevenueDropdownOpen] = useState(false);
+
+  // Purge modal state
+  const [purgeModalOpen, setPurgeModalOpen] = useState(false);
+  const [purgePassword, setPurgePassword] = useState('');
+  const [purgeError, setPurgeError] = useState('');
+  const [isPurging, setIsPurging] = useState(false);
   const [selectedCabinFilter, setSelectedCabinFilter] = useState(cabinsData[0]?.id || 'casa-del-arbol');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -177,6 +187,48 @@ export default function AdminDashboard({ onNavigate }) {
     }
   };
 
+  const handleDeleteCanceledBooking = async (bookingReference, clientName) => {
+    if (!window.confirm(`¿Estás seguro de eliminar permanentemente la reserva ${bookingReference} de ${clientName || 'Huésped'}? Esta acción liberará cualquier fecha remanente y borrará el registro por completo.`)) {
+      return;
+    }
+
+    try {
+      const res = await deleteBookingPermanentlyAdmin(bookingReference, adminKey);
+      if (res.success) {
+        fetchDashboardData();
+      } else {
+        alert(res.error || 'Error eliminando la reserva.');
+      }
+    } catch (err) {
+      alert('Error de conexión al eliminar la reserva.');
+    }
+  };
+
+  const handleExecutePurge = async () => {
+    if (!purgePassword) {
+      setPurgeError('Por favor ingresa la contraseña de administrador.');
+      return;
+    }
+
+    setIsPurging(true);
+    setPurgeError('');
+    try {
+      const res = await purgeAllDataAdmin(purgePassword, adminKey);
+      if (res.success) {
+        setPurgeModalOpen(false);
+        setPurgePassword('');
+        fetchDashboardData();
+        alert('✅ ¡Todos los datos de agendas y movimientos han sido purgados exitosamente!');
+      } else {
+        setPurgeError(res.error || 'Contraseña incorrecta o error en el servidor.');
+      }
+    } catch (err) {
+      setPurgeError('Error de conexión al conectar con el servidor.');
+    } finally {
+      setIsPurging(false);
+    }
+  };
+
   // Metric calculations based on exact statuses: AGENDADA, PAGA, CANCELADA
   const activeBookings = bookings.filter((b) => b.status === 'AGENDADA' || b.status === 'CONFIRMED' || b.status === 'PAGA');
   const pagasBookings = bookings.filter((b) => b.status === 'PAGA');
@@ -282,6 +334,27 @@ export default function AdminDashboard({ onNavigate }) {
       dayNum: d.getDate(),
     };
   });
+
+  const currentMonthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const weekStartStr = weekDays[0]?.dateStr || '';
+  const weekEndStr = weekDays[6]?.dateStr || '';
+
+  // Agendas activas por periodo (Semanal o Mensual)
+  const displayPeriodBookings = revenuePeriod === 'week'
+    ? activeBookings.filter((b) => b.check_in_date && b.check_in_date >= weekStartStr && b.check_in_date <= weekEndStr)
+    : activeBookings.filter((b) => b.check_in_date && b.check_in_date.startsWith(currentMonthPrefix));
+
+  // Recaudado según periodo seleccionado (si es semanal, calcula la semana actual; si es mensual, calcula el mes)
+  const displayRecaudado = (revenuePeriod === 'week' ? displayPeriodBookings : activeBookings).reduce((acc, b) => {
+    if (b.status === 'PAGA') {
+      return acc + Number(b.total_amount_cop || 0);
+    }
+    return acc + Number(b.deposit_amount_cop || 0);
+  }, 0);
+
+  const displaySaldoFaltante = (revenuePeriod === 'week' ? displayPeriodBookings : activeBookings).filter((b) => b.status !== 'PAGA' && b.status !== 'CANCELADA').reduce((acc, b) => {
+    return acc + Number(b.remaining_balance_cop || (Number(b.total_amount_cop) - Number(b.deposit_amount_cop || 0)));
+  }, 0);
 
   const monthNamesList = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -458,15 +531,62 @@ export default function AdminDashboard({ onNavigate }) {
       {/* 2. METRICS CARDS WITH CONSISTENT CARTOON TYPOGRAPHY */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
-        {/* Recaudado Total (Restringido para Staff) */}
-        <div className="p-5 rounded-2xl glass-dark border border-gold-500/40 shadow-gold-glow space-y-1.5">
-          <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-            Total Recaudado en Caja
-          </span>
+        {/* Recaudado Total (Restringido para Staff, con Filtro Semanal / Mensual para Admin) */}
+        <div className="p-5 rounded-2xl glass-dark border border-gold-500/40 shadow-gold-glow space-y-1.5 relative">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+              Recaudado ({revenuePeriod === 'month' ? 'Mensual' : 'Semanal'})
+            </span>
+            {userRole === 'admin' && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setRevenueDropdownOpen(!revenueDropdownOpen)}
+                  className="px-2.5 py-1 rounded-xl bg-gold-500/20 hover:bg-gold-500/30 border border-gold-400/50 text-gold-300 text-[10px] font-display uppercase tracking-wider font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+                  title="Filtrar recaudos por periodo"
+                >
+                  <span>{revenuePeriod === 'month' ? '📅 Mensual' : '📆 Semanal'}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-gold-400 transition-transform duration-200 ${revenueDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {revenueDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-36 rounded-2xl bg-jade-950/95 border border-gold-400/50 shadow-2xl p-1.5 z-40 space-y-1 backdrop-blur-md">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRevenuePeriod('month');
+                        setRevenueDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs font-display uppercase tracking-wider flex items-center justify-between cursor-pointer transition-colors ${
+                        revenuePeriod === 'month' ? 'bg-gold-500 text-jade-950 font-black shadow-gold-glow' : 'text-linen-300 hover:bg-white/10'
+                      }`}
+                    >
+                      <span>📅 Mensual</span>
+                      {revenuePeriod === 'month' && <Check className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRevenuePeriod('week');
+                        setRevenueDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs font-display uppercase tracking-wider flex items-center justify-between cursor-pointer transition-colors ${
+                        revenuePeriod === 'week' ? 'bg-gold-500 text-jade-950 font-black shadow-gold-glow' : 'text-linen-300 hover:bg-white/10'
+                      }`}
+                    >
+                      <span>📆 Semanal</span>
+                      {revenuePeriod === 'week' && <Check className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-baseline justify-between">
             {userRole === 'admin' ? (
               <span className="font-mono text-2xl sm:text-3xl font-black text-gold-gradient">
-                {formatCOP(totalRecaudado)}
+                {formatCOP(displayRecaudado)}
               </span>
             ) : (
               <div className="flex items-center gap-1.5 py-1">
@@ -480,7 +600,9 @@ export default function AdminDashboard({ onNavigate }) {
           </div>
           <span className="text-[10px] font-fredoka text-linen-400 block">
             {userRole === 'admin' 
-              ? `${pagasBookings.length} Pagas (100%) + ${agendadasBookings.length} Anticipos (50%)`
+              ? revenuePeriod === 'month'
+                ? `Mes de ${monthName} (${displayPeriodBookings.length} agendas activas)`
+                : `Semana en curso (${displayPeriodBookings.length} agendas activas)`
               : 'Información financiera confidencial'
             }
           </span>
@@ -493,7 +615,7 @@ export default function AdminDashboard({ onNavigate }) {
           </span>
           <div className="flex items-baseline justify-between">
             <span className="font-mono text-2xl sm:text-3xl font-black text-linen-100">
-              {formatCOP(totalSaldoFaltante)}
+              {formatCOP(userRole === 'admin' ? displaySaldoFaltante : totalSaldoFaltante)}
             </span>
             <Clock className="w-6 h-6 text-gold-400/80" />
           </div>
@@ -780,27 +902,41 @@ export default function AdminDashboard({ onNavigate }) {
                                   {faltante > 0 ? formatCOP(faltante) : <span className="text-emerald-400 font-cartoon">¡Al Día!</span>}
                                 </td>
 
-                                {/* Selector Interactivo de Estado */}
+                                {/* Selector Interactivo de Estado y Botón de Eliminar Cancelada */}
                                 <td className="py-3 px-3">
-                                  <select
-                                    value={isPaga ? 'PAGA' : isCancelada ? 'CANCELADA' : 'AGENDADA'}
-                                    onChange={(e) => handleStatusChange(b.booking_reference, e.target.value)}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-display uppercase tracking-wider font-black border cursor-pointer focus:outline-none ${
-                                      isPaga
-                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                        : isCancelada
-                                        ? 'bg-red-500/20 text-red-300 border-red-500/40'
-                                        : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                    }`}
-                                  >
-                                    <option value="AGENDADA" className="bg-jade-950 text-amber-300 font-display">🟡 Agendada (50%)</option>
-                                    <option value="PAGA" className="bg-jade-950 text-emerald-300 font-display">🟢 Paga (100%)</option>
-                                    {userRole === 'admin' ? (
-                                      <option value="CANCELADA" className="bg-jade-950 text-red-300 font-display">🔴 Cancelado</option>
-                                    ) : (
-                                      <option value="CANCELADA" disabled className="bg-jade-950 text-linen-500 font-display">🚫 Cancelado (Solo Admin)</option>
+                                  <div className="flex items-center gap-1.5">
+                                    <select
+                                      value={isPaga ? 'PAGA' : isCancelada ? 'CANCELADA' : 'AGENDADA'}
+                                      onChange={(e) => handleStatusChange(b.booking_reference, e.target.value)}
+                                      className={`px-3 py-1.5 rounded-xl text-xs font-display uppercase tracking-wider font-black border cursor-pointer focus:outline-none ${
+                                        isPaga
+                                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                          : isCancelada
+                                          ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                                          : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                      }`}
+                                    >
+                                      <option value="AGENDADA" className="bg-jade-950 text-amber-300 font-display">🟡 Agendada (50%)</option>
+                                      <option value="PAGA" className="bg-jade-950 text-emerald-300 font-display">🟢 Paga (100%)</option>
+                                      {userRole === 'admin' ? (
+                                        <option value="CANCELADA" className="bg-jade-950 text-red-300 font-display">🔴 Cancelado</option>
+                                      ) : (
+                                        <option value="CANCELADA" disabled className="bg-jade-950 text-linen-500 font-display">🚫 Cancelado (Solo Admin)</option>
+                                      )}
+                                    </select>
+
+                                    {/* Botón con X para eliminar cita cancelada (Exclusivo Admin) */}
+                                    {userRole === 'admin' && isCancelada && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteCanceledBooking(b.booking_reference, b.client_name)}
+                                        className="p-1.5 rounded-xl bg-red-950/90 hover:bg-red-600 border border-red-500/50 hover:border-red-400 text-red-300 hover:text-white transition-all shadow-md cursor-pointer group"
+                                        title="Eliminar esta cita cancelada definitivamente"
+                                      >
+                                        <X className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                                      </button>
                                     )}
-                                  </select>
+                                  </div>
                                 </td>
 
                                 {/* Acciones */}
@@ -1396,9 +1532,117 @@ export default function AdminDashboard({ onNavigate }) {
                 </tbody>
               </table>
             </div>
+
+            {/* Zona de Peligro / Purga Total (Exclusivo para Admin) */}
+            {userRole === 'admin' && (
+              <div className="mt-8 p-5 rounded-2xl bg-red-950/30 border border-red-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="space-y-1 text-center sm:text-left">
+                  <div className="flex items-center justify-center sm:justify-start gap-2 text-red-400 font-display text-sm font-black uppercase tracking-wider">
+                    <Trash2 className="w-4 h-4 text-red-400" />
+                    <span>Zona de Peligro: Reinicio & Purga del Sistema</span>
+                  </div>
+                  <p className="text-[11px] font-fredoka text-linen-300">
+                    Elimina todas las reservas, agendas, bloqueos de fechas y registros de movimientos de forma irreversible.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPurgePassword('');
+                    setPurgeError('');
+                    setPurgeModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-display text-xs uppercase tracking-wider font-black flex items-center gap-2 shadow-lg hover:shadow-red-500/40 transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Eliminar Todos los Datos</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      {/* ======================================================================= */}
+      {/* MODAL: PURGA TOTAL DEL SISTEMA (CONFIRMACIÓN CON CONTRASEÑA ADMIN) */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {purgeModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-md p-6 rounded-3xl bg-[#091f20] border-2 border-red-500/60 shadow-2xl space-y-4 text-linen-100"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-red-500/20">
+                <div className="flex items-center gap-2 text-red-400">
+                  <AlertCircle className="w-6 h-6 text-red-400 animate-pulse" />
+                  <h3 className="font-display text-lg font-black text-red-300 uppercase tracking-wide">
+                    Confirmar Purga Total
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setPurgeModalOpen(false)}
+                  className="text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 font-fredoka text-xs text-linen-300">
+                <p className="p-3 rounded-xl bg-red-950/60 border border-red-500/30 text-red-200 leading-relaxed">
+                  ⚠️ <strong className="text-red-300">¡Advertencia crítica!</strong> Esta acción borrará todas las reservas (agendadas, pagas y canceladas), los bloqueos de fechas y todos los registros del historial de movimientos. No se puede deshacer.
+                </p>
+
+                <div className="space-y-1.5 text-left">
+                  <label className="text-xs font-display text-gold-400 uppercase tracking-wider block">
+                    Introduce la Contraseña de Administrador
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={purgePassword}
+                      onChange={(e) => {
+                        setPurgePassword(e.target.value);
+                        setPurgeError('');
+                      }}
+                      placeholder="Contraseña del Panel Admin..."
+                      className="w-full bg-jade-950 border border-white/20 rounded-xl px-4 py-2.5 text-linen-100 text-sm font-mono focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400"
+                      autoFocus
+                    />
+                    <Lock className="w-4 h-4 text-linen-400 absolute right-3.5 top-3 pointer-events-none" />
+                  </div>
+                  {purgeError && (
+                    <span className="text-red-400 font-cartoon text-xs block">{purgeError}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setPurgeModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 text-xs font-display uppercase tracking-wider transition-colors cursor-pointer"
+                  disabled={isPurging}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecutePurge}
+                  disabled={isPurging || !purgePassword}
+                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-display text-xs uppercase tracking-wider font-black flex items-center gap-1.5 shadow-lg shadow-red-600/30 transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isPurging ? 'Borrando...' : 'Confirmar Eliminación Total'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ======================================================================= */}
       {/* MODAL: BLOQUEAR FECHAS MANUALMENTE */}
