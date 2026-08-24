@@ -151,13 +151,12 @@ export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
         {/* Top Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-jade-900 via-jade-800 to-jade-950 border-b border-gold-400/30 flex items-center justify-between shadow-md">
           <div className="flex items-center gap-3">
-            <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-jade-950 shadow-gold-glow overflow-hidden p-1">
+            <div className="relative w-11 h-11 flex items-center justify-center filter drop-shadow-md">
               <img 
                 src="/chatbot%20logo.png" 
                 alt="AndiBot" 
                 className="w-full h-full object-contain" 
               />
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-jade-950" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -205,7 +204,7 @@ export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
             >
               <div className="flex items-end gap-2 max-w-[88%]">
                 {m.sender === 'bot' && (
-                  <div className="w-7 h-7 rounded-xl bg-gold-500/15 border border-gold-400/40 flex items-center justify-center shrink-0 mb-1 p-1">
+                  <div className="w-7 h-7 flex items-center justify-center shrink-0 mb-1 filter drop-shadow-sm">
                     <img 
                       src="/chatbot%20logo.png" 
                       alt="AndiBot" 
@@ -259,7 +258,7 @@ export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
 
           {isTyping && (
             <div className="flex items-center gap-2 text-linen-400 text-xs">
-              <div className="w-7 h-7 rounded-xl bg-gold-500/15 border border-gold-400/40 flex items-center justify-center shrink-0 p-1">
+              <div className="w-7 h-7 flex items-center justify-center shrink-0 filter drop-shadow-sm">
                 <img 
                   src="/chatbot%20logo.png" 
                   alt="AndiBot" 
