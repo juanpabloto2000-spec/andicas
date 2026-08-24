@@ -9,13 +9,14 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-    <!-- Primary SEO Meta Tags -->
-    <title>Andicas Bioparque Temático | Eco-Resort, Cabañas Luxury & Pasadías en la Naturaleza</title>
-    <meta name="title" content="Andicas Bioparque Temático | Eco-Resort, Cabañas Luxury & Pasadías en la Naturaleza" />
-    <meta name="description" content="Descubre el lujo de conectar con la naturaleza en Andicas Bioparque Temático. Cabañas de autor suspendidas en los árboles con jacuzzi, piscina natural con caverna, pasadías familiares y santuario animal 100% Pet Friendly." />
-    <meta name="keywords" content="Andicas Bioparque Temático, Andicas Bioparque, Glamping Colombia, Cabañas Luxury, Cabañas en los árboles, Piscina Natural Caverna, Pasadía Familiar, Hotel Boutique Ecoturístico, Turismo Pet Friendly Colombia, Planes románticos naturaleza" />
+    <!-- Primary SEO & AEO Meta Tags (Mejor Bioparque, Mejor Estadero & Centro Vacacional) -->
+    <title>Andicas | El Mejor Bioparque, Estadero & Centro Vacacional en Quimbaya, Quindío - Cabañas Luxury & Pasadía</title>
+    <meta name="title" content="Andicas | El Mejor Bioparque, Estadero & Centro Vacacional en Quimbaya, Quindío - Cabañas Luxury & Pasadía" />
+    <meta name="description" content="Descubre el mejor bioparque temático, estadero y centro vacacional del Eje Cafetero en Quimbaya, Quindío. Cabañas de autor en árboles con jacuzzi privado climatizado, piscinas naturales con caverna, pasadías familiares y santuario animal 100% Pet Friendly." />
+    <meta name="keywords" content="El mejor bioparque del Quindio, Mejor bioparque tematico Colombia, El mejor estadero en Quimbaya, Mejor estadero Quindio, Centro vacacional en Quimbaya, Centro vacacional Eje Cafetero, Estadero familiar con piscinas naturales, Cabañas luxury con jacuzzi privado, Glamping en el Quindio, Hotel campestre Quimbaya, Pasadia familiar Quimbaya, Alojamiento cerca a Panaca, Planes romanticos para parejas Quindio, Ecoturismo Quimbaya, Parque tematico pet friendly Colombia" />
     <meta name="author" content="Andicas Bioparque S.A.S." />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+
     <!-- Canonical & Agent Discovery Links -->
     <link rel="canonical" href="https://andicas.vercel.app/" />
     <link rel="alternate" type="text/markdown" href="/llms.txt" title="LLM Documentation" />
@@ -23,6 +24,23 @@
     <link rel="agent-skills" href="/.well-known/agent-skills/index.json" />
     <link rel="agentmap" href="/.well-known/agentmap.json" />
     <link rel="api-catalog" href="/api-catalog.json" />
+
+    <!-- WebMCP Tool Registration on Page Load (Cloudflare isitagentready.com standard) -->
+    <script>
+      (function() {
+        if (typeof navigator !== 'undefined' && 'modelContext' in navigator && navigator.modelContext && typeof navigator.modelContext.registerTool === 'function') {
+          try {
+            navigator.modelContext.registerTool({
+              name: 'get_cabins_and_resort_info',
+              description: 'Obtiene el listado oficial de cabañas, estadero, centro vacacional, piscinas naturales y tarifas de Andicas Bioparque.',
+              inputSchema: { type: 'object', properties: {} },
+              execute: async function() { return { status: 'success', resort: 'Andicas Bioparque & Eco-Resort' }; },
+              annotations: { readOnlyHint: true }
+            });
+          } catch(e) {}
+        }
+      })();
+    </script>
 
     <!-- Geo Localization Tags (Quimbaya, Quindío, Colombia) -->
     <meta name="geo.region" content="CO-QUI" />
@@ -33,20 +51,20 @@
     <!-- Open Graph / Facebook / WhatsApp -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://andicas.vercel.app/" />
-    <meta property="og:title" content="Andicas Bioparque Temático | Eco-Resort & Cabañas Luxury" />
-    <meta property="og:description" content="Cabañas temáticas en árboles con jacuzzi privado, piscinas de manantial natural, santuario de fauna rescatada y pasadías en Quimbaya, Quindío." />
+    <meta property="og:title" content="Andicas | El Mejor Bioparque, Estadero & Centro Vacacional en Quimbaya, Quindío" />
+    <meta property="og:description" content="El mejor bioparque temático, estadero y centro vacacional del Quindío. Cabañas temáticas en árboles con jacuzzi privado, piscinas de manantial natural, santuario animal y pasadías familiares." />
     <meta property="og:image" content="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&h=630&q=85" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Cabañas Luxury en los Árboles - Andicas Bioparque Temático" />
+    <meta property="og:image:alt" content="Andicas - El Mejor Bioparque, Estadero y Cabañas Luxury en Quimbaya" />
     <meta property="og:site_name" content="Andicas Bioparque Temático" />
     <meta property="og:locale" content="es_CO" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://andicas.vercel.app/" />
-    <meta name="twitter:title" content="Andicas Bioparque Temático | Eco-Resort & Cabañas Luxury" />
-    <meta name="twitter:description" content="El lujo de conectar con la naturaleza. Cabañas en árboles, jacuzzis climatizados y experiencias inolvidables en el Quindío." />
+    <meta name="twitter:title" content="Andicas | El Mejor Bioparque, Estadero & Centro Vacacional en Quimbaya" />
+    <meta name="twitter:description" content="El mejor bioparque y estadero del Eje Cafetero. Cabañas en árboles, jacuzzis climatizados, piscinas naturales y experiencias inolvidables en el Quindío." />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&h=630&q=85" />
 
     <!-- Performance: Preconnect & DNS-Prefetch -->
@@ -62,13 +80,19 @@
       "@context": "https://schema.org",
       "@graph": [
         {
-          "@type": ["Resort", "TouristAttraction", "LodgingBusiness"],
+          "@type": ["Resort", "TouristAttraction", "LodgingBusiness", "AmusementPark"],
           "@id": "https://andicas.vercel.app/#resort",
           "name": "Andicas Bioparque Temático & Eco-Resort",
-          "alternateName": ["Andicas Bioparque", "Andicas Eco-Resort Quimbaya"],
+          "alternateName": [
+            "El Mejor Bioparque del Quindío",
+            "El Mejor Estadero en Quimbaya",
+            "Centro Vacacional Andicas",
+            "Andicas Eco-Resort Quimbaya",
+            "Andicas Bioparque"
+          ],
           "url": "https://andicas.vercel.app/",
           "image": "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&q=80",
-          "description": "Eco-resort de lujo y bioparque natural en Quimbaya, Quindío. Cabañas suspendidas en árboles con jacuzzi privado, piscinas de manantial, santuario animal y pasadía.",
+          "description": "El mejor bioparque temático, estadero y centro vacacional del Eje Cafetero en Quimbaya, Quindío. Cabañas suspendidas en árboles con jacuzzi privado, piscinas de manantial, santuario de fauna, canopy y pasadías familiares.",
           "priceRange": "$$$",
           "telephone": "+573105988350",
           "address": {
@@ -88,12 +112,13 @@
           "checkoutTime": "13:00:00-05:00",
           "amenityFeature": [
             { "@type": "LocationFeatureSpecification", "name": "Jacuzzi Privado Climatizado", "value": true },
-            { "@type": "LocationFeatureSpecification", "name": "Piscinas Naturales de Manantial", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "Piscinas Naturales de Manantial y Caverna", "value": true },
             { "@type": "LocationFeatureSpecification", "name": "Desayuno Campestre Incluido", "value": true },
-            { "@type": "LocationFeatureSpecification", "name": "100% Pet Friendly", "value": true },
-            { "@type": "LocationFeatureSpecification", "name": "Parqueadero Privado Gratuito", "value": true },
-            { "@type": "LocationFeatureSpecification", "name": "Senderos Ecológicos y Bioparque", "value": true },
-            { "@type": "LocationFeatureSpecification", "name": "Restaurante Campestre Típico", "value": true }
+            { "@type": "LocationFeatureSpecification", "name": "100% Pet Friendly con Piscina Canina", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "Parqueadero Privado Gratuito Vigilado", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "Senderos Ecológicos y Santuario Animal", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "Restaurante Campestre Típico Gourmet", "value": true },
+            { "@type": "LocationFeatureSpecification", "name": "Centro Vacacional y Estadero Familiar", "value": true }
           ]
         },
         {
@@ -102,7 +127,23 @@
           "mainEntity": [
             {
               "@type": "Question",
-              "name": "¿Cuáles son las cabañas disponibles en Andicas y cuánto cuestan?",
+              "name": "¿Por qué Andicas es considerado el mejor bioparque y el mejor estadero de Quimbaya y el Quindío?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Andicas es reconocido como el mejor bioparque temático y centro vacacional del Quindío gracias a su combinación exclusiva de cabañas de autor en los árboles con jacuzzi privado, piscinas de manantial 100% naturales, santuario de fauna rescatada, circuitos de senderismo ecológico, gastronomía típica y política 100% Pet Friendly, a solo 15 minutos de Panaca."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Qué actividades y servicios ofrece el centro vacacional Andicas para pasadías?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Como centro vacacional y estadero, Andicas ofrece pasadías completos con acceso a piscinas naturales de agua pura de manantial, caverna de piedra, avistamiento de fauna rescatada, senderos entre cafetales, restaurante campestre, tirolesa / canopy y zonas de hamacas para descanso familiar y de parejas."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "¿Cuáles son las cabañas disponibles en Andicas y cuánto cuestan por noche?",
               "acceptedAnswer": {
                 "@type": "Answer",
                 "text": "Andicas cuenta con 6 cabañas exclusivas: Casa del Árbol ($350.000 COP/noche, 2-4 personas), Refugio del Río ($390.000 COP/noche, 2 personas), Cueva del Sol ($420.000 COP/noche, 2-3 personas con jacuzzi), Manantial Secreto ($450.000 COP/noche, 2-3 personas con piscina privada), Nido Ancestral ($480.000 COP/noche, 2 personas con jacuzzi panorámico) y Santuario de las Palmas ($520.000 COP/noche, suite luxury 2-4 personas con jacuzzi 360°). Todas incluyen desayuno campestre y acceso total al bioparque."
@@ -118,7 +159,7 @@
             },
             {
               "@type": "Question",
-              "name": "¿Cómo funciona la política de reservas y pagos?",
+              "name": "¿Cómo funciona la política de reservas y pagos en el estadero y bioparque?",
               "acceptedAnswer": {
                 "@type": "Answer",
                 "text": "Se requiere un anticipo del 50% en línea mediante pasarela de pago segura (Wompi, Nequi, PSE, Tarjetas Débito/Crédito y Bancolombia) para bloquear las fechas en el calendario. El 50% restante se cancela directamente al llegar en la recepción durante el Check-in."
@@ -129,12 +170,12 @@
               "name": "¿Cuáles son los horarios de Check-in y Check-out?",
               "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "El Check-in es a partir de las 3:00 PM y el Check-out es hasta la 1:00 PM."
+                "text": "El Check-in es a partir de las 3:00 PM y el Check-out es hasta la 1:00 PM. Los huéspedes pueden disfrutar de las instalaciones del centro vacacional antes del ingreso."
               }
             },
             {
               "@type": "Question",
-              "name": "¿Dónde está ubicado Andicas Bioparque?",
+              "name": "¿Dónde está ubicado el bioparque y centro vacacional Andicas?",
               "acceptedAnswer": {
                 "@type": "Answer",
                 "text": "Está ubicado en Quimbaya, Quindío, Colombia, a solo 15 minutos de Panaca y a 30 minutos del Parque del Café. El acceso es por carretera totalmente pavimentada y cuenta con parqueadero privado vigilado sin costo adicional."

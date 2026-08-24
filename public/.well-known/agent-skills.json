@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "name": "andicas-agent-skills",
+  "description": "Registro de habilidades turísticas para agentes IA de Andicas Eco-Resort, el mejor bioparque y estadero del Quindío.",
+  "skills": [
+    {
+      "id": "andicas-lodging-concierge",
+      "name": "Andicas Lodging & Eco-Resort Concierge",
+      "description": "Asesoría turística, consulta de cabañas con jacuzzi, cotización de planes románticos y cálculo de presupuesto de estadía con 50% de anticipo.",
+      "url": "https://andicas.vercel.app/.well-known/agent-skills/resort-booking/SKILL.md",
+      "version": "1.0.0",
+      "tags": ["bioparque", "estadero", "centro-vacacional", "hotel-campestre", "glamping", "quindio", "quimbaya"]
+    }
+  ]
+}

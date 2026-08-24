@@ -1,0 +1,8 @@
+{
+  "issuer": "https://andicas.vercel.app",
+  "authorization_endpoint": "https://andicas.vercel.app/#/dsb",
+  "token_endpoint": "https://andicas.vercel.app/api/bookings/admin/login",
+  "response_types_supported": ["token", "id_token"],
+  "grant_types_supported": ["client_credentials", "authorization_code"],
+  "service_documentation": "https://andicas.vercel.app/auth.md"
+}

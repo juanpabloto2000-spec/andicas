@@ -1,0 +1,9 @@
+{
+  "issuer": "https://andicas.vercel.app",
+  "authorization_endpoint": "https://andicas.vercel.app/#/dsb",
+  "token_endpoint": "https://andicas.vercel.app/api/bookings/admin/login",
+  "response_types_supported": ["token", "id_token"],
+  "subject_types_supported": ["public"],
+  "id_token_signing_alg_values_supported": ["RS256"],
+  "service_documentation": "https://andicas.vercel.app/auth.md"
+}

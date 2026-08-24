@@ -1,0 +1,18 @@
+{
+  "name": "AndiBot",
+  "role": "Concierge & Hospitality Agent",
+  "organization": "Andicas Bioparque Temático & Eco-Resort",
+  "description": "El mejor bioparque temático, estadero y centro vacacional del Quindío. Cabañas de autor con jacuzzi, piscinas de manantial y pasadía.",
+  "endpoint": "https://andicas.vercel.app/",
+  "capabilities": [
+    "cabin_discovery",
+    "budget_calculation",
+    "activity_recommendation",
+    "booking_guidance"
+  ],
+  "contact": {
+    "web": "https://andicas.vercel.app/",
+    "whatsapp": "+573105988350",
+    "email": "reservas@andicasbioparque.com"
+  }
+}

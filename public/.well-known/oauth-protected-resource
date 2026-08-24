@@ -1,0 +1,9 @@
+{
+  "resource": "https://andicas.vercel.app",
+  "authorization_servers": [
+    "https://andicas.vercel.app"
+  ],
+  "scopes_supported": ["public", "read:cabins", "write:bookings"],
+  "bearer_methods_supported": ["header"],
+  "resource_documentation": "https://andicas.vercel.app/auth.md"
+}
