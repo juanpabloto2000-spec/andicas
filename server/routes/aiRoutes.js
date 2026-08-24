@@ -69,7 +69,7 @@ async function callGemini(apiKey, message, history = []) {
   ];
 
   // Modelos compatibles con Gemini API (v1beta)
-  const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'];
+  const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-1.0-pro'];
   
   for (const modelName of models) {
     try {
@@ -77,7 +77,10 @@ async function callGemini(apiKey, message, history = []) {
         `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey
+          },
           body: JSON.stringify({ contents }),
         }
       );
@@ -86,6 +89,9 @@ async function callGemini(apiKey, message, history = []) {
         const data = await response.json();
         const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (candidate) return candidate.trim();
+      } else {
+        const errBody = await response.text();
+        console.warn(`Gemini ${modelName} status ${response.status}:`, errBody);
       }
     } catch (e) {
       console.warn(`Error intentando modelo Gemini ${modelName}:`, e.message);
