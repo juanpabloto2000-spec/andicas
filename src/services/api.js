@@ -215,3 +215,27 @@ export async function purgeAllDataAdmin(password, adminKey) {
   });
   return res.json();
 }
+
+/**
+ * Envía un mensaje al Asistente IA (Gemini / OpenAI / Groq / Local)
+ */
+export async function sendAiChatMessage(message, conversationHistory = []) {
+  try {
+    const res = await fetch(`${API_BASE}/api/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message, conversationHistory }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`AI request error: ${res.statusText}`);
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.warn('⚠️ Fallo en llamada backend AI, usando fallback local:', err);
+    return { success: true, reply: null, provider: 'local' };
+  }
+}

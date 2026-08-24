@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import wompiRoutes from './routes/wompiRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ app.use((req, res, next) => {
 // Rutas API
 app.use('/api/wompi', wompiRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

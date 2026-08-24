@@ -5,13 +5,14 @@ import {
   CheckCircle2, Compass, HelpCircle, ArrowRight, Heart
 } from 'lucide-react';
 import { cabinsData } from '../data/cabins';
+import { sendAiChatMessage } from '../services/api';
 
 export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
       sender: 'bot',
-      text: '¡Hola! 🌿 Soy **AndiBot**, el asistente inteligente de **Andicas Bioparque & Eco-Resort** en Quimbaya, Quindío.\n\n¿En qué puedo ayudarte hoy? Puedo informarte sobre nuestras cabañas, precios, jacuzzis privados, paquetes románticos o cómo reservar con el 50% de anticipo.',
+      text: '¡Hola! 🌿 Soy **AndiBot**, la asistente virtual de **Andicas Bioparque & Eco-Resort** en Quimbaya, Quindío.\n\n¿En qué puedo ayudarte hoy? Pregúntame sobre cabañas, tarifas, jacuzzis privados, paquetes románticos o cómo reservar con el 50% de anticipo.',
       quickActions: ['cabanas', 'jacuzzis', 'adicionales', 'pagos', 'ubicacion']
     }
   ]);
@@ -105,20 +106,47 @@ export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
     };
   };
 
-  const handleSendMessage = (textToSend) => {
+  const handleSendMessage = async (textToSend) => {
     const query = textToSend || inputValue;
     if (!query.trim()) return;
 
     const userMessageId = `user-${Date.now()}`;
-    const newMessages = [
+    const updatedMessages = [
       ...messages,
       { id: userMessageId, sender: 'user', text: query }
     ];
 
-    setMessages(newMessages);
+    setMessages(updatedMessages);
     setInputValue('');
     setIsTyping(true);
 
+    try {
+      // 1. Intentar llamar al modelo de IA del backend (Gemini / OpenAI / Groq)
+      const aiResponse = await sendAiChatMessage(query, updatedMessages);
+
+      if (aiResponse && aiResponse.success && aiResponse.reply) {
+        const lowerReply = aiResponse.reply.toLowerCase();
+        const hasBookingIntent = lowerReply.includes('reserva') || lowerReply.includes('agendar') || lowerReply.includes('cabaña') || lowerReply.includes('anticipo') || lowerReply.includes('disponib');
+        const hasWhatsAppIntent = lowerReply.includes('whatsapp') || lowerReply.includes('asesor') || lowerReply.includes('contacto') || lowerReply.includes('ubicaci');
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `bot-${Date.now()}`,
+            sender: 'bot',
+            text: aiResponse.reply,
+            showBookingButton: hasBookingIntent,
+            showWhatsAppButton: hasWhatsAppIntent
+          }
+        ]);
+        setIsTyping(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Fallback a respuesta local:', err);
+    }
+
+    // 2. Fallback semántico instantáneo
     setTimeout(() => {
       const botReply = generateBotResponse(query);
       setMessages((prev) => [
@@ -132,7 +160,7 @@ export default function AiAssistantModal({ isOpen, onClose, onOpenBooking }) {
         }
       ]);
       setIsTyping(false);
-    }, 700);
+    }, 600);
   };
 
   if (!isOpen) return null;
