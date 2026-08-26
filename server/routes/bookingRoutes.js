@@ -6,9 +6,33 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET_KEY || 'PanelPassword1966@';
 const STAFF_SECRET = process.env.STAFF_SECRET_KEY || 'StaffAndicas2026!';
 const UNPAID_SECRET = process.env.UNPAID_SECRET_KEY || 'NoPagoAndicas2026!';
 
+// Helper para obtener la contraseña de admin efectiva (desde Supabase o env)
+async function getEffectiveAdminSecret() {
+  if (mockStore.admin_password) {
+    return mockStore.admin_password;
+  }
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('cabins')
+        .select('*')
+        .eq('id', 'admin_auth')
+        .maybeSingle();
+      if (data?.description) {
+        mockStore.admin_password = data.description.trim();
+        return mockStore.admin_password;
+      }
+    } catch (err) {
+      console.warn('Fallo consultando admin_auth en Supabase:', err.message);
+    }
+  }
+  return ADMIN_SECRET;
+}
+
 // Middleware para verificar clave de admin, staff o estado de cuenta suspendida
-function requireAdminOrStaffAuth(req, res, next) {
+async function requireAdminOrStaffAuth(req, res, next) {
   const authHeader = req.headers['x-admin-key'] || req.headers['authorization'];
+  const effectiveAdminKey = await getEffectiveAdminSecret();
 
   // Si el sistema está configurado globalmente como 'unpaid'
   if (mockStore.subscription_status === 'unpaid') {
@@ -16,7 +40,12 @@ function requireAdminOrStaffAuth(req, res, next) {
     return next();
   }
 
-  if (authHeader === ADMIN_SECRET || authHeader === `Bearer ${ADMIN_SECRET}`) {
+  if (
+    authHeader === effectiveAdminKey || 
+    authHeader === `Bearer ${effectiveAdminKey}` ||
+    authHeader === ADMIN_SECRET || 
+    authHeader === `Bearer ${ADMIN_SECRET}`
+  ) {
     req.userRole = 'admin';
     return next();
   }
@@ -107,9 +136,10 @@ router.get('/availability/:cabinId', async (req, res) => {
  * 2. POST /api/admin/login
  * Valida usuario y clave de acceso para rol Administrador, Estándar (Staff) o Usuario Oculto (Suspendido)
  */
-router.post('/admin/login', (req, res) => {
+router.post('/admin/login', async (req, res) => {
   const { username = '', password = '' } = req.body;
   const cleanUser = String(username).trim().toLowerCase();
+  const effectiveAdminKey = await getEffectiveAdminSecret();
 
   // Si el sistema está configurado globalmente como 'unpaid'
   if (mockStore.subscription_status === 'unpaid') {
@@ -135,11 +165,11 @@ router.post('/admin/login', (req, res) => {
     });
   }
 
-  // 2. Administrador General
-  if (isAdminUser && password === ADMIN_SECRET) {
+  // 2. Administrador General (Verifica clave efectiva de Supabase o env)
+  if (isAdminUser && (password === effectiveAdminKey || password === ADMIN_SECRET)) {
     return res.status(200).json({ 
       success: true, 
-      token: ADMIN_SECRET, 
+      token: password, 
       role: 'admin',
       roleLabel: 'Administrador General (Acceso Total)'
     });
@@ -162,11 +192,14 @@ router.post('/admin/login', (req, res) => {
  * 2.1. GET /api/bookings/admin/subscription-status
  * Consulta el estado de suscripción/pago actual del sistema
  */
-router.get('/admin/subscription-status', (req, res) => {
+router.get('/admin/subscription-status', async (req, res) => {
   const status = mockStore.subscription_status || 'active';
+  const effectiveAdminKey = await getEffectiveAdminSecret();
   return res.status(200).json({
     success: true,
     status,
+    adminPassword: effectiveAdminKey,
+    modules: mockStore.modules || { bookings: true, wompi_payments: true },
     message: status === 'unpaid' ? 'No se registró pago.' : 'Servicio activo.'
   });
 });
@@ -175,24 +208,111 @@ router.get('/admin/subscription-status', (req, res) => {
  * 2.2. POST /api/bookings/admin/set-subscription-status
  * Permite desde otro dashboard en Vercel activar o apagar remotamente la función cambiando el estado a 'unpaid' o 'active'
  */
-router.post('/admin/set-subscription-status', (req, res) => {
-  const { status, key } = req.body;
+router.post('/admin/set-subscription-status', async (req, res) => {
+  const { status, modules, key } = req.body;
   const authHeader = req.headers['x-admin-key'] || req.headers['authorization'];
+  const effectiveAdminKey = await getEffectiveAdminSecret();
 
-  if (key !== ADMIN_SECRET && authHeader !== ADMIN_SECRET && authHeader !== `Bearer ${ADMIN_SECRET}`) {
+  if (key !== ADMIN_SECRET && key !== effectiveAdminKey && authHeader !== ADMIN_SECRET && authHeader !== `Bearer ${ADMIN_SECRET}` && authHeader !== effectiveAdminKey && authHeader !== `Bearer ${effectiveAdminKey}`) {
     return res.status(403).json({ error: 'No autorizado para modificar el estado de suscripción.' });
   }
 
   const newStatus = (status === 'unpaid' || status === 'inactive' || status === 'locked') ? 'unpaid' : 'active';
   mockStore.subscription_status = newStatus;
 
+  if (modules && typeof modules === 'object') {
+    mockStore.modules = {
+      ...(mockStore.modules || { bookings: true, wompi_payments: true }),
+      ...modules
+    };
+  }
+
+  if (supabase) {
+    try {
+      await supabase.from('cabins').upsert({
+        id: 'system_settings',
+        name: 'System Settings',
+        type: newStatus,
+        price_per_night: 0,
+        description: JSON.stringify(mockStore.modules || { bookings: true, wompi_payments: true })
+      });
+    } catch (sbErr) {
+      console.warn('Fallo persistiendo system_settings en Supabase:', sbErr.message);
+    }
+  }
+
   return res.status(200).json({
     success: true,
     status: newStatus,
+    modules: mockStore.modules || { bookings: true, wompi_payments: true },
     message: newStatus === 'unpaid' 
       ? 'Sistema bloqueado: Pantalla configurada en "No se registró pago."' 
       : 'Sistema reactivado con éxito con acceso normal.'
   });
+});
+
+/**
+ * 2.3. POST /api/bookings/admin/update-admin-password
+ * Permite cambiar la contraseña del panel de administración (desde el dashboard o remotamente desde Dynamind)
+ */
+router.post('/admin/update-admin-password', async (req, res) => {
+  try {
+    const { newPassword, currentKey } = req.body;
+    const authHeader = req.headers['x-admin-key'] || req.headers['authorization'];
+    const effectiveAdminKey = await getEffectiveAdminSecret();
+
+    if (!newPassword || String(newPassword).trim().length < 4) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 4 caracteres.' });
+    }
+
+    const cleanPass = String(newPassword).trim();
+    const authorized = 
+      currentKey === effectiveAdminKey || 
+      currentKey === ADMIN_SECRET || 
+      authHeader === effectiveAdminKey || 
+      authHeader === `Bearer ${effectiveAdminKey}` ||
+      authHeader === ADMIN_SECRET || 
+      authHeader === `Bearer ${ADMIN_SECRET}`;
+
+    if (!authorized) {
+      return res.status(403).json({ error: 'No autorizado para cambiar la contraseña administrativa.' });
+    }
+
+    // Actualizar en memoria
+    mockStore.admin_password = cleanPass;
+
+    // Actualizar en Supabase Cloud
+    if (supabase) {
+      try {
+        await supabase.from('cabins').upsert({
+          id: 'admin_auth',
+          name: 'Admin Auth Credentials',
+          type: 'active',
+          price_per_night: 0,
+          description: cleanPass
+        });
+      } catch (sbErr) {
+        console.warn('Fallo guardando admin_auth en Supabase:', sbErr.message);
+      }
+    }
+
+    await recordAuditLog({
+      booking_reference: 'CONFIG_AUTH',
+      client_name: 'Administración',
+      cabin_name: 'Panel Admin',
+      previous_status: 'PASSWORD_ACTIVA',
+      new_status: 'PASSWORD_ACTUALIZADA',
+      changed_by: 'Owner / Admin',
+      notes: 'Contraseña del panel administrativo actualizada.',
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Contraseña de administrador actualizada con éxito en la nube.',
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error al actualizar contraseña' });
+  }
 });
 
 /**

@@ -14,7 +14,9 @@ import {
   cancelBookingAdmin,
   getAdminAuditLogs,
   deleteBookingPermanentlyAdmin,
-  purgeAllDataAdmin
+  purgeAllDataAdmin,
+  updateAdminPasswordAdmin,
+  getSubscriptionStatus
 } from '../services/api';
 import { cabinsData } from '../data/cabins';
 
@@ -32,6 +34,18 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Password Change Modal State
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
+  const [showPasswordText, setShowPasswordText] = useState(false);
+  const [passwordChangeError, setPasswordChangeError] = useState('');
+  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Inmutable Session Closed Modal State
+  const [showSessionClosedModal, setShowSessionClosedModal] = useState(false);
 
   // Data states
   const [bookings, setBookings] = useState([]);
@@ -112,6 +126,63 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     }
   }, [isAuthenticated, adminKey]);
 
+  // Sondeo en tiempo real (< 2s) para sincronización de contraseña y killswitch
+  useEffect(() => {
+    if (!isAuthenticated || userRole !== 'admin') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const sub = await getSubscriptionStatus();
+        if (sub.status === 'unpaid') {
+          setUserRole('unpaid');
+        } else if (sub.adminPassword && adminKey && sub.adminPassword !== adminKey) {
+          // La contraseña de admin fue cambiada remotamente desde el panel Owner
+          setShowSessionClosedModal(true);
+        }
+      } catch (e) {}
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, adminKey, userRole]);
+
+  const handleSaveNewPassword = async (e) => {
+    e.preventDefault();
+    setPasswordChangeError('');
+    setPasswordChangeSuccess('');
+
+    if (!newAdminPassword || newAdminPassword.trim().length < 4) {
+      setPasswordChangeError('La contraseña debe tener al menos 4 caracteres.');
+      return;
+    }
+    if (newAdminPassword !== confirmAdminPassword) {
+      setPasswordChangeError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const cleanPass = newAdminPassword.trim();
+      const res = await updateAdminPasswordAdmin(cleanPass, adminKey);
+      if (res.success) {
+        localStorage.setItem('andicas_admin_token', cleanPass);
+        setAdminKey(cleanPass);
+        setPasswordChangeSuccess('¡Contraseña actualizada con éxito en la nube!');
+        setTimeout(() => {
+          setPasswordModalOpen(false);
+          setPasswordChangeSuccess('');
+          setNewAdminPassword('');
+          setConfirmAdminPassword('');
+        }, 1400);
+      } else {
+        setPasswordChangeError(res.error || 'No se pudo actualizar la contraseña.');
+      }
+    } catch (err) {
+      setPasswordChangeError('Error de conexión al actualizar contraseña.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -143,6 +214,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     setIsAuthenticated(false);
     setAdminKey('');
     setUserRole('admin');
+    setShowSessionClosedModal(false);
   };
 
   // Change booking status handler
@@ -560,38 +632,59 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={() => onNavigate('home')}
-            className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-linen-200 text-xs font-cartoon uppercase flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <Home className="w-3.5 h-3.5" />
-            <span>Ir a la Web</span>
-          </button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => onNavigate('home')}
+              className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-linen-200 text-xs font-cartoon uppercase flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>Ir a la Web</span>
+            </button>
 
-          <button
-            onClick={() => setBlockModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-hoja-600 hover:bg-hoja-500 text-white font-cartoon text-xs uppercase flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Bloquear Fechas</span>
-          </button>
+            <button
+              onClick={() => setBlockModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-hoja-600 hover:bg-hoja-500 text-white font-cartoon text-xs uppercase flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Bloquear Fechas</span>
+            </button>
 
-          <button
-            onClick={() => fetchDashboardData()}
-            className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-linen-200 transition-colors cursor-pointer"
-            title="Refrescar datos"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
+            <button
+              onClick={() => fetchDashboardData()}
+              className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-linen-200 transition-colors cursor-pointer"
+              title="Refrescar datos"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
 
-          <button
-            onClick={handleLogout}
-            className="px-3.5 py-2.5 rounded-xl bg-red-900/60 hover:bg-red-800 border border-red-500/40 text-red-200 text-xs font-cartoon uppercase flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Salir</span>
-          </button>
+            <button
+              onClick={handleLogout}
+              className="px-3.5 py-2.5 rounded-xl bg-red-900/60 hover:bg-red-800 border border-red-500/40 text-red-200 text-xs font-cartoon uppercase flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Salir</span>
+            </button>
+          </div>
+
+          {/* Botón justo debajo de los botones principales para Cambiar Contraseña del Panel Admin */}
+          {userRole === 'admin' && (
+            <button
+              type="button"
+              onClick={() => {
+                setPasswordModalOpen(true);
+                setPasswordChangeError('');
+                setPasswordChangeSuccess('');
+                setNewAdminPassword('');
+                setConfirmAdminPassword('');
+              }}
+              className="px-3 py-1.5 rounded-xl bg-gold-500/15 hover:bg-gold-500/25 border border-gold-400/40 text-gold-300 text-[11px] font-display uppercase tracking-wider font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer hover:border-gold-400"
+              title="Cambiar contraseña de acceso del panel"
+            >
+              <Lock className="w-3.5 h-3.5 text-gold-400" />
+              <span>Cambiar Contraseña Admin</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1800,6 +1893,156 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: CAMBIAR CONTRASEÑA ADMIN */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {passwordModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="w-full max-w-md p-6 sm:p-7 rounded-3xl glass-dark border border-gold-500/50 shadow-2xl space-y-5"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2 text-gold-400">
+                  <Lock className="w-5 h-5" />
+                  <h3 className="font-display font-black text-lg text-linen-100 uppercase tracking-wide">
+                    Cambiar Contraseña Admin
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPasswordModalOpen(false)}
+                  className="p-1 rounded-lg text-linen-400 hover:text-linen-100 hover:bg-white/10 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs font-fredoka text-linen-300">
+                Define la nueva clave de acceso para el rol de <strong>Administrador General</strong>. Esta clave se sincronizará automáticamente en la nube (Supabase Cloud) y con el panel Owner.
+              </p>
+
+              <form onSubmit={handleSaveNewPassword} className="space-y-4 font-fredoka">
+                <div className="space-y-1.5 text-left">
+                  <label className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+                    Nueva Contraseña
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPasswordText ? "text" : "password"}
+                      value={newAdminPassword}
+                      onChange={(e) => setNewAdminPassword(e.target.value)}
+                      placeholder="Mínimo 4 caracteres"
+                      className="w-full bg-jade-950 border border-white/15 rounded-xl px-3.5 py-2.5 text-sm text-linen-100 placeholder-linen-500 focus:border-gold-400 focus:outline-none pr-14"
+                      required
+                      minLength={4}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordText(!showPasswordText)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-linen-400 hover:text-gold-300 cursor-pointer font-bold select-none"
+                    >
+                      {showPasswordText ? "Ocultar" : "Ver"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 text-left">
+                  <label className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+                    Confirmar Nueva Contraseña
+                  </label>
+                  <input
+                    type={showPasswordText ? "text" : "password"}
+                    value={confirmAdminPassword}
+                    onChange={(e) => setConfirmAdminPassword(e.target.value)}
+                    placeholder="Repite la nueva contraseña"
+                    className="w-full bg-jade-950 border border-white/15 rounded-xl px-3.5 py-2.5 text-sm text-linen-100 placeholder-linen-500 focus:border-gold-400 focus:outline-none"
+                    required
+                    minLength={4}
+                  />
+                </div>
+
+                {passwordChangeError && (
+                  <div className="p-3 rounded-xl bg-red-900/40 border border-red-500/50 text-red-300 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{passwordChangeError}</span>
+                  </div>
+                )}
+
+                {passwordChangeSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-900/40 border border-emerald-500/50 text-emerald-300 text-xs flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    <span>{passwordChangeSuccess}</span>
+                  </div>
+                )}
+
+                <div className="pt-2 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPasswordModalOpen(false)}
+                    disabled={isChangingPassword}
+                    className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-linen-300 font-cartoon uppercase text-xs cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="px-5 py-2.5 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold uppercase text-xs shadow-gold-glow cursor-pointer btn-shimmer disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{isChangingPassword ? 'Guardando...' : 'Guardar Contraseña'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL INMUTABLE: SESIÓN CERRADA POR CAMBIO REMOTO DE CONTRASEÑA */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {showSessionClosedModal && (
+          <div className="fixed inset-0 z-[999999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 select-none">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="w-full max-w-md bg-[#130d10] border-2 border-red-500 rounded-3xl p-7 text-white text-center space-y-6 shadow-[0_0_80px_rgba(239,68,68,0.4)]"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-red-500/20 border border-red-500/50 flex items-center justify-center mx-auto text-red-400">
+                <Lock className="w-8 h-8 animate-bounce" />
+              </div>
+
+              <div className="space-y-2">
+                <span className="px-3 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] uppercase font-black tracking-widest inline-block">
+                  Aviso de Seguridad
+                </span>
+                <h2 className="text-2xl font-black text-white uppercase tracking-wide">
+                  Sesión Cerrada
+                </h2>
+                <p className="text-xs text-gray-300 leading-relaxed max-w-xs mx-auto">
+                  La contraseña de administración ha sido modificada por el propietario. Tu sesión activa ha finalizado por motivos de seguridad.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-red-600/30"
+              >
+                Salir del Dashboard
+              </button>
             </motion.div>
           </div>
         )}

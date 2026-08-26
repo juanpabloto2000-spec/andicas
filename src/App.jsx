@@ -246,6 +246,7 @@ export default function App() {
         onEdit={() => setBookingModalOpen(true)}
         summaryData={summaryData}
         onShowToast={showToastNotification}
+        activeModules={activeModules}
       />
 
       <ParkRulesModal

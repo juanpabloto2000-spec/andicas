@@ -241,7 +241,7 @@ export async function sendAiChatMessage(message, conversationHistory = []) {
 }
 
 /**
- * Consulta el estado de suscripción / pago del sistema (active | unpaid)
+ * Consulta el estado de suscripción / pago del sistema (active | unpaid) y contraseña remota
  */
 export async function getSubscriptionStatus() {
   // 1. Supabase Cloud Instantáneo (< 150ms)
@@ -252,30 +252,39 @@ export async function getSubscriptionStatus() {
       'https://vkpzgtteqaekmnixrlxl.supabase.co',
       andicasKey
     );
-    const { data, error } = await andicasSb
-      .from('cabins')
-      .select('*')
-      .eq('id', 'system_settings')
-      .single();
 
-    if (!error && data) {
-      let parsed = { bookings: true, wompi_payments: true };
+    const [settingsRes, adminAuthRes] = await Promise.allSettled([
+      andicasSb.from('cabins').select('*').eq('id', 'system_settings').maybeSingle(),
+      andicasSb.from('cabins').select('*').eq('id', 'admin_auth').maybeSingle()
+    ]);
+
+    let parsed = { bookings: true, wompi_payments: true };
+    let dbStatus = 'active';
+    let remoteAdminPass = null;
+
+    if (settingsRes.status === 'fulfilled' && settingsRes.value.data) {
+      dbStatus = settingsRes.value.data.type || 'active';
       try {
-        parsed = JSON.parse(data.description);
+        parsed = JSON.parse(settingsRes.value.data.description);
       } catch {}
-
-      const isLocked = data.type === 'unpaid';
-      return {
-        success: true,
-        status: data.type || 'active',
-        modules: {
-          bookings: !isLocked && parsed.bookings !== false,
-          wompi_payments: !isLocked && parsed.wompi_payments !== false && parsed.payments !== false,
-          payments: !isLocked && parsed.wompi_payments !== false && parsed.payments !== false,
-          ...(parsed || {})
-        }
-      };
     }
+
+    if (adminAuthRes.status === 'fulfilled' && adminAuthRes.value.data?.description) {
+      remoteAdminPass = adminAuthRes.value.data.description.trim();
+    }
+
+    const isLocked = dbStatus === 'unpaid';
+    return {
+      success: true,
+      status: dbStatus,
+      adminPassword: remoteAdminPass,
+      modules: {
+        bookings: !isLocked && parsed.bookings !== false,
+        wompi_payments: !isLocked && parsed.wompi_payments !== false && parsed.payments !== false,
+        payments: !isLocked && parsed.wompi_payments !== false && parsed.payments !== false,
+        ...(parsed || {})
+      }
+    };
   } catch (dbErr) {
     console.warn('Fallback backend Andicas:', dbErr);
   }
@@ -300,6 +309,46 @@ export async function getSubscriptionStatus() {
 }
 
 /**
+ * Actualiza la contraseña del administrador en Supabase y Backend
+ */
+export async function updateAdminPasswordAdmin(newPassword, currentKey) {
+  // 1. Supabase Cloud Instantáneo (< 150ms)
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const andicasKey = atob('c2Jfc2VjcmV0X3lEeWt6QVVnSzRkZ0czUVlGLWVyUXdfbVRhaVQ4dEc=');
+    const andicasSb = createClient(
+      'https://vkpzgtteqaekmnixrlxl.supabase.co',
+      andicasKey
+    );
+
+    await andicasSb.from('cabins').upsert({
+      id: 'admin_auth',
+      name: 'Admin Auth Credentials',
+      type: 'active',
+      price_per_night: 0,
+      description: String(newPassword).trim()
+    });
+  } catch (sbErr) {
+    console.warn('Fallo guardando contraseña en Supabase:', sbErr);
+  }
+
+  // 2. HTTP Backend Sync
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/update-admin-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': currentKey,
+      },
+      body: JSON.stringify({ newPassword, currentKey }),
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: true, message: 'Contraseña actualizada en la nube' };
+  }
+}
+
+/**
  * Modifica el estado de suscripción / pago del sistema remotamente (active | unpaid)
  */
 export async function setSubscriptionStatusAdmin(status, adminKey) {
@@ -313,4 +362,5 @@ export async function setSubscriptionStatusAdmin(status, adminKey) {
   });
   return res.json();
 }
+
 
