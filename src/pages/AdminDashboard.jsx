@@ -466,6 +466,59 @@ export default function AdminDashboard({ onNavigate }) {
     );
   }
 
+  // ACCESO SUSPENDIDO: NO SE REGISTRÓ PAGO (USUARIO OCULTO / APAGADO REMOTO)
+  if (userRole === 'unpaid') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#150404] via-[#200707] to-[#0d0202] text-linen-100 flex items-center justify-center p-4 sm:p-6 select-none">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="w-full max-w-lg p-8 sm:p-10 rounded-3xl bg-black/80 border-2 border-red-500/70 shadow-[0_0_50px_rgba(239,68,68,0.35)] text-center space-y-6 backdrop-blur-xl"
+        >
+          {/* Ícono de Alerta / Bloqueo */}
+          <div className="w-20 h-20 rounded-full bg-red-950/90 border-2 border-red-500 flex items-center justify-center mx-auto text-red-400 shadow-[0_0_30px_rgba(239,68,68,0.6)]">
+            <Ban className="w-10 h-10 animate-pulse" />
+          </div>
+
+          {/* Mensaje Principal */}
+          <div className="space-y-3">
+            <span className="px-3.5 py-1 rounded-full bg-red-500/20 border border-red-500/50 text-red-300 text-xs font-display uppercase tracking-widest font-black inline-block">
+              Acceso Suspendido
+            </span>
+            <h1 className="font-display text-3xl sm:text-4xl font-black text-red-400 uppercase tracking-wide">
+              No se registró pago.
+            </h1>
+            <p className="font-fredoka text-sm text-linen-300 max-w-md mx-auto leading-relaxed">
+              El acceso a las funciones de este panel administrativo se encuentra deshabilitado. No cuenta con permisos para visualizar agendas, calendarios, movimientos ni realizar modificaciones.
+            </p>
+          </div>
+
+          {/* Cuadro de Información */}
+          <div className="p-4 rounded-2xl bg-red-950/40 border border-red-500/30 text-left space-y-1.5">
+            <div className="flex items-center gap-2 text-xs font-cartoon text-red-300 uppercase tracking-wider">
+              <Lock className="w-4 h-4 text-red-400 shrink-0" />
+              <span>Estado del Sistema</span>
+            </div>
+            <p className="text-xs font-fredoka text-linen-400 leading-normal">
+              Para restaurar el acceso al panel y activar los módulos de control, por favor regularice el pago del servicio con el administrador de la plataforma.
+            </p>
+          </div>
+
+          {/* ÚNICA ACCIÓN PERMITIDA: Cerrar Sesión */}
+          <div className="pt-2">
+            <button
+              onClick={handleLogout}
+              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white font-display text-sm uppercase tracking-wider font-black flex items-center justify-center gap-2 shadow-lg shadow-red-950 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Cerrar Sesión</span>
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   // AUTHENTICATED DASHBOARD (FULL SCREEN, NO NAVBAR)
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#062627] via-[#072E2F] to-[#041B1C] text-linen-100 p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1440px] mx-auto">

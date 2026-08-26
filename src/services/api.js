@@ -239,3 +239,31 @@ export async function sendAiChatMessage(message, conversationHistory = []) {
     return { success: true, reply: null, provider: 'local' };
   }
 }
+
+/**
+ * Consulta el estado de suscripción / pago del sistema (active | unpaid)
+ */
+export async function getSubscriptionStatus() {
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/subscription-status`);
+    return await res.json();
+  } catch (err) {
+    return { success: false, status: 'active' };
+  }
+}
+
+/**
+ * Modifica el estado de suscripción / pago del sistema remotamente (active | unpaid)
+ */
+export async function setSubscriptionStatusAdmin(status, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/set-subscription-status`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ status, key: adminKey }),
+  });
+  return res.json();
+}
+

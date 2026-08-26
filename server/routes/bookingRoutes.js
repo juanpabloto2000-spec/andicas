@@ -4,10 +4,18 @@ import { supabase, mockStore } from '../config/supabase.js';
 const router = express.Router();
 const ADMIN_SECRET = process.env.ADMIN_SECRET_KEY || 'PanelPassword1966@';
 const STAFF_SECRET = process.env.STAFF_SECRET_KEY || 'StaffAndicas2026!';
+const UNPAID_SECRET = process.env.UNPAID_SECRET_KEY || 'NoPagoAndicas2026!';
 
-// Middleware para verificar clave de admin o staff
+// Middleware para verificar clave de admin, staff o estado de cuenta suspendida
 function requireAdminOrStaffAuth(req, res, next) {
   const authHeader = req.headers['x-admin-key'] || req.headers['authorization'];
+
+  // Si el sistema está configurado globalmente como 'unpaid'
+  if (mockStore.subscription_status === 'unpaid') {
+    req.userRole = 'unpaid';
+    return next();
+  }
+
   if (authHeader === ADMIN_SECRET || authHeader === `Bearer ${ADMIN_SECRET}`) {
     req.userRole = 'admin';
     return next();
@@ -16,11 +24,18 @@ function requireAdminOrStaffAuth(req, res, next) {
     req.userRole = 'staff';
     return next();
   }
+  if (authHeader === UNPAID_SECRET || authHeader === `Bearer ${UNPAID_SECRET}` || authHeader === 'UNPAID_TOKEN_LOCKOUT') {
+    req.userRole = 'unpaid';
+    return next();
+  }
   return res.status(401).json({ error: 'Acceso no autorizado al panel administrativo.' });
 }
 
 // Middleware para restringir acciones exclusivas de administrador
 function requireAdminOnly(req, res, next) {
+  if (req.userRole === 'unpaid') {
+    return res.status(403).json({ error: 'Acceso restringido: No se registró pago del servicio.' });
+  }
   if (req.userRole !== 'admin') {
     return res.status(403).json({ error: 'Acceso restringido: Esta acción requiere permisos de Administrador.' });
   }
@@ -90,15 +105,37 @@ router.get('/availability/:cabinId', async (req, res) => {
 
 /**
  * 2. POST /api/admin/login
- * Valida usuario y clave de acceso para rol Administrador (Total) o Estándar (Staff)
+ * Valida usuario y clave de acceso para rol Administrador, Estándar (Staff) o Usuario Oculto (Suspendido)
  */
 router.post('/admin/login', (req, res) => {
   const { username = '', password = '' } = req.body;
   const cleanUser = String(username).trim().toLowerCase();
 
+  // Si el sistema está configurado globalmente como 'unpaid'
+  if (mockStore.subscription_status === 'unpaid') {
+    return res.status(200).json({
+      success: true,
+      token: 'UNPAID_TOKEN_LOCKOUT',
+      role: 'unpaid',
+      roleLabel: 'No se registró pago'
+    });
+  }
+
   const isAdminUser = !cleanUser || cleanUser === 'admin' || cleanUser === 'administrador';
   const isStaffUser = !cleanUser || cleanUser === 'recepcion' || cleanUser === 'staff' || cleanUser === 'estandar' || cleanUser === 'recepcionista';
+  const isUnpaidUser = cleanUser === 'unpaid' || cleanUser === 'bloqueado' || cleanUser === 'nopago' || cleanUser === 'suspendido';
 
+  // 1. Usuario Oculto / Clave de Suspensión por Falta de Pago
+  if ((isUnpaidUser || !cleanUser || isAdminUser || isStaffUser) && password === UNPAID_SECRET) {
+    return res.status(200).json({
+      success: true,
+      token: UNPAID_SECRET,
+      role: 'unpaid',
+      roleLabel: 'No se registró pago'
+    });
+  }
+
+  // 2. Administrador General
   if (isAdminUser && password === ADMIN_SECRET) {
     return res.status(200).json({ 
       success: true, 
@@ -107,6 +144,8 @@ router.post('/admin/login', (req, res) => {
       roleLabel: 'Administrador General (Acceso Total)'
     });
   }
+
+  // 3. Recepción / Staff
   if (isStaffUser && password === STAFF_SECRET) {
     return res.status(200).json({ 
       success: true, 
@@ -115,7 +154,45 @@ router.post('/admin/login', (req, res) => {
       roleLabel: 'Usuario Estándar / Recepción'
     });
   }
+
   return res.status(401).json({ error: 'Usuario o contraseña de acceso incorrectos.' });
+});
+
+/**
+ * 2.1. GET /api/bookings/admin/subscription-status
+ * Consulta el estado de suscripción/pago actual del sistema
+ */
+router.get('/admin/subscription-status', (req, res) => {
+  const status = mockStore.subscription_status || 'active';
+  return res.status(200).json({
+    success: true,
+    status,
+    message: status === 'unpaid' ? 'No se registró pago.' : 'Servicio activo.'
+  });
+});
+
+/**
+ * 2.2. POST /api/bookings/admin/set-subscription-status
+ * Permite desde otro dashboard en Vercel activar o apagar remotamente la función cambiando el estado a 'unpaid' o 'active'
+ */
+router.post('/admin/set-subscription-status', (req, res) => {
+  const { status, key } = req.body;
+  const authHeader = req.headers['x-admin-key'] || req.headers['authorization'];
+
+  if (key !== ADMIN_SECRET && authHeader !== ADMIN_SECRET && authHeader !== `Bearer ${ADMIN_SECRET}`) {
+    return res.status(403).json({ error: 'No autorizado para modificar el estado de suscripción.' });
+  }
+
+  const newStatus = (status === 'unpaid' || status === 'inactive' || status === 'locked') ? 'unpaid' : 'active';
+  mockStore.subscription_status = newStatus;
+
+  return res.status(200).json({
+    success: true,
+    status: newStatus,
+    message: newStatus === 'unpaid' 
+      ? 'Sistema bloqueado: Pantalla configurada en "No se registró pago."' 
+      : 'Sistema reactivado con éxito con acceso normal.'
+  });
 });
 
 /**
