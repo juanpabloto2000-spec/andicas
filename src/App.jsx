@@ -14,9 +14,12 @@ import BookingSummaryModal from './components/BookingSummaryModal';
 import ParkRulesModal from './components/ParkRulesModal';
 import Preloader from './components/Preloader';
 import Toast from './components/Toast';
+import PublicLockoutScreen from './components/PublicLockoutScreen';
+import { getSubscriptionStatus } from './services/api';
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isSiteLocked, setIsSiteLocked] = useState(false);
   const [currentPage, setCurrentPage] = useState(() => {
     const hash = window.location.hash.replace('#/', '').replace('#', '');
     if (hash === 'cabanas' || hash === 'animales' || hash === 'admin') return hash;
@@ -36,6 +39,17 @@ export default function App() {
     window.location.hash = page === 'home' ? '' : `#/${page}`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Verificar estado de suscripción / pago del sitio al cargar
+  useEffect(() => {
+    getSubscriptionStatus().then((res) => {
+      if (res && res.status === 'unpaid') {
+        setIsSiteLocked(true);
+      } else {
+        setIsSiteLocked(false);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -74,6 +88,11 @@ export default function App() {
           <Preloader key="app-preloader" onComplete={() => setIsLoading(false)} />
         )}
       </AnimatePresence>
+
+      {/* PANTALLA DE BLOQUEO POR FALTA DE PAGO (PÚBLICA) */}
+      {isSiteLocked && !isAdminView && (
+        <PublicLockoutScreen onGoToAdmin={() => navigateTo('dsb')} />
+      )}
 
       {/* 
         FIXED WATERMARK BACKGROUND LAYER 
