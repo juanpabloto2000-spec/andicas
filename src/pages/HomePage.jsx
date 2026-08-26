@@ -111,7 +111,8 @@ export default function HomePage({
   onOpenBooking, 
   onOpenSummary, 
   onNavigate, 
-  onShowToast 
+  onShowToast,
+  activeModules
 }) {
   const [activeRuleCategory, setActiveRuleCategory] = useState(RULES_CATEGORIES[0]);
 
@@ -128,7 +129,7 @@ export default function HomePage({
   return (
     <div className="space-y-0 relative z-10">
       {/* 1. Hero Section */}
-      <Hero onOpenBooking={onOpenBooking} />
+      <Hero onOpenBooking={onOpenBooking} activeModules={activeModules} />
 
       {/* 2. La Experiencia Quimbayas (With CardStack Component) */}
       <ExperienceStory />
@@ -283,7 +284,7 @@ export default function HomePage({
       </section>
 
       {/* 4. Arma Tu Plan (With Mini-Navbar Tabs & Side-by-Side Cards & Summary) */}
-      <PassPricing onOpenSummary={onOpenSummary} />
+      <PassPricing onOpenSummary={onOpenSummary} activeModules={activeModules} />
 
       {/* 5. Santuario Animal Preview Section (With ImageAutoSlider) */}
       <section className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 relative overflow-hidden">

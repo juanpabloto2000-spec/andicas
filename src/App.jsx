@@ -15,7 +15,7 @@ import ParkRulesModal from './components/ParkRulesModal';
 import Preloader from './components/Preloader';
 import Toast from './components/Toast';
 import PublicLockoutScreen from './components/PublicLockoutScreen';
-import { getSubscriptionStatus } from './services/api';
+import { getSubscriptionStatus, subscribeToSystemChanges } from './services/api';
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -41,28 +41,22 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Verificar estado de suscripción / pago del sitio y módulos en tiempo real (<150ms)
+  // Suscripción reactiva instantánea a cambios en Supabase Realtime (<100ms) sin necesidad de refrescar
   useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const res = await getSubscriptionStatus();
-        if (res) {
-          setIsSiteLocked(res.status === 'unpaid');
-          if (res.modules && typeof res.modules === 'object') {
-            setActiveModules({
-              bookings: res.modules.bookings !== false,
-              wompi_payments: res.modules.wompi_payments !== false && res.modules.payments !== false
-            });
-          }
+    const unsubscribe = subscribeToSystemChanges((res) => {
+      if (res) {
+        setIsSiteLocked(res.status === 'unpaid');
+        if (res.modules && typeof res.modules === 'object') {
+          setActiveModules({
+            bookings: res.modules.bookings !== false,
+            wompi_payments: res.modules.wompi_payments !== false && res.modules.payments !== false,
+            ...(res.modules || {})
+          });
         }
-      } catch (err) {
-        console.warn('Error verificando estado Andicas:', err);
       }
-    };
+    });
 
-    checkStatus();
-    const interval = setInterval(checkStatus, 2000);
-    return () => clearInterval(interval);
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -129,6 +123,7 @@ export default function App() {
           currentPage={currentPage}
           onNavigate={navigateTo}
           onOpenBooking={handleOpenBooking}
+          activeModules={activeModules}
         />
       )}
 

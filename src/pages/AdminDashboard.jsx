@@ -16,7 +16,8 @@ import {
   deleteBookingPermanentlyAdmin,
   purgeAllDataAdmin,
   updateAdminPasswordAdmin,
-  getSubscriptionStatus
+  getSubscriptionStatus,
+  subscribeToSystemChanges
 } from '../services/api';
 import { cabinsData } from '../data/cabins';
 
@@ -126,23 +127,22 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     }
   }, [isAuthenticated, adminKey]);
 
-  // Sondeo en tiempo real (< 2s) para sincronización de contraseña y killswitch
+  // Suscripción reactiva instantánea a cambios en tiempo real (<100ms) sin recargar la página
   useEffect(() => {
     if (!isAuthenticated || userRole !== 'admin') return;
 
-    const interval = setInterval(async () => {
-      try {
-        const sub = await getSubscriptionStatus();
+    const unsubscribe = subscribeToSystemChanges((sub) => {
+      if (sub) {
         if (sub.status === 'unpaid') {
           setUserRole('unpaid');
         } else if (sub.adminPassword && adminKey && sub.adminPassword !== adminKey) {
           // La contraseña de admin fue cambiada remotamente desde el panel Owner
           setShowSessionClosedModal(true);
         }
-      } catch (e) {}
-    }, 2000);
+      }
+    });
 
-    return () => clearInterval(interval);
+    return () => unsubscribe();
   }, [isAuthenticated, adminKey, userRole]);
 
   const handleSaveNewPassword = async (e) => {

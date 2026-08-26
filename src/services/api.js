@@ -1,9 +1,25 @@
+import { createClient } from '@supabase/supabase-js';
+
 // ==============================================================================
 // CLIENT API SERVICE: ANDICAS BIOPARQUE & WOMPI ENGINE
 // ==============================================================================
 
 const rawApiUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) || 'http://localhost:3001';
 const API_BASE = rawApiUrl.replace(/\/+$/, '');
+
+// ==============================================================================
+// SUPABASE CLIENT SINGLETON CON TIEMPO REAL (WEBSOCKETS)
+// ==============================================================================
+const SUPABASE_URL = 'https://vkpzgtteqaekmnixrlxl.supabase.co';
+const SUPABASE_KEY = atob('c2Jfc2VjcmV0X3lEeWt6QVVnSzRkZ0czUVlGLWVyUXdfbVRhaVQ4dEc=');
+
+export const andicasSb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+});
 
 /**
  * Consulta las fechas ocupadas/bloqueadas de una cabaña
@@ -246,27 +262,23 @@ export async function sendAiChatMessage(message, conversationHistory = []) {
 export async function getSubscriptionStatus() {
   // 1. Supabase Cloud Instantáneo (< 150ms)
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    const andicasKey = atob('c2Jfc2VjcmV0X3lEeWt6QVVnSzRkZ0czUVlGLWVyUXdfbVRhaVQ4dEc=');
-    const andicasSb = createClient(
-      'https://vkpzgtteqaekmnixrlxl.supabase.co',
-      andicasKey
-    );
-
     const [settingsRes, adminAuthRes] = await Promise.allSettled([
       andicasSb.from('cabins').select('*').eq('id', 'system_settings').maybeSingle(),
       andicasSb.from('cabins').select('*').eq('id', 'admin_auth').maybeSingle()
     ]);
 
-    let parsed = { bookings: true, wompi_payments: true };
+    let parsed = {};
     let dbStatus = 'active';
     let remoteAdminPass = null;
 
     if (settingsRes.status === 'fulfilled' && settingsRes.value.data) {
       dbStatus = settingsRes.value.data.type || 'active';
       try {
-        parsed = JSON.parse(settingsRes.value.data.description);
-      } catch {}
+        const rawDesc = settingsRes.value.data.description;
+        parsed = typeof rawDesc === 'string' ? JSON.parse(rawDesc) : (rawDesc || {});
+      } catch (err) {
+        console.warn('Error parseando system_settings:', err);
+      }
     }
 
     if (adminAuthRes.status === 'fulfilled' && adminAuthRes.value.data?.description) {
@@ -274,14 +286,29 @@ export async function getSubscriptionStatus() {
     }
 
     const isLocked = dbStatus === 'unpaid';
+
+    // Evaluar todas las claves técnicas posibles que puede emitir el panel Dynamind
+    const isBookingsActive = !isLocked && 
+      parsed.bookings !== false && 
+      parsed.reservations !== false && 
+      parsed.booking !== false &&
+      parsed.agendamiento !== false;
+
+    const isWompiActive = !isLocked && 
+      parsed.wompi_payments !== false && 
+      parsed.wompi !== false && 
+      parsed.payments !== false && 
+      parsed.checkout !== false;
+
     return {
       success: true,
       status: dbStatus,
       adminPassword: remoteAdminPass,
       modules: {
-        bookings: !isLocked && parsed.bookings !== false,
-        wompi_payments: !isLocked && parsed.wompi_payments !== false && parsed.payments !== false,
-        payments: !isLocked && parsed.wompi_payments !== false && parsed.payments !== false,
+        bookings: isBookingsActive,
+        wompi_payments: isWompiActive,
+        payments: isWompiActive,
+        reservations: isBookingsActive,
         ...(parsed || {})
       }
     };
@@ -292,14 +319,29 @@ export async function getSubscriptionStatus() {
   // 2. Fallback a Backend API
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
     const res = await fetch(`${API_BASE}/api/bookings/admin/subscription-status`, {
       signal: controller.signal,
       cache: 'no-store'
     });
     clearTimeout(timeoutId);
     if (res.ok) {
-      return await res.json();
+      const bData = await res.json();
+      const isLocked = bData.status === 'unpaid';
+      const bModules = bData.modules || {};
+      const isBookingsActive = !isLocked && bModules.bookings !== false && bModules.reservations !== false;
+      const isWompiActive = !isLocked && bModules.wompi_payments !== false && bModules.payments !== false;
+      return {
+        success: true,
+        status: bData.status || 'active',
+        adminPassword: bData.adminPassword || null,
+        modules: {
+          bookings: isBookingsActive,
+          wompi_payments: isWompiActive,
+          payments: isWompiActive,
+          reservations: isBookingsActive,
+        }
+      };
     }
   } catch (err) {
     // Fallback
@@ -309,18 +351,51 @@ export async function getSubscriptionStatus() {
 }
 
 /**
+ * Suscripción reactiva en tiempo real (< 100ms) mediante WebSockets + Sondeo de respaldo (1.5s)
+ * Permite que los cambios desde el Panel Owner se reflejen instantáneamente sin recargar la página.
+ */
+export function subscribeToSystemChanges(callback) {
+  let isSubscribed = true;
+
+  // 1. Ejecutar de inmediato
+  getSubscriptionStatus().then((state) => {
+    if (isSubscribed && callback) callback(state);
+  });
+
+  // 2. Canal Supabase Realtime (WebSockets instantáneo)
+  const channel = andicasSb
+    .channel('realtime-system-changes')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'cabins' },
+      () => {
+        getSubscriptionStatus().then((state) => {
+          if (isSubscribed && callback) callback(state);
+        });
+      }
+    )
+    .subscribe();
+
+  // 3. Sondeo ultrarrápido (1.5s) como respaldo infalible
+  const intervalId = setInterval(() => {
+    getSubscriptionStatus().then((state) => {
+      if (isSubscribed && callback) callback(state);
+    });
+  }, 1500);
+
+  return () => {
+    isSubscribed = false;
+    clearInterval(intervalId);
+    andicasSb.removeChannel(channel);
+  };
+}
+
+/**
  * Actualiza la contraseña del administrador en Supabase y Backend
  */
 export async function updateAdminPasswordAdmin(newPassword, currentKey) {
   // 1. Supabase Cloud Instantáneo (< 150ms)
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    const andicasKey = atob('c2Jfc2VjcmV0X3lEeWt6QVVnSzRkZ0czUVlGLWVyUXdfbVRhaVQ4dEc=');
-    const andicasSb = createClient(
-      'https://vkpzgtteqaekmnixrlxl.supabase.co',
-      andicasKey
-    );
-
     await andicasSb.from('cabins').upsert({
       id: 'admin_auth',
       name: 'Admin Auth Credentials',
@@ -362,5 +437,6 @@ export async function setSubscriptionStatusAdmin(status, adminKey) {
   });
   return res.json();
 }
+
 
 

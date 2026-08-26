@@ -7,7 +7,7 @@ import {
 import { contactData } from '../data/banking';
 import InteractiveTiltCard from './ui/InteractiveTiltCard';
 
-export default function PassPricing({ onOpenSummary }) {
+export default function PassPricing({ onOpenSummary, activeModules }) {
   const [activeTab, setActiveTab] = useState('pasadia');
 
   // Quantities state
