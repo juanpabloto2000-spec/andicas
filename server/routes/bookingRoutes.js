@@ -619,4 +619,122 @@ router.post('/admin/purge-all-data', requireAdminOrStaffAuth, requireAdminOnly, 
   }
 });
 
+/**
+ * 10. GET /api/bookings/admin/subscription-status
+ * Consulta el estado de la suscripción (active | unpaid) y módulos en vivo
+ */
+router.get('/admin/subscription-status', async (req, res) => {
+  try {
+    let status = mockStore.subscription_status || 'active';
+    let modules = mockStore.modules || { bookings: true, wompi_payments: true };
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('cabins')
+        .select('*')
+        .eq('id', 'system_settings')
+        .single();
+
+      if (!error && data) {
+        status = data.type || 'active';
+        try {
+          modules = JSON.parse(data.description);
+        } catch {}
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      status,
+      modules
+    });
+  } catch (err) {
+    return res.status(200).json({
+      success: true,
+      status: 'active',
+      modules: { bookings: true, wompi_payments: true }
+    });
+  }
+});
+
+/**
+ * 11. POST /api/bookings/admin/set-subscription-status
+ * Modifica el estado de suspensión / habilitación global (Killswitch)
+ */
+router.post('/admin/set-subscription-status', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+  try {
+    const { status, action } = req.body;
+    const targetStatus = status || (action === 'disable' ? 'unpaid' : 'active');
+
+    mockStore.subscription_status = targetStatus;
+
+    if (supabase) {
+      const currentDesc = JSON.stringify(mockStore.modules || { bookings: true, wompi_payments: true });
+      await supabase.from('cabins').upsert({
+        id: 'system_settings',
+        name: 'System Settings',
+        type: targetStatus,
+        price_per_night: 0,
+        description: currentDesc
+      });
+    }
+
+    await recordAuditLog({
+      booking_reference: 'SISTEMA_SUBSCRIPCIÓN',
+      client_name: 'Panel Maestro Dynamind',
+      cabin_name: 'Andicas Eco-Resort',
+      previous_status: 'CAMBIO_ESTADO',
+      new_status: targetStatus.toUpperCase(),
+      changed_by: 'Owner',
+      notes: `Estado de suscripción actualizado a: ${targetStatus}`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      status: targetStatus,
+      message: `Estado de suscripción actualizado a ${targetStatus}`
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando suscripción.' });
+  }
+});
+
+/**
+ * 12. POST /api/bookings/admin/set-module-status
+ * Modifica el estado modular (Agendamiento de Citas & Verificación Wompi)
+ */
+router.post('/admin/set-module-status', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+  try {
+    const { module, enabled, modules } = req.body;
+
+    if (!mockStore.modules) {
+      mockStore.modules = { bookings: true, wompi_payments: true };
+    }
+
+    if (modules && typeof modules === 'object') {
+      mockStore.modules = { ...mockStore.modules, ...modules };
+    } else if (module) {
+      mockStore.modules[module] = enabled !== false;
+    }
+
+    if (supabase) {
+      await supabase.from('cabins').upsert({
+        id: 'system_settings',
+        name: 'System Settings',
+        type: mockStore.subscription_status || 'active',
+        price_per_night: 0,
+        description: JSON.stringify(mockStore.modules)
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      modules: mockStore.modules,
+      message: 'Módulos actualizados con éxito.'
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando módulos.' });
+  }
+});
+
 export default router;

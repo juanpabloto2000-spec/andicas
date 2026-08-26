@@ -18,7 +18,7 @@ import {
 } from '../services/api';
 import { cabinsData } from '../data/cabins';
 
-export default function AdminDashboard({ onNavigate }) {
+export default function AdminDashboard({ onNavigate, activeModules }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!localStorage.getItem('andicas_admin_token');
   });
@@ -540,6 +540,20 @@ export default function AdminDashboard({ onNavigate }) {
                 RECEPCION
               </span>
             </div>
+          )}
+
+          {/* Estado modular en vivo */}
+          {activeModules?.bookings === false && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-500/20 border border-red-500/40 text-red-400 text-[11px] font-mono font-bold">
+              <Lock className="w-3.5 h-3.5" />
+              <span>Agendamiento Bloqueado</span>
+            </span>
+          )}
+          {activeModules?.wompi_payments === false && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-500/20 border border-red-500/40 text-red-400 text-[11px] font-mono font-bold">
+              <Lock className="w-3.5 h-3.5" />
+              <span>Wompi Bloqueado</span>
+            </span>
           )}
           <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-black text-linen-100 uppercase tracking-wide block">
             Panel de Agendas & Recaudo

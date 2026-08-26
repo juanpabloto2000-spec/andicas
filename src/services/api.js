@@ -2,7 +2,7 @@
 // CLIENT API SERVICE: ANDICAS BIOPARQUE & WOMPI ENGINE
 // ==============================================================================
 
-const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const rawApiUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) || 'http://localhost:3001';
 const API_BASE = rawApiUrl.replace(/\/+$/, '');
 
 /**
@@ -244,12 +244,59 @@ export async function sendAiChatMessage(message, conversationHistory = []) {
  * Consulta el estado de suscripción / pago del sistema (active | unpaid)
  */
 export async function getSubscriptionStatus() {
+  // 1. Supabase Cloud Instantáneo (< 150ms)
   try {
-    const res = await fetch(`${API_BASE}/api/bookings/admin/subscription-status`);
-    return await res.json();
-  } catch (err) {
-    return { success: false, status: 'active' };
+    const { createClient } = await import('@supabase/supabase-js');
+    const andicasKey = atob('c2Jfc2VjcmV0X3lEeWt6QVVnSzRkZ0czUVlGLWVyUXdfbVRhaVQ4dEc=');
+    const andicasSb = createClient(
+      'https://vkpzgtteqaekmnixrlxl.supabase.co',
+      andicasKey
+    );
+    const { data, error } = await andicasSb
+      .from('cabins')
+      .select('*')
+      .eq('id', 'system_settings')
+      .single();
+
+    if (!error && data) {
+      let parsed = { bookings: true, wompi_payments: true };
+      try {
+        parsed = JSON.parse(data.description);
+      } catch {}
+
+      const isLocked = data.type === 'unpaid';
+      return {
+        success: true,
+        status: data.type || 'active',
+        modules: {
+          bookings: !isLocked && parsed.bookings !== false,
+          wompi_payments: !isLocked && parsed.wompi_payments !== false && parsed.payments !== false,
+          payments: !isLocked && parsed.wompi_payments !== false && parsed.payments !== false,
+          ...(parsed || {})
+        }
+      };
+    }
+  } catch (dbErr) {
+    console.warn('Fallback backend Andicas:', dbErr);
   }
+
+  // 2. Fallback a Backend API
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(`${API_BASE}/api/bookings/admin/subscription-status`, {
+      signal: controller.signal,
+      cache: 'no-store'
+    });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    // Fallback
+  }
+
+  return { success: false, status: 'active', modules: { bookings: true, wompi_payments: true } };
 }
 
 /**

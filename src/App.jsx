@@ -20,6 +20,7 @@ import { getSubscriptionStatus } from './services/api';
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSiteLocked, setIsSiteLocked] = useState(false);
+  const [activeModules, setActiveModules] = useState({ bookings: true, wompi_payments: true });
   const [currentPage, setCurrentPage] = useState(() => {
     const hash = window.location.hash.replace('#/', '').replace('#', '');
     if (hash === 'cabanas' || hash === 'animales' || hash === 'admin') return hash;
@@ -40,15 +41,28 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Verificar estado de suscripción / pago del sitio al cargar
+  // Verificar estado de suscripción / pago del sitio y módulos en tiempo real (<150ms)
   useEffect(() => {
-    getSubscriptionStatus().then((res) => {
-      if (res && res.status === 'unpaid') {
-        setIsSiteLocked(true);
-      } else {
-        setIsSiteLocked(false);
+    const checkStatus = async () => {
+      try {
+        const res = await getSubscriptionStatus();
+        if (res) {
+          setIsSiteLocked(res.status === 'unpaid');
+          if (res.modules && typeof res.modules === 'object') {
+            setActiveModules({
+              bookings: res.modules.bookings !== false,
+              wompi_payments: res.modules.wompi_payments !== false && res.modules.payments !== false
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Error verificando estado Andicas:', err);
       }
-    }).catch(() => {});
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -134,6 +148,7 @@ export default function App() {
                 onOpenSummary={handleOpenSummary}
                 onNavigate={navigateTo}
                 onShowToast={showToastNotification}
+                activeModules={activeModules}
               />
             </motion.div>
           )}
@@ -149,6 +164,7 @@ export default function App() {
               <CabanasPage
                 onNavigate={navigateTo}
                 onShowToast={showToastNotification}
+                activeModules={activeModules}
               />
             </motion.div>
           )}
@@ -163,6 +179,7 @@ export default function App() {
             >
               <AnimalesPage
                 onNavigate={navigateTo}
+                activeModules={activeModules}
               />
             </motion.div>
           )}
@@ -177,6 +194,7 @@ export default function App() {
             >
               <AdminDashboard
                 onNavigate={navigateTo}
+                activeModules={activeModules}
               />
             </motion.div>
           )}
@@ -219,6 +237,7 @@ export default function App() {
         onClose={() => setBookingModalOpen(false)}
         onOpenSummary={handleOpenSummary}
         initialType={bookingType}
+        activeModules={activeModules}
       />
 
       <BookingSummaryModal

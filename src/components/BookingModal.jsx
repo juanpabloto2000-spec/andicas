@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Sparkles, Home, Sun, Moon, Calendar, Users, 
   Check, ArrowRight, ShieldCheck, PawPrint, MessageSquare,
-  CheckCircle2, Info, ChevronRight
+  CheckCircle2, Info, ChevronRight, Lock
 } from 'lucide-react';
 import CustomCalendar from './CustomCalendar';
 import { cabinsData } from '../data/cabins';
@@ -13,7 +13,8 @@ export default function BookingModal({
   isOpen, 
   onClose, 
   onOpenSummary,
-  initialType = 'cabana' 
+  initialType = 'cabana',
+  activeModules
 }) {
   const [selectedType, setSelectedType] = useState(initialType);
   const [selectedCabin, setSelectedCabin] = useState(cabinsData[0]);
@@ -160,13 +161,48 @@ export default function BookingModal({
           {/* Header */}
           <div className="mb-3.5 sm:mb-4 pr-8">
             <h2 className="font-display text-lg sm:text-2xl font-black text-linen-100 uppercase tracking-wide leading-tight">
-              CONFIGURA TU VISITA
+              {activeModules?.bookings === false ? 'SERVICIO TEMPORALMENTE EN PAUSA' : 'CONFIGURA TU VISITA'}
             </h2>
             <p className="text-[11px] sm:text-xs font-fredoka text-linen-300 mt-0.5">
-              Personaliza tu plan, selecciona fechas y obtén tu cotización instantánea.
+              {activeModules?.bookings === false 
+                ? 'El agendamiento en línea no está disponible en este momento.'
+                : 'Personaliza tu plan, selecciona fechas y obtén tu cotización instantánea.'}
             </p>
           </div>
 
+          {activeModules?.bookings === false ? (
+            <div className="py-8 px-4 text-center space-y-4 font-fredoka">
+              <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mx-auto text-red-400 shadow-lg">
+                <Lock className="w-8 h-8 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="font-display text-base sm:text-lg font-bold text-red-400 uppercase tracking-wide">
+                  Agendamiento de Citas Deshabilitado
+                </h3>
+                <p className="text-xs text-linen-300 max-w-md mx-auto mt-2 leading-relaxed font-light">
+                  El motor de agendamiento de citas y reservas en línea se encuentra temporalmente suspendido. Para consultar fechas disponibles y atención directa, comunícate con recepción.
+                </p>
+              </div>
+              <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+                <a
+                  href="https://wa.me/573104567890?text=Hola%20Andicas,%20deseo%20consultar%20disponibilidad%20de%20cabañas"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider transition-all inline-flex items-center justify-center gap-2"
+                >
+                  <span>Atención Vía WhatsApp</span>
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 font-bold text-xs uppercase tracking-wider transition-all"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          ) : (
           <form onSubmit={handleBookingSubmit} className="space-y-4 sm:space-y-5 font-fredoka">
             {/* 1. Experience Type Selector - 3 columns aligned horizontally */}
             <div>
@@ -541,6 +577,7 @@ export default function BookingModal({
               </button>
             </div>
           </form>
+          )}
         </motion.div>
       </div>
     </AnimatePresence>

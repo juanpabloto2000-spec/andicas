@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, ArrowRight, Check, Ban, Sparkles, CreditCard, ShieldCheck, 
-  CheckCircle2, Mail, Phone, User, ExternalLink, HelpCircle
+  CheckCircle2, Mail, Phone, User, ExternalLink, HelpCircle, Lock
 } from 'lucide-react';
 import { cabinsData, cabinAddons, generalCabinPolicy } from '../data/cabins';
 import CustomCalendar from '../components/CustomCalendar';
@@ -11,7 +11,7 @@ import BookingSuccessModal from '../components/BookingSuccessModal';
 import { contactData } from '../data/banking';
 import { getCabinAvailability, createWompiCheckout, openWompiWidget, simulatePayment } from '../services/api';
 
-export default function CabanasPage({ onNavigate, onShowToast }) {
+export default function CabanasPage({ onNavigate, onShowToast, activeModules }) {
   const [selectedCabin, setSelectedCabin] = useState(cabinsData[0]);
   const [blockedDates, setBlockedDates] = useState([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
@@ -566,34 +566,56 @@ export default function CabanasPage({ onNavigate, onShowToast }) {
                 </div>
               </div>
 
-              {/* WOMPI CHECKOUT BUTTON */}
-              <button
-                onClick={handlePayDepositWompi}
-                disabled={isProcessingWompi}
-                className="btn-shimmer w-full py-3.5 px-4 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-gold-400 disabled:opacity-50"
-              >
-                <CreditCard className="w-4 h-4" />
-                <span>
-                  {isProcessingWompi ? 'Conectando con Wompi...' : `Pagar Anticipo 50% (${formatCOP(deposit50)})`}
-                </span>
-              </button>
+              {/* WOMPI CHECKOUT BUTTON OR LOCKED NOTICE */}
+              {activeModules?.wompi_payments === false ? (
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-center space-y-2">
+                  <div className="flex items-center justify-center gap-1.5 text-red-400 font-bold text-xs font-cartoon uppercase">
+                    <Lock className="w-4 h-4" />
+                    <span>Pasarela Wompi en Pausa</span>
+                  </div>
+                  <p className="text-[11px] text-linen-300 font-fredoka leading-relaxed">
+                    La verificación de pagos Wompi está temporalmente en pausa. Puedes asegurar tu reserva transfiriendo directamente a la cuenta institucional.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSummaryModalOpen(true)}
+                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                  >
+                    <span>Ver Cuentas Bancarias / WhatsApp</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={handlePayDepositWompi}
+                    disabled={isProcessingWompi}
+                    className="btn-shimmer w-full py-3.5 px-4 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-gold-400 disabled:opacity-50"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>
+                      {isProcessingWompi ? 'Conectando con Wompi...' : `Pagar Anticipo 50% (${formatCOP(deposit50)})`}
+                    </span>
+                  </button>
 
-              {/* Payment Methods Supported Icons */}
-              <div className="flex items-center justify-center gap-2 pt-1 text-[10px] text-linen-400 font-fredoka">
-                <ShieldCheck className="w-3.5 h-3.5 text-hoja-400" />
-                <span>Acepta <strong>Nequi, PSE, Tarjetas y Bancolombia</strong></span>
-              </div>
+                  {/* Payment Methods Supported Icons */}
+                  <div className="flex items-center justify-center gap-2 pt-1 text-[10px] text-linen-400 font-fredoka">
+                    <ShieldCheck className="w-3.5 h-3.5 text-hoja-400" />
+                    <span>Acepta <strong>Nequi, PSE, Tarjetas y Bancolombia</strong></span>
+                  </div>
 
-              {/* Developer Test Simulation Button */}
-              <div className="pt-2 border-t border-white/5 text-center">
-                <button
-                  type="button"
-                  onClick={handleSimulatePaymentDev}
-                  className="text-[10px] font-mono text-gold-400/70 hover:text-gold-300 underline cursor-pointer"
-                >
-                  ⚡ [Modo Demo] Simular Pago Wompi & Enviar Correo de Prueba
-                </button>
-              </div>
+                  {/* Developer Test Simulation Button */}
+                  <div className="pt-2 border-t border-white/5 text-center">
+                    <button
+                      type="button"
+                      onClick={handleSimulatePaymentDev}
+                      className="text-[10px] font-mono text-gold-400/70 hover:text-gold-300 underline cursor-pointer"
+                    >
+                      ⚡ [Modo Demo] Simular Pago Wompi & Enviar Correo de Prueba
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </motion.div>
 
