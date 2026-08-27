@@ -21,10 +21,19 @@ graph TD
 
 ---
 
-## 🎛️ 2. MÓDULOS ACTIVOS PARA ANDICAS / QUIMBAYAS
+## 🎛️ 2. MÓDULOS ACTIVOS EN PANEL DE OWNER
 
-En el Panel de Owner (`portafolio/src/components/admin/UserManagement.jsx`), Andicas cuenta con **2 módulos específicos**:
+En el Panel de Owner (`portafolio/src/components/admin/UserManagement.jsx`):
 
+### A. Módulos de KAL DISCOBAR (`kal-discobar`):
+| Módulo | Clave Técnica | Función en la Plataforma |
+| :--- | :--- | :--- |
+| **📊 Métricas & Caja** | `metrics` | Controla el balance diario, ingresos, gráficas y arqueo de caja. |
+| **🛎️ Pedidos & Mesas** | `orders` | Controla comandas en vivo, mesas 1-15, pedidos para llevar y facturas. |
+| **📋 Configuración de Menú** | `menu_editor` | Controla la edición de productos, precios, fotos, categorías y temas. |
+| **🍾 Inventario & Botellas** | `inventory` | Controla la 4ta pestaña de stock por botellas, copas/ml y entradas de mercancía. |
+
+### B. Módulos de ANDICAS / QUIMBAYAS (`andicas-bioparque`):
 | Módulo | Clave Técnica | Función en la Plataforma |
 | :--- | :--- | :--- |
 | **📅 Agendamiento de Citas & Reservas** | `bookings` | Controla el motor de reservas de cabañas, pasadías y pasanoches. Al deshabilitarse, muestra pantalla de bloqueo y redirige a atención manual por WhatsApp/Recepción. |
