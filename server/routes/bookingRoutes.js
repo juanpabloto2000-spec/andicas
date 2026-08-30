@@ -1462,4 +1462,554 @@ router.post('/admin/users/delete', requireAdminOrStaffAuth, requireMasterAdminOn
   }
 });
 
+// =========================================================================
+// MÓDULO DE CAJA, APERTURA DE TURNO, GASTOS Y CIERRE DIARIO
+// =========================================================================
+
+// Helpers para sesiones y cierres de caja
+async function getCashSessions() {
+  if (mockStore.cash_sessions && Array.isArray(mockStore.cash_sessions)) {
+    return mockStore.cash_sessions;
+  }
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('cabins')
+        .select('*')
+        .eq('id', 'cash_register_sessions')
+        .maybeSingle();
+      if (data?.description) {
+        mockStore.cash_sessions = JSON.parse(data.description);
+        return mockStore.cash_sessions;
+      }
+    } catch (err) {}
+  }
+  return mockStore.cash_sessions || [];
+}
+
+async function saveCashSessions(sessions) {
+  mockStore.cash_sessions = sessions;
+  if (supabase) {
+    try {
+      await supabase.from('cabins').upsert({
+        id: 'cash_register_sessions',
+        name: 'Cash Register Sessions',
+        type: 'active',
+        price_per_night: 0,
+        description: JSON.stringify(sessions),
+      });
+    } catch (err) {
+      console.warn('Error guardando cash_register_sessions en Supabase:', err.message);
+    }
+  }
+}
+
+async function getCashClosures() {
+  if (mockStore.cash_closures && Array.isArray(mockStore.cash_closures)) {
+    return mockStore.cash_closures;
+  }
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('cabins')
+        .select('*')
+        .eq('id', 'cash_closures_history')
+        .maybeSingle();
+      if (data?.description) {
+        mockStore.cash_closures = JSON.parse(data.description);
+        return mockStore.cash_closures;
+      }
+    } catch (err) {}
+  }
+  return mockStore.cash_closures || [];
+}
+
+async function saveCashClosures(closures) {
+  mockStore.cash_closures = closures;
+  if (supabase) {
+    try {
+      await supabase.from('cabins').upsert({
+        id: 'cash_closures_history',
+        name: 'Cash Closures History',
+        type: 'active',
+        price_per_night: 0,
+        description: JSON.stringify(closures),
+      });
+    } catch (err) {
+      console.warn('Error guardando cash_closures_history en Supabase:', err.message);
+    }
+  }
+}
+
+function getTodayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+/**
+ * 22. GET /api/bookings/admin/cash/today
+ * Obtiene la sesión de caja del día actual, base inicial, gastos y pagos
+ */
+router.get('/admin/cash/today', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const todayStr = getTodayStr();
+    const sessions = await getCashSessions();
+    const closures = await getCashClosures();
+
+    let session = sessions.find(s => s.date === todayStr);
+    if (!session) {
+      session = {
+        date: todayStr,
+        base_initial: 0,
+        opened_by: null,
+        opened_at: null,
+        is_locked: false,
+        expenses: [],
+        payments_received: [],
+        users_on_shift: []
+      };
+      sessions.unshift(session);
+      await saveCashSessions(sessions);
+    }
+
+    // Buscar cierre activo de hoy (no anulado)
+    const todayClosure = closures.find(c => c.date === todayStr && !c.is_annulled) || null;
+
+    // Calcular totales
+    const totalExpenses = (session.expenses || []).reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const totalCashIn = (session.payments_received || [])
+      .filter(p => p.method === 'EFECTIVO')
+      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const totalElectronicIn = (session.payments_received || [])
+      .filter(p => p.method !== 'EFECTIVO')
+      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+    const baseInitial = Number(session.base_initial || 0);
+    const expectedCash = baseInitial + totalCashIn - totalExpenses;
+
+    return res.status(200).json({
+      success: true,
+      todaySession: session,
+      todayClosure,
+      summary: {
+        todayStr,
+        baseInitial,
+        totalExpenses,
+        totalCashIn,
+        totalElectronicIn,
+        expectedCash,
+        isLocked: session.is_locked || (session.base_initial > 0) || totalCashIn > 0 || totalExpenses > 0,
+        isClosedToday: !!todayClosure
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error obteniendo estado de caja del día.' });
+  }
+});
+
+/**
+ * 23. POST /api/bookings/admin/cash/open-shift
+ * Inicia el turno de caja estableciendo la base inicial de efectivo
+ */
+router.post('/admin/cash/open-shift', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const { base_amount, opened_by } = req.body;
+    const todayStr = getTodayStr();
+    const sessions = await getCashSessions();
+
+    let session = sessions.find(s => s.date === todayStr);
+    if (!session) {
+      session = { date: todayStr, expenses: [], payments_received: [], users_on_shift: [] };
+      sessions.unshift(session);
+    }
+
+    if (session.is_locked && session.base_initial > 0) {
+      return res.status(400).json({ 
+        error: `El turno ya fue iniciado hoy por ${session.opened_by || 'un operador'} con una base de $${Number(session.base_initial).toLocaleString('es-CO')} COP. No se puede modificar la base inicial por control de auditoría.` 
+      });
+    }
+
+    const numBase = Math.max(0, Number(base_amount || 0));
+    const userOpening = (opened_by || req.userRole || 'Operador').trim();
+
+    session.base_initial = numBase;
+    session.opened_by = userOpening;
+    session.opened_at = new Date().toISOString();
+    session.is_locked = true; // Se bloquea para el resto del día
+
+    if (!session.users_on_shift) session.users_on_shift = [];
+    if (!session.users_on_shift.includes(userOpening)) {
+      session.users_on_shift.push(userOpening);
+    }
+
+    await saveCashSessions(sessions);
+
+    await recordAuditLog({
+      booking_reference: 'CAJA_APERTURA',
+      client_name: userOpening,
+      cabin_name: 'Caja Recepción',
+      previous_status: 'TURNO_SIN_INICIAR',
+      new_status: 'TURNO_INICIADO',
+      changed_by: userOpening,
+      notes: `Apertura de turno de caja iniciada con base de $${numBase.toLocaleString('es-CO')} COP.`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Apertura de turno registrada con éxito con base de $${numBase.toLocaleString('es-CO')} COP.`,
+      session
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error al registrar apertura de turno de caja.' });
+  }
+});
+
+/**
+ * 24. POST /api/bookings/admin/cash/add-expense
+ * Registra un gasto / salida de dinero de la caja
+ */
+router.post('/admin/cash/add-expense', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const { concept, amount, category, notes, user } = req.body;
+
+    if (!concept || !amount || Number(amount) <= 0) {
+      return res.status(400).json({ error: 'Concepto y valor del gasto válido son obligatorios.' });
+    }
+
+    const todayStr = getTodayStr();
+    const sessions = await getCashSessions();
+
+    let session = sessions.find(s => s.date === todayStr);
+    if (!session) {
+      session = { date: todayStr, base_initial: 0, is_locked: true, expenses: [], payments_received: [], users_on_shift: [] };
+      sessions.unshift(session);
+    }
+
+    const expenseUser = (user || req.userRole || 'Operador').trim();
+    const numAmount = Number(amount);
+
+    const newExpense = {
+      id: `exp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      concept: String(concept).trim(),
+      amount: numAmount,
+      category: category || 'General',
+      notes: (notes || '').trim(),
+      user: expenseUser,
+      created_at: new Date().toISOString()
+    };
+
+    if (!session.expenses) session.expenses = [];
+    session.expenses.unshift(newExpense);
+    session.is_locked = true; // El dinero físico ha tenido movimiento
+
+    if (!session.users_on_shift) session.users_on_shift = [];
+    if (!session.users_on_shift.includes(expenseUser)) {
+      session.users_on_shift.push(expenseUser);
+    }
+
+    await saveCashSessions(sessions);
+
+    await recordAuditLog({
+      booking_reference: 'GASTO_CAJA',
+      client_name: expenseUser,
+      cabin_name: 'Caja Menor',
+      previous_status: 'EGRESO',
+      new_status: `-$${numAmount.toLocaleString('es-CO')}`,
+      changed_by: expenseUser,
+      notes: `Gasto registrado: ${newExpense.concept} (${newExpense.category}) por $${numAmount.toLocaleString('es-CO')} COP.`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Gasto registrado con éxito.',
+      expense: newExpense,
+      session
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error registrando gasto de caja.' });
+  }
+});
+
+/**
+ * 25. POST /api/bookings/admin/cash/delete-expense
+ * Elimina un gasto del día en curso
+ */
+router.post('/admin/cash/delete-expense', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const { expenseId } = req.body;
+    const todayStr = getTodayStr();
+    const sessions = await getCashSessions();
+
+    let session = sessions.find(s => s.date === todayStr);
+    if (!session || !session.expenses) {
+      return res.status(404).json({ error: 'Gasto no encontrado en la sesión de hoy.' });
+    }
+
+    const targetExpense = session.expenses.find(e => e.id === expenseId);
+    if (!targetExpense) {
+      return res.status(404).json({ error: 'Gasto no encontrado.' });
+    }
+
+    session.expenses = session.expenses.filter(e => e.id !== expenseId);
+    await saveCashSessions(sessions);
+
+    await recordAuditLog({
+      booking_reference: 'GASTO_CAJA',
+      client_name: targetExpense.concept,
+      cabin_name: 'Caja Menor',
+      previous_status: 'ELIMINAR_GASTO',
+      new_status: 'ANULADO',
+      changed_by: req.userRole || 'Operador',
+      notes: `Gasto eliminado: ${targetExpense.concept} ($${targetExpense.amount.toLocaleString('es-CO')} COP).`
+    });
+
+    return res.status(200).json({ success: true, message: 'Gasto eliminado con éxito.' });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando gasto.' });
+  }
+});
+
+/**
+ * 26. POST /api/bookings/admin/cash/register-payment
+ * Registra un cobro o abono recibido en recepción
+ */
+router.post('/admin/cash/register-payment', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const { booking_reference, client_name, amount, method, notes, user } = req.body;
+
+    if (!amount || Number(amount) <= 0) {
+      return res.status(400).json({ error: 'Monto de pago válido requerido.' });
+    }
+
+    const todayStr = getTodayStr();
+    const sessions = await getCashSessions();
+
+    let session = sessions.find(s => s.date === todayStr);
+    if (!session) {
+      session = { date: todayStr, base_initial: 0, is_locked: true, expenses: [], payments_received: [], users_on_shift: [] };
+      sessions.unshift(session);
+    }
+
+    const operator = (user || req.userRole || 'Recepción').trim();
+    const cleanMethod = (method || 'EFECTIVO').toUpperCase();
+    const numAmount = Number(amount);
+
+    const newPayment = {
+      id: `pay-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      booking_reference: (booking_reference || 'RECEPCION').toUpperCase(),
+      client_name: (client_name || 'Huésped').trim(),
+      amount: numAmount,
+      method: cleanMethod, // 'EFECTIVO' | 'DATAFONO' | 'TRANSFERENCIA' | 'WOMPI'
+      notes: (notes || '').trim(),
+      user: operator,
+      created_at: new Date().toISOString()
+    };
+
+    if (!session.payments_received) session.payments_received = [];
+    session.payments_received.unshift(newPayment);
+    session.is_locked = true;
+
+    if (!session.users_on_shift) session.users_on_shift = [];
+    if (!session.users_on_shift.includes(operator)) {
+      session.users_on_shift.push(operator);
+    }
+
+    await saveCashSessions(sessions);
+
+    await recordAuditLog({
+      booking_reference: newPayment.booking_reference,
+      client_name: newPayment.client_name,
+      cabin_name: 'Cobro Recepción',
+      previous_status: 'COBRO_EN_SITIO',
+      new_status: `+$${numAmount.toLocaleString('es-CO')} (${cleanMethod})`,
+      changed_by: operator,
+      notes: `Pago recibido en recepción: $${numAmount.toLocaleString('es-CO')} COP por método ${cleanMethod}.`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cobro registrado en la caja del día.',
+      payment: newPayment,
+      session
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error registrando cobro de caja.' });
+  }
+});
+
+/**
+ * 27. POST /api/bookings/admin/cash/close-shift
+ * Realiza el cierre definitivo de caja diario con informe y arqueo
+ */
+router.post('/admin/cash/close-shift', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const { actual_cash_counted, notes, closed_by } = req.body;
+    const todayStr = getTodayStr();
+    const sessions = await getCashSessions();
+    const closures = await getCashClosures();
+
+    // Validar si ya hay un cierre no anulado de hoy
+    const existingActiveClosure = closures.find(c => c.date === todayStr && !c.is_annulled);
+    if (existingActiveClosure) {
+      return res.status(400).json({
+        error: `Ya existe un cierre de caja realizado hoy por ${existingActiveClosure.closed_by} a las ${new Date(existingActiveClosure.closed_at).toLocaleTimeString('es-CO')}. Si fue un error, puedes anularlo antes de realizar uno nuevo.`
+      });
+    }
+
+    let session = sessions.find(s => s.date === todayStr);
+    if (!session) {
+      session = { date: todayStr, base_initial: 0, expenses: [], payments_received: [], users_on_shift: [] };
+    }
+
+    const operator = (closed_by || req.userRole || 'Admin').trim();
+    const baseInitial = Number(session.base_initial || 0);
+
+    const totalCashIn = (session.payments_received || [])
+      .filter(p => p.method === 'EFECTIVO')
+      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+    const totalElectronicIn = (session.payments_received || [])
+      .filter(p => p.method !== 'EFECTIVO')
+      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+    const totalExpenses = (session.expenses || []).reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const expectedCash = baseInitial + totalCashIn - totalExpenses;
+    const actualCash = Number(actual_cash_counted || 0);
+    const difference = actualCash - expectedCash;
+
+    let status = 'CUADRADO';
+    if (difference > 0) status = 'SOBRANTE';
+    if (difference < 0) status = 'FALTANTE';
+
+    const usersOnShift = Array.from(new Set([
+      session.opened_by,
+      operator,
+      ...(session.users_on_shift || []),
+      ...(session.expenses || []).map(e => e.user),
+      ...(session.payments_received || []).map(p => p.user)
+    ].filter(Boolean)));
+
+    const newClosure = {
+      id: `closure-${todayStr}-${Date.now()}`,
+      date: todayStr,
+      closed_at: new Date().toISOString(),
+      closed_by: operator,
+      base_initial: baseInitial,
+      total_cash_received: totalCashIn,
+      total_electronic_received: totalElectronicIn,
+      total_expenses: totalExpenses,
+      expected_cash: expectedCash,
+      actual_cash: actualCash,
+      difference,
+      status,
+      expenses_detail: session.expenses || [],
+      payments_detail: session.payments_received || [],
+      users_on_shift: usersOnShift,
+      notes: (notes || '').trim(),
+      is_annulled: false
+    };
+
+    closures.unshift(newClosure);
+    await saveCashClosures(closures);
+
+    await recordAuditLog({
+      booking_reference: 'CIERRE_CAJA_DIARIO',
+      client_name: operator,
+      cabin_name: 'Caja General',
+      previous_status: 'CAJA_ABIERTA',
+      new_status: `CIERRE_${status}`,
+      changed_by: operator,
+      notes: `Cierre de caja diario finalizado. Esperado: $${expectedCash.toLocaleString('es-CO')} | Contado: $${actualCash.toLocaleString('es-CO')} | Diferencia: $${difference.toLocaleString('es-CO')} COP (${status}).`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cierre de caja completado e informe generado con éxito.',
+      closure: newClosure
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error procesando cierre de caja.' });
+  }
+});
+
+/**
+ * 28. POST /api/bookings/admin/cash/annul-closure
+ * Anula el cierre de caja SOLO correspondiente al día de hoy (Reapertura de turno)
+ */
+router.post('/admin/cash/annul-closure', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const { closureId, reason, annulled_by } = req.body;
+    const todayStr = getTodayStr();
+
+    if (!closureId || !reason || reason.trim().length < 4) {
+      return res.status(400).json({ error: 'ID de cierre y motivo obligatorio de anulación requeridos.' });
+    }
+
+    const closures = await getCashClosures();
+    const targetClosure = closures.find(c => c.id === closureId);
+
+    if (!targetClosure) {
+      return res.status(404).json({ error: 'Cierre de caja no encontrado.' });
+    }
+
+    // REGLA ESTRICTA: Solo se puede anular el cierre del día de hoy
+    if (targetClosure.date !== todayStr) {
+      return res.status(403).json({
+        error: `Acción denegada: Solo se permite anular el cierre correspondiente al día de hoy (${todayStr}). El cierre del ${targetClosure.date} es un registro histórico inmutable para protección contable.`
+      });
+    }
+
+    const operator = (annulled_by || req.userRole || 'Admin').trim();
+
+    targetClosure.is_annulled = true;
+    targetClosure.annulled_at = new Date().toISOString();
+    targetClosure.annulled_by = operator;
+    targetClosure.annulled_reason = String(reason).trim();
+
+    await saveCashClosures(closures);
+
+    await recordAuditLog({
+      booking_reference: 'CIERRE_CAJA_ANULADO',
+      client_name: operator,
+      cabin_name: 'Caja General',
+      previous_status: 'CIERRE_CERRADO',
+      new_status: 'CIERRE_ANULADO_REABIERTO',
+      changed_by: operator,
+      notes: `⚠️ ANULACIÓN DE CIERRE DE CAJA de hoy (${todayStr}). Motivo manifestado: ${targetClosure.annulled_reason}. La caja queda reabierta.`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cierre de caja de hoy anulado con éxito. El turno ha sido reabierto.',
+      closure: targetClosure
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error anulando cierre de caja.' });
+  }
+});
+
+/**
+ * 29. GET /api/bookings/admin/cash/history
+ * Historial de cierres de caja con filtros por fecha y mes
+ */
+router.get('/admin/cash/history', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const { date, month } = req.query;
+    const closures = await getCashClosures();
+
+    let filtered = closures;
+    if (date) {
+      filtered = filtered.filter(c => c.date === date);
+    } else if (month) {
+      filtered = filtered.filter(c => c.date && c.date.startsWith(month));
+    }
+
+    return res.status(200).json({
+      success: true,
+      closures: filtered
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error obteniendo historial de cierres de caja.' });
+  }
+});
+
 export default router;

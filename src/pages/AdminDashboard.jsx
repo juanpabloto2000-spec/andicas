@@ -4,9 +4,10 @@ import {
   ShieldCheck, DollarSign, Users, CheckCircle2, AlertCircle, Ban, 
   Search, RefreshCw, LogOut, Phone, Mail, MessageCircle, Home, 
   Clock, ChevronLeft, ChevronRight, ChevronDown, Plus, X, Trash2, Calendar as CalendarIcon,
-  Filter, Check, ArrowUpRight, ArrowLeft, Lock, History, User, FileText,
+  Filter, Check, ArrowUpRight, ArrowLeft, Lock, Unlock, History, User, FileText,
   Sliders, AlertTriangle, Sparkles, CreditCard, Eye, Save, Sun, Moon, CalendarDays,
-  Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle, KeyRound, UserPlus, Shield
+  Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle, KeyRound, UserPlus, Shield,
+  Receipt, Wallet, Coins, TrendingDown, Printer, Calculator, AlertOctagon, CalendarRange
 } from 'lucide-react';
 import { 
   adminLogin, 
@@ -27,7 +28,15 @@ import {
   getAdminUsers,
   createAdminUser,
   updateAdminUserPassword,
-  deleteAdminUser
+  deleteAdminUser,
+  getTodayCashSession,
+  openCashShift,
+  addCashExpense,
+  deleteCashExpense,
+  registerCashPayment,
+  closeCashShift,
+  annulTodayCashClosure,
+  getCashClosuresHistory
 } from '../services/api';
 import { cabinsData, cabinAddons } from '../data/cabins';
 import { contactData } from '../data/banking';
@@ -59,6 +68,83 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
   // Sub-tabs for Agendamientos: 'tabla' | 'calendario' | 'auditoria'
   const [agendaSubTab, setAgendaSubTab] = useState('tabla');
+
+  // Sub-tabs for Recaudos & Caja: 'caja_vivo' | 'gastos' | 'cierre' | 'historial' | 'metricas'
+  const [recaudosSubTab, setRecaudosSubTab] = useState('caja_vivo');
+
+  // Cash Session & Daily Shift State
+  const [todayCashSession, setTodayCashSession] = useState({
+    date: new Date().toISOString().split('T')[0],
+    base_initial: 0,
+    opened_by: null,
+    opened_at: null,
+    is_locked: false,
+    expenses: [],
+    payments_received: [],
+    users_on_shift: []
+  });
+  const [todayClosure, setTodayClosure] = useState(null);
+  const [cashSummary, setCashSummary] = useState({
+    todayStr: new Date().toISOString().split('T')[0],
+    baseInitial: 0,
+    totalExpenses: 0,
+    totalCashIn: 0,
+    totalElectronicIn: 0,
+    expectedCash: 0,
+    isLocked: false,
+    isClosedToday: false
+  });
+  const [isLoadingCash, setIsLoadingCash] = useState(false);
+
+  // Shift Opening State
+  const [openBaseInput, setOpenBaseInput] = useState('');
+  const [isOpeningShift, setIsOpeningShift] = useState(false);
+  const [openShiftError, setOpenShiftError] = useState('');
+
+  // Expenses State
+  const [newExpense, setNewExpense] = useState({
+    concept: '',
+    amount: '',
+    category: 'Insumos',
+    notes: ''
+  });
+  const [isAddingExpense, setIsAddingExpense] = useState(false);
+  const [expenseError, setExpenseError] = useState('');
+  const [expenseSuccess, setExpenseSuccess] = useState('');
+
+  // Reception Payment Registration State
+  const [newPaymentModal, setNewPaymentModal] = useState({
+    isOpen: false,
+    booking_reference: '',
+    client_name: '',
+    amount: '',
+    method: 'EFECTIVO',
+    notes: '',
+    isSubmitting: false,
+    error: ''
+  });
+
+  // Shift Closure State
+  const [countedCashInput, setCountedCashInput] = useState('');
+  const [closureNotesInput, setClosureNotesInput] = useState('');
+  const [isClosingShift, setIsClosingShift] = useState(false);
+  const [closeShiftError, setCloseShiftError] = useState('');
+  const [closeShiftSuccess, setCloseShiftSuccess] = useState('');
+
+  // Annul Closure Modal State (Only today's closure)
+  const [annulModal, setAnnulModal] = useState({
+    isOpen: false,
+    closure: null,
+    reason: '',
+    isAnnulling: false,
+    error: ''
+  });
+
+  // Closures History & Aesthetic Calendar Filter
+  const [closuresHistory, setClosuresHistory] = useState([]);
+  const [historyDateFilter, setHistoryDateFilter] = useState('');
+  const [historyMonthFilter, setHistoryMonthFilter] = useState('ALL');
+  const [selectedHistoricClosure, setSelectedHistoricClosure] = useState(null);
 
   // Time filter for "Saldo Pendiente por Cobrar": 'hoy' | 'semana' | 'mes' | 'todos'
   const [pendingBalancePeriod, setPendingBalancePeriod] = useState('mes');
@@ -211,6 +297,26 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             ...prev,
             ...cmsData.config
           }));
+        }
+
+        // Módulo de Caja & Cierres Diarios
+        try {
+          const [cashTodayRes, cashHistoryRes] = await Promise.allSettled([
+            getTodayCashSession(targetKey),
+            getCashClosuresHistory({}, targetKey)
+          ]);
+
+          if (cashTodayRes.status === 'fulfilled' && cashTodayRes.value?.success) {
+            setTodayCashSession(cashTodayRes.value.todaySession || {});
+            setTodayClosure(cashTodayRes.value.todayClosure || null);
+            setCashSummary(cashTodayRes.value.summary || {});
+          }
+
+          if (cashHistoryRes.status === 'fulfilled' && cashHistoryRes.value?.success) {
+            setClosuresHistory(cashHistoryRes.value.closures || []);
+          }
+        } catch (cashErr) {
+          console.warn('Error cargando datos de caja:', cashErr);
         }
       }
 
@@ -517,6 +623,205 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       alert('Error procesando resolución de cancelación.');
     } finally {
       setResolvingCancelId(null);
+    }
+  };
+
+  // =========================================================================
+  // CASH REGISTER & SHIFT CLOSURE HANDLERS
+  // =========================================================================
+
+  const handleOpenCashShift = async (e) => {
+    e.preventDefault();
+    setOpenShiftError('');
+    if (!openBaseInput || isNaN(Number(openBaseInput)) || Number(openBaseInput) < 0) {
+      setOpenShiftError('Por favor ingresa un monto válido de base inicial.');
+      return;
+    }
+
+    setIsOpeningShift(true);
+    try {
+      const res = await openCashShift({
+        base_amount: Number(openBaseInput),
+        opened_by: currentUserInfo.name || currentUserInfo.username
+      }, adminKey);
+
+      if (res.success) {
+        setTodayCashSession(res.session);
+        setOpenBaseInput('');
+        fetchDashboardData(adminKey);
+      } else {
+        setOpenShiftError(res.error || 'Error al iniciar el turno.');
+      }
+    } catch (err) {
+      setOpenShiftError('Error de comunicación con el servidor.');
+    } finally {
+      setIsOpeningShift(false);
+    }
+  };
+
+  const handleAddExpense = async (e) => {
+    e.preventDefault();
+    setExpenseError('');
+    setExpenseSuccess('');
+
+    if (!newExpense.concept.trim() || !newExpense.amount || Number(newExpense.amount) <= 0) {
+      setExpenseError('Ingresa un concepto y un valor de gasto válido.');
+      return;
+    }
+
+    setIsAddingExpense(true);
+    try {
+      const res = await addCashExpense({
+        concept: newExpense.concept.trim(),
+        amount: Number(newExpense.amount),
+        category: newExpense.category,
+        notes: newExpense.notes.trim(),
+        user: currentUserInfo.name || currentUserInfo.username
+      }, adminKey);
+
+      if (res.success) {
+        setExpenseSuccess('¡Gasto registrado con éxito!');
+        setNewExpense({ concept: '', amount: '', category: 'Insumos', notes: '' });
+        fetchDashboardData(adminKey);
+        setTimeout(() => setExpenseSuccess(''), 2500);
+      } else {
+        setExpenseError(res.error || 'No se pudo registrar el gasto.');
+      }
+    } catch (err) {
+      setExpenseError('Error al guardar el gasto.');
+    } finally {
+      setIsAddingExpense(false);
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId) => {
+    if (!window.confirm('¿Estás seguro de eliminar este gasto de la caja del día?')) return;
+    try {
+      const res = await deleteCashExpense(expenseId, adminKey);
+      if (res.success) {
+        fetchDashboardData(adminKey);
+      } else {
+        alert(res.error || 'No se pudo eliminar el gasto.');
+      }
+    } catch (err) {
+      alert('Error de conexión.');
+    }
+  };
+
+  const handleRegisterPayment = async (e) => {
+    e.preventDefault();
+    setNewPaymentModal(prev => ({ ...prev, error: '', isSubmitting: true }));
+
+    if (!newPaymentModal.amount || Number(newPaymentModal.amount) <= 0) {
+      setNewPaymentModal(prev => ({ ...prev, error: 'Ingresa un valor válido.', isSubmitting: false }));
+      return;
+    }
+
+    try {
+      const res = await registerCashPayment({
+        booking_reference: newPaymentModal.booking_reference || 'RECEPCION',
+        client_name: newPaymentModal.client_name || 'Huésped',
+        amount: Number(newPaymentModal.amount),
+        method: newPaymentModal.method,
+        notes: newPaymentModal.notes,
+        user: currentUserInfo.name || currentUserInfo.username
+      }, adminKey);
+
+      if (res.success) {
+        setNewPaymentModal({
+          isOpen: false,
+          booking_reference: '',
+          client_name: '',
+          amount: '',
+          method: 'EFECTIVO',
+          notes: '',
+          isSubmitting: false,
+          error: ''
+        });
+        fetchDashboardData(adminKey);
+      } else {
+        setNewPaymentModal(prev => ({ ...prev, error: res.error || 'Error registrando cobro.', isSubmitting: false }));
+      }
+    } catch (err) {
+      setNewPaymentModal(prev => ({ ...prev, error: 'Error de red.', isSubmitting: false }));
+    }
+  };
+
+  const handleCloseCashShift = async (e) => {
+    e.preventDefault();
+    setCloseShiftError('');
+    setCloseShiftSuccess('');
+
+    if (countedCashInput === '' || isNaN(Number(countedCashInput)) || Number(countedCashInput) < 0) {
+      setCloseShiftError('Por favor digita el efectivo físico total contado en la caja.');
+      return;
+    }
+
+    if (!window.confirm('¿Confirmas que deseas realizar el CIERRE DEFINITIVO DE CAJA de hoy? Se generará el informe contable inmutable.')) {
+      return;
+    }
+
+    setIsClosingShift(true);
+    try {
+      const res = await closeCashShift({
+        actual_cash_counted: Number(countedCashInput),
+        notes: closureNotesInput.trim(),
+        closed_by: currentUserInfo.name || currentUserInfo.username
+      }, adminKey);
+
+      if (res.success) {
+        setCloseShiftSuccess('¡Cierre de caja completado con éxito!');
+        setTodayClosure(res.closure);
+        setCountedCashInput('');
+        setClosureNotesInput('');
+        fetchDashboardData(adminKey);
+      } else {
+        setCloseShiftError(res.error || 'Error al procesar el cierre de caja.');
+      }
+    } catch (err) {
+      setCloseShiftError('Error de comunicación con el servidor.');
+    } finally {
+      setIsClosingShift(false);
+    }
+  };
+
+  const handleOpenAnnulModal = (closure) => {
+    setAnnulModal({
+      isOpen: true,
+      closure,
+      reason: '',
+      isAnnulling: false,
+      error: ''
+    });
+  };
+
+  const handleConfirmAnnulClosure = async (e) => {
+    e.preventDefault();
+    if (!annulModal.closure) return;
+
+    if (!annulModal.reason.trim() || annulModal.reason.trim().length < 4) {
+      setAnnulModal(prev => ({ ...prev, error: 'Debes indicar el motivo detallado de la anulación.' }));
+      return;
+    }
+
+    setAnnulModal(prev => ({ ...prev, isAnnulling: true, error: '' }));
+
+    try {
+      const res = await annulTodayCashClosure({
+        closureId: annulModal.closure.id,
+        reason: annulModal.reason.trim(),
+        annulled_by: currentUserInfo.name || currentUserInfo.username
+      }, adminKey);
+
+      if (res.success) {
+        setTodayClosure(null);
+        setAnnulModal({ isOpen: false, closure: null, reason: '', isAnnulling: false, error: '' });
+        fetchDashboardData(adminKey);
+      } else {
+        setAnnulModal(prev => ({ ...prev, isAnnulling: false, error: res.error || 'No se pudo anular el cierre.' }));
+      }
+    } catch (err) {
+      setAnnulModal(prev => ({ ...prev, isAnnulling: false, error: 'Error al anular cierre.' }));
     }
   };
 
@@ -1468,84 +1773,1006 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         {/* ======================================================================= */}
         {activeSection === 'recaudos' && isAdminOrMaster && (
           <div className="space-y-6">
-            <div className="p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
-              <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-                Métricas Financieras & Flujo de Caja
-              </span>
-              <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
-                Recaudos & Caja
-              </h1>
+            
+            {/* Header & Sub-Tabs Navigation */}
+            <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xl">
+              <div>
+                <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+                  Control Financiero & Arqueo Contable Diario
+                </span>
+                <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide flex items-center gap-2.5">
+                  <Wallet className="w-6 h-6 text-gold-400" />
+                  <span>Recaudos & Caja Diaria</span>
+                  {cashSummary.isClosedToday && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-cartoon font-bold bg-red-500/20 text-red-300 border border-red-500/40 uppercase">
+                      Cierre Realizado
+                    </span>
+                  )}
+                </h1>
+              </div>
+
+              {/* Sub-Tabs Selector */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-jade-950 p-1.5 rounded-2xl border border-white/10 text-xs font-cartoon">
+                <button
+                  onClick={() => setRecaudosSubTab('caja_vivo')}
+                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                    recaudosSubTab === 'caja_vivo'
+                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                      : 'text-linen-300 hover:text-white'
+                  }`}
+                >
+                  <Coins className="w-3.5 h-3.5" />
+                  <span>Arqueo en Vivo</span>
+                </button>
+
+                <button
+                  onClick={() => setRecaudosSubTab('gastos')}
+                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                    recaudosSubTab === 'gastos'
+                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                      : 'text-linen-300 hover:text-white'
+                  }`}
+                >
+                  <TrendingDown className="w-3.5 h-3.5" />
+                  <span>Gastos del Día</span>
+                  {(todayCashSession.expenses || []).length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-red-500/30 text-red-300 font-mono text-[10px]">
+                      {(todayCashSession.expenses || []).length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setRecaudosSubTab('cierre')}
+                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                    recaudosSubTab === 'cierre'
+                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                      : 'text-linen-300 hover:text-white'
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>Cierre & Informe</span>
+                </button>
+
+                <button
+                  onClick={() => setRecaudosSubTab('historial')}
+                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                    recaudosSubTab === 'historial'
+                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                      : 'text-linen-300 hover:text-white'
+                  }`}
+                >
+                  <CalendarRange className="w-3.5 h-3.5" />
+                  <span>Historial & Calendario</span>
+                </button>
+
+                <button
+                  onClick={() => setRecaudosSubTab('metricas')}
+                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                    recaudosSubTab === 'metricas'
+                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                      : 'text-linen-300 hover:text-white'
+                  }`}
+                >
+                  <DollarSign className="w-3.5 h-3.5" />
+                  <span>Métricas Globales</span>
+                </button>
+              </div>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-5 rounded-3xl glass-dark border border-emerald-500/30 space-y-1 shadow-lg">
-                <span className="text-[10px] font-cartoon text-emerald-400 uppercase tracking-wider block">
-                  Anticipos Recaudados (50%)
-                </span>
-                <span className="font-mono text-xl sm:text-2xl font-black text-white block">
-                  {formatCOP(totalDepositsCollected)}
-                </span>
-                <span className="text-[11px] text-linen-400 block">Pagos confirmados por Wompi y banco</span>
-              </div>
-
-              <div className="p-5 rounded-3xl glass-dark border border-gold-500/30 space-y-1 shadow-lg">
-                <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
-                  Ventas Totales Proyectadas
-                </span>
-                <span className="font-mono text-xl sm:text-2xl font-black text-gold-300 block">
-                  {formatCOP(totalRevenue)}
-                </span>
-                <span className="text-[11px] text-linen-400 block">Monto total de estadías activas</span>
-              </div>
-
-              <div className="p-5 rounded-3xl glass-dark border border-amber-500/30 space-y-1 shadow-lg">
-                <span className="text-[10px] font-cartoon text-amber-400 uppercase tracking-wider block">
-                  Saldos Pendientes en Recepción
-                </span>
-                <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 block">
-                  {formatCOP(totalRemainingPendingGlobal)}
-                </span>
-                <span className="text-[11px] text-linen-400 block">Por cobrar al check-in en efectivo/datafono</span>
-              </div>
-
-              <div className="p-5 rounded-3xl glass-dark border border-cyan-500/30 space-y-1 shadow-lg">
-                <span className="text-[10px] font-cartoon text-cyan-400 uppercase tracking-wider block">
-                  Total Reservas Agendadas
-                </span>
-                <span className="font-mono text-xl sm:text-2xl font-black text-cyan-300 block">
-                  {activeScheduledBookings.length}
-                </span>
-                <span className="text-[11px] text-linen-400 block">Estadías activas en el sistema</span>
-              </div>
-            </div>
-
-            {/* Ocupación por Cabaña */}
-            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
-              <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                Desglose de Ocupación por Cabaña:
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {cabinsData.map((cabin) => {
-                  const cabinBookings = activeScheduledBookings.filter(b => b.cabin_id === cabin.id);
-                  const cabinRevenue = cabinBookings.reduce((sum, b) => sum + (b.total_amount_cop || 0), 0);
-
-                  return (
-                    <div key={cabin.id} className="p-4 rounded-2xl bg-jade-900/60 border border-white/5 space-y-2">
-                      <h4 className="font-bold text-xs text-linen-100 truncate">{cabin.name}</h4>
-                      <div className="flex justify-between text-xs text-linen-300">
-                        <span>Reservas:</span>
-                        <span className="font-bold font-mono text-gold-400">{cabinBookings.length}</span>
+            {/* =================================================================== */}
+            {/* SUB-TAB 1: ARQUEO & CAJA EN VIVO (HOY) */}
+            {/* =================================================================== */}
+            {recaudosSubTab === 'caja_vivo' && (
+              <div className="space-y-6">
+                
+                {/* 1.1 Apertura de Turno (Base Inicial) Card */}
+                <div className="p-6 rounded-3xl glass-dark border border-gold-500/30 space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-gold-500/20 border border-gold-400/40 flex items-center justify-center text-gold-400">
+                        {cashSummary.isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
                       </div>
-                      <div className="flex justify-between text-xs text-linen-300">
-                        <span>Ingreso Total:</span>
-                        <span className="font-bold font-mono text-emerald-400">{formatCOP(cabinRevenue)}</span>
+                      <div>
+                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                          Apertura de Turno · Base Inicial de Efectivo
+                        </h3>
+                        <span className="text-[11px] text-linen-400 font-fredoka">
+                          {cashSummary.isLocked 
+                            ? 'Turno abierto y base bloqueada para el resto del día por control de auditoría.' 
+                            : 'Ingresa el efectivo inicial con el que abres caja para el cuadre contable.'}
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
+
+                    <span className="font-mono text-xs text-gold-300 bg-gold-500/10 px-3 py-1 rounded-xl border border-gold-500/20">
+                      Fecha: {cashSummary.todayStr}
+                    </span>
+                  </div>
+
+                  {!cashSummary.isLocked && cashSummary.baseInitial === 0 ? (
+                    <form onSubmit={handleOpenCashShift} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                      <div className="sm:col-span-8">
+                        <label className="text-xs text-linen-300 font-cartoon uppercase block mb-1.5">
+                          Monto en Efectivo de Base Inicial ($ COP):
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          step="1000"
+                          placeholder="Ej: 200000"
+                          value={openBaseInput}
+                          onChange={(e) => setOpenBaseInput(e.target.value)}
+                          className="w-full bg-jade-900 border border-white/20 focus:border-gold-400 rounded-2xl px-4 py-3 text-sm text-white font-mono placeholder:text-linen-500 outline-none"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-4">
+                        <button
+                          type="submit"
+                          disabled={isOpeningShift || !openBaseInput}
+                          className="w-full py-3.5 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-gold-400 disabled:opacity-50"
+                        >
+                          <Unlock className={`w-4 h-4 ${isOpeningShift ? 'animate-spin' : ''}`} />
+                          <span>{isOpeningShift ? 'Iniciando...' : 'Iniciar Turno de Caja'}</span>
+                        </button>
+                      </div>
+
+                      {openShiftError && (
+                        <div className="sm:col-span-12 p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs font-fredoka">
+                          {openShiftError}
+                        </div>
+                      )}
+                    </form>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-fredoka">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-cartoon text-emerald-400 uppercase font-bold text-[11px]">
+                            Base Inicial Registrada:
+                          </span>
+                          <span className="font-mono font-black text-sm text-white">
+                            {formatCOP(cashSummary.baseInitial)}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-linen-300">
+                          Iniciado por: <strong className="text-white">{todayCashSession.opened_by || 'Operador'}</strong>
+                          {todayCashSession.opened_at && ` a las ${new Date(todayCashSession.opened_at).toLocaleTimeString('es-CO')}`}.
+                        </p>
+                      </div>
+
+                      <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] flex items-center gap-1.5 self-start sm:self-auto">
+                        <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Base Bloqueada por Movimiento Físico</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 1.2 Live Balance Breakdown Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+                  <div className="p-4 rounded-2xl glass-dark border border-white/10 space-y-1">
+                    <span className="text-[10px] font-cartoon text-linen-400 uppercase block">1. Base Inicial</span>
+                    <span className="font-mono text-lg font-black text-gold-300 block">
+                      {formatCOP(cashSummary.baseInitial)}
+                    </span>
+                    <span className="text-[10px] text-linen-500 font-mono">Efectivo al abrir</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl glass-dark border border-emerald-500/30 space-y-1">
+                    <span className="text-[10px] font-cartoon text-emerald-400 uppercase block">2. (+) Efectivo Cobrado</span>
+                    <span className="font-mono text-lg font-black text-emerald-300 block">
+                      +{formatCOP(cashSummary.totalCashIn)}
+                    </span>
+                    <span className="text-[10px] text-linen-500 font-mono">Ingresos físicos hoy</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl glass-dark border border-cyan-500/30 space-y-1">
+                    <span className="text-[10px] font-cartoon text-cyan-400 uppercase block">3. (+) Pagos Electrónicos</span>
+                    <span className="font-mono text-lg font-black text-cyan-300 block">
+                      +{formatCOP(cashSummary.totalElectronicIn)}
+                    </span>
+                    <span className="text-[10px] text-linen-500 font-mono">Wompi / Datáfono</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl glass-dark border border-red-500/30 space-y-1">
+                    <span className="text-[10px] font-cartoon text-red-400 uppercase block">4. (-) Gastos en Caja</span>
+                    <span className="font-mono text-lg font-black text-red-300 block">
+                      -{formatCOP(cashSummary.totalExpenses)}
+                    </span>
+                    <span className="text-[10px] text-linen-500 font-mono">{(todayCashSession.expenses || []).length} egresos registrados</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-gold-500/15 border-2 border-gold-400 space-y-1 shadow-gold-glow">
+                    <span className="text-[10px] font-cartoon text-gold-300 uppercase font-bold block">5. (=) Efectivo Esperado</span>
+                    <span className="font-mono text-lg font-black text-white block">
+                      {formatCOP(cashSummary.expectedCash)}
+                    </span>
+                    <span className="text-[10px] text-gold-200 font-mono">En cajón actualmente</span>
+                  </div>
+                </div>
+
+                {/* 1.3 Quick Action: Registrar Cobro en Sitio & Listado de Cobros */}
+                <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                    <div>
+                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                        Cobros & Recaudos Registrados Hoy en Recepción
+                      </h3>
+                      <span className="text-xs text-linen-400 font-fredoka">
+                        Pagos de saldos pendientes, consumos o servicios recibidos en el día.
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => setNewPaymentModal(prev => ({ ...prev, isOpen: true }))}
+                      className="px-4 py-2.5 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center gap-1.5 cursor-pointer border border-gold-400 self-start sm:self-auto"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Registrar Cobro en Sitio</span>
+                    </button>
+                  </div>
+
+                  {(todayCashSession.payments_received || []).length === 0 ? (
+                    <div className="p-8 text-center text-xs text-linen-400 italic rounded-2xl bg-jade-900/40 border border-white/5">
+                      Aún no se han registrado cobros directos en caja hoy.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs font-fredoka">
+                        <thead className="bg-jade-900/80 font-cartoon text-[11px] text-gold-400 uppercase tracking-wider border-b border-white/10">
+                          <tr>
+                            <th className="p-3">Hora</th>
+                            <th className="p-3">Referencia / Huésped</th>
+                            <th className="p-3">Método</th>
+                            <th className="p-3">Operador</th>
+                            <th className="p-3">Notas</th>
+                            <th className="p-3 text-right">Monto</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {todayCashSession.payments_received.map((pay) => (
+                            <tr key={pay.id} className="hover:bg-white/[0.02] transition-colors">
+                              <td className="p-3 font-mono text-[11px] text-linen-300">
+                                {pay.created_at ? new Date(pay.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : 'Hoy'}
+                              </td>
+                              <td className="p-3">
+                                <span className="font-mono font-bold text-gold-300 block">{pay.booking_reference}</span>
+                                <span className="text-linen-300">{pay.client_name}</span>
+                              </td>
+                              <td className="p-3">
+                                <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold ${
+                                  pay.method === 'EFECTIVO' 
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                                    : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                                }`}>
+                                  {pay.method}
+                                </span>
+                              </td>
+                              <td className="p-3 text-linen-300 font-medium">
+                                {pay.user}
+                              </td>
+                              <td className="p-3 text-linen-400 text-[11px] italic">
+                                {pay.notes || '-'}
+                              </td>
+                              <td className="p-3 text-right font-mono font-bold text-emerald-300">
+                                +{formatCOP(pay.amount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
               </div>
-            </div>
+            )}
+
+            {/* =================================================================== */}
+            {/* SUB-TAB 2: REGISTRO DE GASTOS DEL DÍA (CAJA MENOR) */}
+            {/* =================================================================== */}
+            {recaudosSubTab === 'gastos' && (
+              <div className="space-y-6">
+                
+                {/* Formulario de Registro de Gasto */}
+                <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                  <div className="border-b border-white/10 pb-3">
+                    <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                      <TrendingDown className="w-4 h-4 text-red-400" />
+                      <span>Registrar Nuevo Gasto / Salida de Caja</span>
+                    </h3>
+                    <span className="text-xs text-linen-400 font-fredoka">
+                      Ingresa compras de insumos, servicios, pagos de mantenimiento o viáticos del día.
+                    </span>
+                  </div>
+
+                  <form onSubmit={handleAddExpense} className="space-y-4 text-xs font-fredoka">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1">
+                          Concepto / Motivo del Gasto (*):
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ej: Compra de cloro e insumos de aseo"
+                          value={newExpense.concept}
+                          onChange={(e) => setNewExpense({ ...newExpense, concept: e.target.value })}
+                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-linen-500 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1">
+                          Categoría:
+                        </label>
+                        <select
+                          value={newExpense.category}
+                          onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}
+                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2.5 text-xs text-white outline-none"
+                        >
+                          <option value="Insumos">Insumos & Aseo</option>
+                          <option value="Alimentos">Alimentos & Bebidas</option>
+                          <option value="Mantenimiento">Mantenimiento & Reparaciones</option>
+                          <option value="Servicios">Servicios Públicos / Gas</option>
+                          <option value="Nómina">Nómina / Viáticos / Jornales</option>
+                          <option value="Varios">Varios / Otros</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1">
+                          Valor del Gasto ($ COP) (*):
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="500"
+                          step="500"
+                          placeholder="Ej: 45000"
+                          value={newExpense.amount}
+                          onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
+                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono placeholder:text-linen-500 outline-none"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1">
+                          Notas / Comprobante (Opcional):
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ej: Factura #1234 ferretería central"
+                          value={newExpense.notes}
+                          onChange={(e) => setNewExpense({ ...newExpense, notes: e.target.value })}
+                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-linen-500 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {expenseError && (
+                      <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
+                        {expenseError}
+                      </div>
+                    )}
+                    {expenseSuccess && (
+                      <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs">
+                        {expenseSuccess}
+                      </div>
+                    )}
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="submit"
+                        disabled={isAddingExpense || !newExpense.concept || !newExpense.amount}
+                        className="px-6 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-cartoon font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{isAddingExpense ? 'Guardando...' : 'Registrar Salida de Dinero'}</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Listado de Gastos del Día */}
+                <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <div>
+                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                        Gastos Registrados Hoy ({cashSummary.todayStr})
+                      </h3>
+                      <span className="text-xs text-linen-400 font-fredoka">
+                        Total acumulado de salidas: <strong className="text-red-400 font-mono">{formatCOP(cashSummary.totalExpenses)}</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  {(todayCashSession.expenses || []).length === 0 ? (
+                    <div className="p-8 text-center text-xs text-linen-400 italic rounded-2xl bg-jade-900/40 border border-white/5">
+                      No hay gastos registrados en la caja de hoy.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs font-fredoka">
+                        <thead className="bg-jade-900/80 font-cartoon text-[11px] text-gold-400 uppercase tracking-wider border-b border-white/10">
+                          <tr>
+                            <th className="p-3">Hora</th>
+                            <th className="p-3">Concepto</th>
+                            <th className="p-3">Categoría</th>
+                            <th className="p-3">Registrado por</th>
+                            <th className="p-3">Notas</th>
+                            <th className="p-3 text-right">Valor</th>
+                            <th className="p-3 text-center">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {todayCashSession.expenses.map((exp) => (
+                            <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors">
+                              <td className="p-3 font-mono text-[11px] text-linen-300">
+                                {exp.created_at ? new Date(exp.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : 'Hoy'}
+                              </td>
+                              <td className="p-3 font-bold text-linen-100">
+                                {exp.concept}
+                              </td>
+                              <td className="p-3">
+                                <span className="px-2 py-0.5 rounded-full bg-white/5 text-linen-300 text-[10px] font-mono border border-white/10">
+                                  {exp.category}
+                                </span>
+                              </td>
+                              <td className="p-3 text-linen-300 font-medium">
+                                {exp.user}
+                              </td>
+                              <td className="p-3 text-linen-400 text-[11px] italic">
+                                {exp.notes || '-'}
+                              </td>
+                              <td className="p-3 text-right font-mono font-bold text-red-400">
+                                -{formatCOP(exp.amount)}
+                              </td>
+                              <td className="p-3 text-center">
+                                <button
+                                  onClick={() => handleDeleteExpense(exp.id)}
+                                  className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 cursor-pointer transition-colors"
+                                  title="Eliminar gasto"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            )}
+
+            {/* =================================================================== */}
+            {/* SUB-TAB 3: CIERRE DE CAJA & INFORME OFICIAL */}
+            {/* =================================================================== */}
+            {recaudosSubTab === 'cierre' && (
+              <div className="space-y-6">
+                
+                {/* SI EL CIERRE YA SE REALIZÓ HOY: MOSTRAR INFORME COMPLETO */}
+                {todayClosure ? (
+                  <div className="p-6 sm:p-8 rounded-3xl glass-dark border-2 border-gold-500/40 shadow-2xl space-y-6">
+                    
+                    {/* Encabezado del Informe */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+                      <div>
+                        <div className="flex items-center gap-2 font-mono text-[10px] text-gold-400 uppercase tracking-widest mb-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>DOCUMENTO OFICIAL DE ARQUEO DIARIO</span>
+                        </div>
+                        <h2 className="font-display text-xl sm:text-2xl font-black text-white uppercase tracking-wide">
+                          Informe de Cierre de Caja
+                        </h2>
+                        <p className="text-xs font-fredoka text-linen-300 mt-0.5">
+                          Fecha: <strong className="text-white font-mono">{todayClosure.date}</strong> · Cerrado a las {new Date(todayClosure.closed_at).toLocaleTimeString('es-CO')} por <strong className="text-gold-300">{todayClosure.closed_by}</strong>
+                        </p>
+                      </div>
+
+                      {/* Status Result Badge */}
+                      <div className="flex items-center gap-3 self-start sm:self-auto">
+                        <div className={`px-4 py-2 rounded-2xl font-cartoon font-bold text-xs uppercase border tracking-wider shadow-lg ${
+                          todayClosure.status === 'CUADRADO'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-emerald-500/10'
+                            : todayClosure.status === 'SOBRANTE'
+                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-cyan-500/10'
+                            : 'bg-red-500/20 text-red-300 border-red-500/50 shadow-red-500/10'
+                        }`}>
+                          {todayClosure.status === 'CUADRADO' && '✅ CUADRE PERFECTO ($0)'}
+                          {todayClosure.status === 'SOBRANTE' && `🔵 SOBRANTE (+${formatCOP(todayClosure.difference)})`}
+                          {todayClosure.status === 'FALTANTE' && `🔴 FALTANTE (${formatCOP(todayClosure.difference)})`}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Usuarios en Turno */}
+                    <div className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-2">
+                      <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
+                        👥 Personal & Operadores en Turno Durante el Día:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {(todayClosure.users_on_shift || []).map((u, i) => (
+                          <span key={i} className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs font-fredoka text-linen-200 flex items-center gap-1.5">
+                            <User className="w-3 h-3 text-gold-400" />
+                            <span>{u}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Resumen Financiero Completo */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 font-fredoka text-xs">
+                      <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-1 font-mono">
+                        <span className="text-linen-400 text-[11px] block">Base Inicial Efectivo:</span>
+                        <span className="text-base font-bold text-white block">{formatCOP(todayClosure.base_initial)}</span>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-black/40 border border-emerald-500/30 space-y-1 font-mono">
+                        <span className="text-emerald-400 text-[11px] block">(+) Total Efectivo Recaudado:</span>
+                        <span className="text-base font-bold text-emerald-300 block">+{formatCOP(todayClosure.total_cash_received)}</span>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-black/40 border border-cyan-500/30 space-y-1 font-mono">
+                        <span className="text-cyan-400 text-[11px] block">(+) Total Pagos Electrónicos:</span>
+                        <span className="text-base font-bold text-cyan-300 block">+{formatCOP(todayClosure.total_electronic_received)}</span>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-black/40 border border-red-500/30 space-y-1 font-mono">
+                        <span className="text-red-400 text-[11px] block">(-) Total Gastos en Caja:</span>
+                        <span className="text-base font-bold text-red-300 block">-{formatCOP(todayClosure.total_expenses)}</span>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-black/40 border border-gold-500/30 space-y-1 font-mono">
+                        <span className="text-gold-400 text-[11px] block">(=) Efectivo Físico Esperado:</span>
+                        <span className="text-base font-bold text-gold-200 block">{formatCOP(todayClosure.expected_cash)}</span>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-gold-500/20 border-2 border-gold-400 space-y-1 font-mono shadow-gold-glow">
+                        <span className="text-gold-300 text-[11px] font-bold block">Efectivo Físico Contado en Arqueo:</span>
+                        <span className="text-base font-black text-white block">{formatCOP(todayClosure.actual_cash)}</span>
+                      </div>
+                    </div>
+
+                    {/* Desglose de Gastos */}
+                    {(todayClosure.expenses_detail || []).length > 0 && (
+                      <div className="space-y-2 font-fredoka text-xs">
+                        <h4 className="font-cartoon text-xs uppercase text-gold-400 tracking-wider">
+                          📉 Detalle de Gastos Incluidos en el Cierre:
+                        </h4>
+                        <div className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-2">
+                          {todayClosure.expenses_detail.map((exp, idx) => (
+                            <div key={idx} className="flex justify-between items-center py-1 border-b border-white/5 last:border-0">
+                              <div>
+                                <span className="font-bold text-linen-100">{exp.concept}</span>
+                                <span className="text-linen-400 text-[10px] block font-mono">Por: {exp.user} · {exp.category}</span>
+                              </div>
+                              <span className="font-mono font-bold text-red-400">-{formatCOP(exp.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Observaciones */}
+                    {todayClosure.notes && (
+                      <div className="p-4 rounded-2xl bg-black/30 border border-white/10 space-y-1 text-xs font-fredoka">
+                        <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
+                          Observaciones del Cajero:
+                        </span>
+                        <p className="text-linen-200 italic">{todayClosure.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Barra de Acciones del Cierre de Hoy */}
+                    <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+                      <button
+                        onClick={() => window.print()}
+                        className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-xs uppercase flex items-center gap-2 cursor-pointer transition-colors"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>Imprimir / Exportar Informe</span>
+                      </button>
+
+                      {/* Botón para anular el cierre del día de hoy si hubo equivocación */}
+                      <button
+                        onClick={() => handleOpenAnnulModal(todayClosure)}
+                        className="px-5 py-2.5 rounded-2xl bg-red-950/80 hover:bg-red-900 border border-red-500/60 text-red-200 font-cartoon text-xs uppercase font-bold flex items-center gap-2 cursor-pointer transition-all shadow-md"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-red-400" />
+                        <span>Anular Cierre de Hoy (Reabrir Turno)</span>
+                      </button>
+                    </div>
+
+                  </div>
+                ) : (
+                  /* SI AÚN NO SE HA CERRADO HOY: ASISTENTE DE ARQUEO Y CIERRE */
+                  <div className="p-6 sm:p-8 rounded-3xl glass-dark border border-white/10 space-y-6 shadow-xl">
+                    <div className="border-b border-white/10 pb-4">
+                      <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+                        Paso Final del Turno
+                      </span>
+                      <h2 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
+                        Realizar Cierre de Caja Diario & Arqueo
+                      </h2>
+                      <p className="text-xs text-linen-300 font-fredoka mt-1">
+                        Realiza el conteo de billetes y monedas en el cajón físico y genera el informe contable consolidado.
+                      </p>
+                    </div>
+
+                    {/* Live Calculation Preview */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-fredoka text-xs">
+                      <div className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-1">
+                        <span className="text-linen-400">Base Inicial + Efectivo Recaudado:</span>
+                        <span className="font-mono text-base font-bold text-emerald-400 block">
+                          {formatCOP(cashSummary.baseInitial + cashSummary.totalCashIn)}
+                        </span>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-1">
+                        <span className="text-linen-400">Total Gastos Egresados:</span>
+                        <span className="font-mono text-base font-bold text-red-400 block">
+                          -{formatCOP(cashSummary.totalExpenses)}
+                        </span>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-gold-500/15 border border-gold-400/50 space-y-1">
+                        <span className="text-gold-300 font-bold">Efectivo Físico Esperado en Cajón:</span>
+                        <span className="font-mono text-lg font-black text-white block">
+                          {formatCOP(cashSummary.expectedCash)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Closing Form */}
+                    <form onSubmit={handleCloseCashShift} className="space-y-4 text-xs font-fredoka">
+                      <div>
+                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1.5 font-bold">
+                          Efectivo Físico Total Contado en Caja ($ COP) (*):
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          step="100"
+                          placeholder="Digita el dinero real que tienes físicamente..."
+                          value={countedCashInput}
+                          onChange={(e) => setCountedCashInput(e.target.value)}
+                          className="w-full bg-jade-900 border border-white/20 focus:border-gold-400 rounded-2xl px-4 py-3.5 text-base text-white font-mono placeholder:text-linen-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Live Difference Badge */}
+                      {countedCashInput !== '' && !isNaN(Number(countedCashInput)) && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`p-4 rounded-2xl border text-xs font-fredoka space-y-1 ${
+                            Number(countedCashInput) - cashSummary.expectedCash === 0
+                              ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-200'
+                              : Number(countedCashInput) - cashSummary.expectedCash > 0
+                              ? 'bg-cyan-950/70 border-cyan-500/50 text-cyan-200'
+                              : 'bg-red-950/70 border-red-500/50 text-red-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-cartoon font-bold uppercase text-xs">
+                            <span>Resultado del Arqueo:</span>
+                            <span className="font-mono text-sm">
+                              {Number(countedCashInput) - cashSummary.expectedCash === 0 && '✅ Cuadre Exacto ($0)'}
+                              {Number(countedCashInput) - cashSummary.expectedCash > 0 && `🔵 Sobrante: +${formatCOP(Number(countedCashInput) - cashSummary.expectedCash)}`}
+                              {Number(countedCashInput) - cashSummary.expectedCash < 0 && `🔴 Faltante: ${formatCOP(Number(countedCashInput) - cashSummary.expectedCash)}`}
+                            </span>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      <div>
+                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1.5">
+                          Observaciones / Novedades del Cierre (Opcional):
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder="Ej: Turno entregado sin novedades, billetes organizados..."
+                          value={closureNotesInput}
+                          onChange={(e) => setClosureNotesInput(e.target.value)}
+                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-linen-500 outline-none resize-none"
+                        />
+                      </div>
+
+                      {closeShiftError && (
+                        <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
+                          {closeShiftError}
+                        </div>
+                      )}
+                      {closeShiftSuccess && (
+                        <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs">
+                          {closeShiftSuccess}
+                        </div>
+                      )}
+
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={isClosingShift || countedCashInput === ''}
+                          className="w-full py-4 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-sm uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-gold-400 disabled:opacity-50"
+                        >
+                          <Lock className={`w-4 h-4 ${isClosingShift ? 'animate-spin' : ''}`} />
+                          <span>{isClosingShift ? 'Generando Cierre...' : '🔒 Realizar Cierre Definitivo de Caja'}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+              </div>
+            )}
+
+            {/* =================================================================== */}
+            {/* SUB-TAB 4: HISTORIAL DE CIERRES & CALENDARIO ESTÉTICO */}
+            {/* =================================================================== */}
+            {recaudosSubTab === 'historial' && (
+              <div className="space-y-6">
+                
+                {/* Selector / Calendario Estético */}
+                <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                    <div>
+                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                        <CalendarRange className="w-4 h-4 text-gold-400" />
+                        <span>Filtro & Calendario de Cierres de Caja</span>
+                      </h3>
+                      <span className="text-xs text-linen-400 font-fredoka">
+                        Consulta y audita los informes de cierre de cualquier fecha registrada.
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setHistoryDateFilter('');
+                          setHistoryMonthFilter('ALL');
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-xs transition-colors cursor-pointer"
+                      >
+                        Ver Todos
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-fredoka">
+                    <div>
+                      <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1.5">
+                        Filtrar por Día Exacto:
+                      </label>
+                      <input
+                        type="date"
+                        value={historyDateFilter}
+                        onChange={(e) => setHistoryDateFilter(e.target.value)}
+                        className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-4 py-2.5 text-xs text-white font-mono outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1.5">
+                        Filtrar por Mes:
+                      </label>
+                      <input
+                        type="month"
+                        value={historyMonthFilter === 'ALL' ? '' : historyMonthFilter}
+                        onChange={(e) => {
+                          setHistoryMonthFilter(e.target.value || 'ALL');
+                          setHistoryDateFilter('');
+                        }}
+                        className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-4 py-2.5 text-xs text-white font-mono outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Listado de Cierres Históricos */}
+                <div className="space-y-3">
+                  {closuresHistory
+                    .filter(c => {
+                      if (historyDateFilter) return c.date === historyDateFilter;
+                      if (historyMonthFilter !== 'ALL') return c.date && c.date.startsWith(historyMonthFilter);
+                      return true;
+                    })
+                    .length === 0 ? (
+                    <div className="p-12 text-center rounded-3xl glass-dark border border-white/10 text-linen-400 italic">
+                      No hay registros de cierre de caja para el filtro seleccionado.
+                    </div>
+                  ) : (
+                    closuresHistory
+                      .filter(c => {
+                        if (historyDateFilter) return c.date === historyDateFilter;
+                        if (historyMonthFilter !== 'ALL') return c.date && c.date.startsWith(historyMonthFilter);
+                        return true;
+                      })
+                      .map((closure) => {
+                        const isTodayClosure = closure.date === cashSummary.todayStr;
+
+                        return (
+                          <div
+                            key={closure.id}
+                            className={`p-5 rounded-3xl glass-dark border space-y-3 shadow-xl text-xs font-fredoka ${
+                              closure.is_annulled 
+                                ? 'border-red-500/30 opacity-70 bg-red-950/20' 
+                                : 'border-white/10'
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
+                              <div className="flex items-center gap-3">
+                                <span className="font-mono font-bold text-sm text-gold-300 bg-gold-500/10 px-2.5 py-1 rounded-xl border border-gold-500/20">
+                                  {closure.date}
+                                </span>
+                                <span className="text-linen-300">
+                                  Cerrado por: <strong className="text-white">{closure.closed_by}</strong> a las {new Date(closure.closed_at).toLocaleTimeString('es-CO')}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2 self-start sm:self-auto">
+                                {closure.is_annulled ? (
+                                  <span className="px-2.5 py-1 rounded-xl bg-red-500/20 text-red-300 border border-red-500/40 font-cartoon font-bold text-[10px] uppercase">
+                                    ⚠️ Cierre Anulado / Reabierto
+                                  </span>
+                                ) : (
+                                  <span className={`px-2.5 py-1 rounded-xl font-cartoon font-bold text-[10px] uppercase border ${
+                                    closure.status === 'CUADRADO'
+                                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                      : closure.status === 'SOBRANTE'
+                                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                      : 'bg-red-500/20 text-red-300 border-red-500/40'
+                                  }`}>
+                                    {closure.status} ({closure.difference === 0 ? '$0' : formatCOP(closure.difference)})
+                                  </span>
+                                )}
+
+                                {!isTodayClosure && (
+                                  <span className="text-[10px] font-mono text-linen-400 bg-black/40 px-2 py-0.5 rounded border border-white/5">
+                                    🔒 Inmutable
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Summary Numbers */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-[11px]">
+                              <div className="p-2.5 rounded-xl bg-black/30">
+                                <span className="text-linen-400 block text-[10px]">Base Inicial:</span>
+                                <span className="font-bold text-white">{formatCOP(closure.base_initial)}</span>
+                              </div>
+                              <div className="p-2.5 rounded-xl bg-black/30">
+                                <span className="text-linen-400 block text-[10px]">Efectivo Recaudado:</span>
+                                <span className="font-bold text-emerald-300">+{formatCOP(closure.total_cash_received)}</span>
+                              </div>
+                              <div className="p-2.5 rounded-xl bg-black/30">
+                                <span className="text-linen-400 block text-[10px]">Gastos del Día:</span>
+                                <span className="font-bold text-red-300">-{formatCOP(closure.total_expenses)}</span>
+                              </div>
+                              <div className="p-2.5 rounded-xl bg-black/30">
+                                <span className="text-linen-400 block text-[10px]">Efectivo Contado:</span>
+                                <span className="font-bold text-gold-300">{formatCOP(closure.actual_cash)}</span>
+                              </div>
+                            </div>
+
+                            {closure.is_annulled && closure.annulled_reason && (
+                              <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/30 text-red-300 text-[11px] italic">
+                                <strong>Motivo de anulación:</strong> {closure.annulled_reason} (Por: {closure.annulled_by || 'Admin'})
+                              </div>
+                            )}
+
+                            {/* Action to expand or annul if today */}
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-[10px] text-linen-400">
+                                Personal en turno: {(closure.users_on_shift || []).join(', ') || 'N/A'}
+                              </span>
+
+                              <div className="flex items-center gap-2">
+                                {isTodayClosure && !closure.is_annulled && (
+                                  <button
+                                    onClick={() => handleOpenAnnulModal(closure)}
+                                    className="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-cartoon uppercase cursor-pointer transition-colors"
+                                  >
+                                    Anular Cierre de Hoy
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+
+              </div>
+            )}
+
+            {/* =================================================================== */}
+            {/* SUB-TAB 5: MÉTRICAS GLOBALES & OCUPACIÓN */}
+            {/* =================================================================== */}
+            {recaudosSubTab === 'metricas' && (
+              <div className="space-y-6">
+                
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-5 rounded-3xl glass-dark border border-emerald-500/30 space-y-1 shadow-lg">
+                    <span className="text-[10px] font-cartoon text-emerald-400 uppercase tracking-wider block">
+                      Anticipos Recaudados (50%)
+                    </span>
+                    <span className="font-mono text-xl sm:text-2xl font-black text-white block">
+                      {formatCOP(totalDepositsCollected)}
+                    </span>
+                    <span className="text-[11px] text-linen-400 block">Pagos confirmados por Wompi y banco</span>
+                  </div>
+
+                  <div className="p-5 rounded-3xl glass-dark border border-gold-500/30 space-y-1 shadow-lg">
+                    <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
+                      Ventas Totales Proyectadas
+                    </span>
+                    <span className="font-mono text-xl sm:text-2xl font-black text-gold-300 block">
+                      {formatCOP(totalRevenue)}
+                    </span>
+                    <span className="text-[11px] text-linen-400 block">Monto total de estadías activas</span>
+                  </div>
+
+                  <div className="p-5 rounded-3xl glass-dark border border-amber-500/30 space-y-1 shadow-lg">
+                    <span className="text-[10px] font-cartoon text-amber-400 uppercase tracking-wider block">
+                      Saldos Pendientes en Recepción
+                    </span>
+                    <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 block">
+                      {formatCOP(totalRemainingPendingGlobal)}
+                    </span>
+                    <span className="text-[11px] text-linen-400 block">Por cobrar al check-in en efectivo/datafono</span>
+                  </div>
+
+                  <div className="p-5 rounded-3xl glass-dark border border-cyan-500/30 space-y-1 shadow-lg">
+                    <span className="text-[10px] font-cartoon text-cyan-400 uppercase tracking-wider block">
+                      Total Reservas Agendadas
+                    </span>
+                    <span className="font-mono text-xl sm:text-2xl font-black text-cyan-300 block">
+                      {activeScheduledBookings.length}
+                    </span>
+                    <span className="text-[11px] text-linen-400 block">Estadías activas en el sistema</span>
+                  </div>
+                </div>
+
+                {/* Ocupación por Cabaña */}
+                <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                    Desglose de Ocupación por Cabaña:
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {cabinsData.map((cabin) => {
+                      const cabinBookings = activeScheduledBookings.filter(b => b.cabin_id === cabin.id);
+                      const cabinRevenue = cabinBookings.reduce((sum, b) => sum + (b.total_amount_cop || 0), 0);
+
+                      return (
+                        <div key={cabin.id} className="p-4 rounded-2xl bg-jade-900/60 border border-white/5 space-y-2">
+                          <h4 className="font-bold text-xs text-linen-100 truncate">{cabin.name}</h4>
+                          <div className="flex justify-between text-xs text-linen-300">
+                            <span>Reservas:</span>
+                            <span className="font-bold font-mono text-gold-400">{cabinBookings.length}</span>
+                          </div>
+                          <div className="flex justify-between text-xs text-linen-300">
+                            <span>Ingreso Total:</span>
+                            <span className="font-bold font-mono text-emerald-400">{formatCOP(cabinRevenue)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+            )}
+
           </div>
         )}
 
@@ -2665,6 +3892,215 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 >
                   <span>Confirmar Bloqueo de Fechas</span>
                 </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: REGISTRAR COBRO DIRECTO EN RECEPCIÓN */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {newPaymentModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setNewPaymentModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-gold-500/50 shadow-2xl space-y-4 z-10"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <h3 className="font-display text-base font-black text-white uppercase">
+                  Registrar Cobro en Recepción
+                </h3>
+                <button
+                  onClick={() => setNewPaymentModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleRegisterPayment} className="space-y-3 font-fredoka text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Referencia de Reserva (Opcional):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: AND-178652..."
+                    value={newPaymentModal.booking_reference}
+                    onChange={(e) => setNewPaymentModal({ ...newPaymentModal, booking_reference: e.target.value.toUpperCase() })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 font-mono outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Nombre del Huésped / Cliente:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Laura Gómez"
+                    value={newPaymentModal.client_name}
+                    onChange={(e) => setNewPaymentModal({ ...newPaymentModal, client_name: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                      Monto Cobrado ($ COP) (*):
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="1000"
+                      step="500"
+                      placeholder="Ej: 150000"
+                      value={newPaymentModal.amount}
+                      onChange={(e) => setNewPaymentModal({ ...newPaymentModal, amount: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 font-mono outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                      Método de Pago:
+                    </label>
+                    <select
+                      value={newPaymentModal.method}
+                      onChange={(e) => setNewPaymentModal({ ...newPaymentModal, method: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 outline-none cursor-pointer"
+                    >
+                      <option value="EFECTIVO">Efectivo</option>
+                      <option value="DATAFONO">Datáfono / Tarjeta</option>
+                      <option value="TRANSFERENCIA">Transferencia / Nequi</option>
+                      <option value="WOMPI">Wompi / QR</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Notas Adicionales:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Pago de saldo restante check-in"
+                    value={newPaymentModal.notes}
+                    onChange={(e) => setNewPaymentModal({ ...newPaymentModal, notes: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 outline-none"
+                  />
+                </div>
+
+                {newPaymentModal.error && (
+                  <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
+                    {newPaymentModal.error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={newPaymentModal.isSubmitting || !newPaymentModal.amount}
+                  className="w-full py-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <span>{newPaymentModal.isSubmitting ? 'Registrando...' : 'Confirmar Cobro en Caja'}</span>
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: ANULAR CIERRE DE CAJA (SOLO DEL DÍA DE HOY) */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {annulModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setAnnulModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-red-500/50 shadow-2xl space-y-4 z-10 font-fredoka"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2 text-red-400">
+                  <AlertTriangle className="w-5 h-5" />
+                  <h3 className="font-display text-base font-black text-white uppercase">
+                    Anular Cierre de Caja de Hoy
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setAnnulModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-1">
+                <span className="font-bold block">⚠️ Aviso de Auditoría Contable:</span>
+                <p>
+                  Esta acción reabrirá la caja del día de hoy ({cashSummary.todayStr}) permitiendo nuevos cobros y gastos. Quedará registrada formalmente en el libro de auditoría.
+                </p>
+              </div>
+
+              <form onSubmit={handleConfirmAnnulClosure} className="space-y-3 text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Motivo Detallado de la Anulación (*):
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="Describe la razón por la cual se anula el cierre (ej: Cierre accidental antes de registrar el último cobro)..."
+                    value={annulModal.reason}
+                    onChange={(e) => setAnnulModal({ ...annulModal, reason: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-red-400 rounded-xl px-3 py-2 text-xs text-white placeholder:text-linen-500 outline-none resize-none"
+                  />
+                </div>
+
+                {annulModal.error && (
+                  <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
+                    {annulModal.error}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setAnnulModal(prev => ({ ...prev, isOpen: false }))}
+                    className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-xs uppercase"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={annulModal.isAnnulling || !annulModal.reason.trim()}
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-cartoon font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg disabled:opacity-50"
+                  >
+                    <span>{annulModal.isAnnulling ? 'Anulando...' : 'Confirmar Anulación'}</span>
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>

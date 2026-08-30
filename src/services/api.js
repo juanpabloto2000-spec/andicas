@@ -310,6 +310,11 @@ export async function getSubscriptionStatus() {
       parsed.payments !== false && 
       parsed.checkout !== false;
 
+    const isRecaudosActive = !isLocked && parsed.recaudos !== false && parsed.metrics !== false;
+    const isCancelacionesActive = !isLocked && parsed.cancelaciones !== false;
+    const isPersonalizacionActive = !isLocked && parsed.personalizacion !== false && parsed.menu_editor !== false;
+    const isUsersActive = !isLocked && parsed.users_management !== false && parsed.usuarios !== false;
+
     return {
       success: true,
       status: dbStatus,
@@ -319,6 +324,10 @@ export async function getSubscriptionStatus() {
         wompi_payments: isWompiActive,
         payments: isWompiActive,
         reservations: isBookingsActive,
+        recaudos: isRecaudosActive,
+        cancelaciones: isCancelacionesActive,
+        personalizacion: isPersonalizacionActive,
+        users_management: isUsersActive,
         ...(parsed || {})
       }
     };
@@ -606,6 +615,120 @@ export async function deleteAdminUser(userId, adminKey) {
       'x-admin-key': adminKey,
     },
     body: JSON.stringify({ userId }),
+  });
+  return res.json();
+}
+
+/**
+ * 22. Obtiene la sesión de caja del día actual
+ */
+export async function getTodayCashSession(adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/today`, {
+    headers: { 'x-admin-key': adminKey },
+  });
+  return res.json();
+}
+
+/**
+ * 23. Inicia el turno de caja estableciendo la base inicial de efectivo
+ */
+export async function openCashShift({ base_amount, opened_by }, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/open-shift`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ base_amount, opened_by }),
+  });
+  return res.json();
+}
+
+/**
+ * 24. Registra un gasto / salida de dinero de la caja
+ */
+export async function addCashExpense({ concept, amount, category, notes, user }, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/add-expense`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ concept, amount, category, notes, user }),
+  });
+  return res.json();
+}
+
+/**
+ * 25. Elimina un gasto del día en curso
+ */
+export async function deleteCashExpense(expenseId, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/delete-expense`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ expenseId }),
+  });
+  return res.json();
+}
+
+/**
+ * 26. Registra un cobro recibido en recepción
+ */
+export async function registerCashPayment({ booking_reference, client_name, amount, method, notes, user }, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/register-payment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ booking_reference, client_name, amount, method, notes, user }),
+  });
+  return res.json();
+}
+
+/**
+ * 27. Realiza el cierre definitivo de caja diario
+ */
+export async function closeCashShift({ actual_cash_counted, notes, closed_by }, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/close-shift`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ actual_cash_counted, notes, closed_by }),
+  });
+  return res.json();
+}
+
+/**
+ * 28. Anula el cierre de caja del día de hoy (Reapertura de turno)
+ */
+export async function annulTodayCashClosure({ closureId, reason, annulled_by }, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/annul-closure`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ closureId, reason, annulled_by }),
+  });
+  return res.json();
+}
+
+/**
+ * 29. Consulta el historial de cierres de caja
+ */
+export async function getCashClosuresHistory({ date, month } = {}, adminKey) {
+  const params = new URLSearchParams();
+  if (date) params.append('date', date);
+  if (month) params.append('month', month);
+
+  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/history?${params.toString()}`, {
+    headers: { 'x-admin-key': adminKey },
   });
   return res.json();
 }
