@@ -209,6 +209,7 @@ export default function App() {
           onOpenBooking={handleOpenBooking}
           onOpenRules={() => setRulesModalOpen(true)}
           onNavigate={navigateTo}
+          onOpenCancellation={handleOpenCancellation}
         />
       )}
 

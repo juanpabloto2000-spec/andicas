@@ -8,7 +8,8 @@ import { contactData } from '../data/banking';
 export default function Footer({ 
   onOpenBooking, 
   onOpenRules, 
-  onNavigate 
+  onNavigate,
+  onOpenCancellation
 }) {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -26,8 +27,8 @@ export default function Footer({
     { name: 'Reservar Cabaña', action: () => { onNavigate('cabanas'); window.scrollTo({ top: 0, behavior: 'smooth' }); } },
     { name: 'Santuario Animal', action: () => { onNavigate('animales'); window.scrollTo({ top: 0, behavior: 'smooth' }); } },
     { name: 'Arma Tu Plan', action: () => { onNavigate('home'); setTimeout(() => document.getElementById('arma-tu-plan')?.scrollIntoView({ behavior: 'smooth' }), 100); } },
-    { name: 'Ubicación & Cuentas', action: () => { onNavigate('home'); setTimeout(() => document.getElementById('ubicacion')?.scrollIntoView({ behavior: 'smooth' }), 100); } },
     { name: 'Normas & Políticas', action: () => { onNavigate('home'); setTimeout(() => document.getElementById('normas')?.scrollIntoView({ behavior: 'smooth' }), 100); } },
+    { name: 'Solicitar Cancelación', action: () => { if (onOpenCancellation) onOpenCancellation(); } },
   ];
 
   const scheduleText = contactData.schedules?.general || "Martes a Domingo: 9:00 AM – 5:00 PM";
