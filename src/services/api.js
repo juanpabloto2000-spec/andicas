@@ -449,6 +449,15 @@ export async function setSubscriptionStatusAdmin(status, adminKey) {
 }
 
 /**
+ * 12.1. Verifica si una reserva existe y evalúa el plazo de anticipación de 72h
+ */
+export async function verifyBookingReference(reference) {
+  const cleanRef = String(reference || '').trim().toUpperCase();
+  const res = await fetch(`${API_BASE}/api/bookings/verify-reference/${encodeURIComponent(cleanRef)}`);
+  return res.json();
+}
+
+/**
  * 13. Envía una solicitud formal de cancelación de reserva (Público)
  */
 export async function requestBookingCancellation(payload) {

@@ -931,6 +931,88 @@ router.post('/admin/set-module-status', requireAdminOrStaffAuth, requireAdminOnl
 });
 
 /**
+ * 12.1. GET /api/bookings/verify-reference/:ref (Público)
+ * Consulta en tiempo real si una reserva existe y evalúa el plazo de los 3 días (72 horas)
+ */
+router.get('/verify-reference/:ref', async (req, res) => {
+  try {
+    const { ref } = req.params;
+    if (!ref) {
+      return res.status(400).json({ exists: false, error: 'Código de reserva no proporcionado.' });
+    }
+
+    const cleanRef = String(ref).trim().toUpperCase();
+    let booking = null;
+
+    if (supabase) {
+      const { data } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('booking_reference', cleanRef)
+        .maybeSingle();
+      booking = data;
+    }
+
+    if (!booking && mockStore.bookings) {
+      booking = mockStore.bookings.find(b => b.booking_reference === cleanRef);
+    }
+
+    if (!booking) {
+      return res.status(404).json({
+        exists: false,
+        error: 'El número de reserva no se encuentra registrado en nuestro sistema. Verifica el código e intenta de nuevo.'
+      });
+    }
+
+    const checkInDate = booking.check_in_date;
+    const totalAmount = Number(booking.total_amount_cop || 0);
+    const depositAmount = Number(booking.deposit_amount_cop || Math.round(totalAmount / 2));
+
+    let diffDays = 0;
+    let isEligibleForFullReview = true;
+    let penaltyPercentage = 0;
+
+    if (checkInDate) {
+      const checkInTime = new Date(checkInDate).getTime();
+      const nowTime = new Date().getTime();
+      const diffMs = checkInTime - nowTime;
+      diffDays = Math.round((diffMs / (1000 * 60 * 60 * 24)) * 10) / 10;
+      
+      // Regla de Oro: Mínimo 3 días antes de la fecha de llegada
+      isEligibleForFullReview = diffDays >= 3;
+      penaltyPercentage = isEligibleForFullReview ? 0 : 40;
+    }
+
+    const penaltyAmount = Math.round(depositAmount * (penaltyPercentage / 100));
+    const remainingEligibleAmount = depositAmount - penaltyAmount;
+
+    return res.status(200).json({
+      exists: true,
+      booking: {
+        booking_reference: booking.booking_reference,
+        client_name: booking.client_name,
+        client_email: booking.client_email,
+        client_phone: booking.client_phone,
+        cabin_id: booking.cabin_id,
+        cabin_name: booking.cabin_name,
+        check_in_date: booking.check_in_date,
+        check_out_date: booking.check_out_date,
+        total_amount_cop: totalAmount,
+        deposit_amount_cop: depositAmount,
+        status: booking.status
+      },
+      diffDays,
+      isEligibleForFullReview,
+      penaltyPercentage,
+      penaltyAmount,
+      remainingEligibleAmount
+    });
+  } catch (err) {
+    return res.status(500).json({ exists: false, error: 'Error verificando número de reserva.' });
+  }
+});
+
+/**
  * 13. POST /api/bookings/cancel-request (Público)
  * Registra una solicitud de cancelación con cálculo de regla de 72h y penalidad del 40%
  */
@@ -959,8 +1041,23 @@ router.post('/cancel-request', async (req, res) => {
       booking = mockStore.bookings.find(b => b.booking_reference === cleanRef);
     }
 
+    // SI NO SE ENCUENTRA LA RESERVA
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        error: 'El número de reserva ingresado no se encuentra registrado en nuestro sistema. Por favor verifica los datos en tu comprobante.'
+      });
+    }
+
+    if (booking.status === 'CANCELADA' || booking.status === 'CANCELLED' || booking.status === 'CANCELADO') {
+      return res.status(400).json({
+        success: false,
+        error: 'Esta reserva ya se encuentra cancelada en nuestro sistema.'
+      });
+    }
+
     // 2. Calcular días de diferencia hasta la fecha de check-in
-    let checkInDate = booking?.check_in_date;
+    let checkInDate = booking.check_in_date;
     let diffDays = null;
     let isEligibleForFullReview = true;
     let penaltyPercentage = 0;
@@ -976,6 +1073,9 @@ router.post('/cancel-request', async (req, res) => {
       penaltyPercentage = isEligibleForFullReview ? 0 : 40;
     }
 
+    const depositAmount = Number(booking.deposit_amount_cop || Math.round((booking.total_amount_cop || 0) / 2));
+    const penaltyAmount = Math.round(depositAmount * (penaltyPercentage / 100));
+
     // 3. Crear registro de solicitud de cancelación
     const cancellationRequest = {
       id: `cancel-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -988,7 +1088,8 @@ router.post('/cancel-request', async (req, res) => {
       check_in_date: checkInDate || 'Por verificar',
       check_out_date: booking?.check_out_date || 'Por verificar',
       total_amount_cop: booking?.total_amount_cop || 0,
-      deposit_amount_cop: booking?.deposit_amount_cop || 0,
+      deposit_amount_cop: depositAmount,
+      penalty_amount_cop: penaltyAmount,
       reason: reason || 'Cancelación solicitada por el usuario',
       diff_days_at_request: diffDays,
       penalty_percentage: penaltyPercentage,
@@ -1002,17 +1103,15 @@ router.post('/cancel-request', async (req, res) => {
     mockStore.cancellation_requests.unshift(cancellationRequest);
 
     // 4. Actualizar estado de la reserva a SOLICITUD_CANCELACION
-    if (booking) {
-      booking.status = 'SOLICITUD_CANCELACION';
-      if (supabase) {
-        try {
-          await supabase
-            .from('bookings')
-            .update({ status: 'SOLICITUD_CANCELACION' })
-            .eq('booking_reference', cleanRef);
-        } catch (sbErr) {
-          console.warn('Error actualizando estado en Supabase:', sbErr.message);
-        }
+    booking.status = 'SOLICITUD_CANCELACION';
+    if (supabase) {
+      try {
+        await supabase
+          .from('bookings')
+          .update({ status: 'SOLICITUD_CANCELACION' })
+          .eq('booking_reference', cleanRef);
+      } catch (sbErr) {
+        console.warn('Error actualizando estado en Supabase:', sbErr.message);
       }
     }
 
@@ -1021,19 +1120,20 @@ router.post('/cancel-request', async (req, res) => {
       booking_reference: cleanRef,
       client_name: client_name.trim(),
       cabin_name: booking?.cabin_name || 'Cabaña',
-      previous_status: booking?.status || 'PAGA',
+      previous_status: booking?.status || 'AGENDADO',
       new_status: 'SOLICITUD_CANCELACION',
       changed_by: 'Huésped (Web)',
-      notes: `Solicitud con ${diffDays !== null ? `${diffDays} días de antelación.` : 'fecha manual.'} Penalidad calculada: ${penaltyPercentage}%. Motivo: ${reason || 'N/A'}`,
+      notes: `Solicitud con ${diffDays !== null ? `${diffDays} días de antelación.` : 'fecha manual.'} Penalidad: ${penaltyPercentage}% ($${penaltyAmount} COP). Motivo: ${reason || 'N/A'}`,
     });
 
     return res.status(200).json({
       success: true,
       message: isEligibleForFullReview
-        ? 'Solicitud recibida oportunamente (>= 3 días). Será revisada por recepción para trámite o reprogramación.'
-        : 'Solicitud recibida. Al haberse solicitado con menos de 3 días de antelación, aplica una penalidad del 40% según nuestras políticas.',
+        ? 'Solicitud radicada oportunamente (>= 3 días). Será revisada por recepción para reprogramación o saldo a favor sin penalidad.'
+        : `Solicitud radicada. Al solicitarse con menos de 3 días de antelación (${diffDays} días), se aplicará la penalidad del 40% sobre el anticipo ($${penaltyAmount.toLocaleString('es-CO')} COP).`,
       cancellationRequest,
       penaltyPercentage,
+      penaltyAmount,
       isEligibleForFullReview,
       diffDays,
     });

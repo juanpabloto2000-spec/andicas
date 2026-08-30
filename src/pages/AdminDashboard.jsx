@@ -817,26 +817,28 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           {/* Section Navigation Buttons */}
           <nav className="space-y-1.5 font-cartoon text-xs uppercase">
             
-            {/* 1. Agendamientos & Calendario (Visible para todos) */}
-            <button
-              onClick={() => setActiveSection('agendamientos')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
-                activeSection === 'agendamientos'
-                  ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                  : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <CalendarDays className="w-4 h-4" />
-                <span>Agendamientos</span>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
-                {bookings.length}
-              </span>
-            </button>
+            {/* 1. Agendamientos & Calendario (Visible para todos si está habilitado) */}
+            {activeModules?.bookings !== false && (
+              <button
+                onClick={() => setActiveSection('agendamientos')}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
+                  activeSection === 'agendamientos'
+                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                    : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <CalendarDays className="w-4 h-4" />
+                  <span>Agendamientos</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
+                  {bookings.length}
+                </span>
+              </button>
+            )}
 
-            {/* 2. Recaudos & Caja (Solo Admin y Master) */}
-            {isAdminOrMaster && (
+            {/* 2. Recaudos & Caja (Solo Admin y Master si está habilitado) */}
+            {isAdminOrMaster && activeModules?.recaudos !== false && (
               <button
                 onClick={() => setActiveSection('recaudos')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
@@ -852,8 +854,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </button>
             )}
 
-            {/* 3. Cancelaciones (Solo Admin y Master) */}
-            {isAdminOrMaster && (
+            {/* 3. Cancelaciones (Solo Admin y Master si está habilitado) */}
+            {isAdminOrMaster && activeModules?.cancelaciones !== false && (
               <button
                 onClick={() => setActiveSection('cancelaciones')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
@@ -874,8 +876,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </button>
             )}
 
-            {/* 4. Personalización / CMS Lite (Solo Admin y Master) */}
-            {isAdminOrMaster && (
+            {/* 4. Personalización / CMS Lite (Solo Admin y Master si está habilitado) */}
+            {isAdminOrMaster && activeModules?.personalizacion !== false && (
               <button
                 onClick={() => setActiveSection('personalizacion')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
@@ -891,8 +893,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </button>
             )}
 
-            {/* 5. Gestión de Usuarios / Empleados (Exclusivo Admin Master) */}
-            {isMasterAdmin && (
+            {/* 5. Gestión de Usuarios / Empleados (Exclusivo Admin Master si está habilitado) */}
+            {isMasterAdmin && activeModules?.users_management !== false && (
               <button
                 onClick={() => setActiveSection('usuarios')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
