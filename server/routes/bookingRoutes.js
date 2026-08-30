@@ -546,7 +546,7 @@ router.post('/admin/cancel-booking', requireAdminOrStaffAuth, async (req, res) =
       });
     }
 
-    const { booking_reference } = req.body;
+    const { booking_reference, reason, notes } = req.body;
     let clientName = 'Huésped';
     let cabinName = 'Cabaña';
 
@@ -568,14 +568,16 @@ router.post('/admin/cancel-booking', requireAdminOrStaffAuth, async (req, res) =
       }
     }
 
+    const cancelReasonText = reason ? `Motivo: ${reason}. ${notes || ''}` : (notes || 'Cancelación directa de reserva con liberación de fechas');
+
     await recordAuditLog({
       booking_reference,
       client_name: clientName,
       cabin_name: cabinName,
-      previous_status: 'AGENDADA',
-      new_status: 'CANCELADA',
+      previous_status: 'AGENDADO',
+      new_status: 'CANCELADO',
       changed_by: 'Admin',
-      notes: 'Cancelación directa de reserva con liberación de fechas',
+      notes: cancelReasonText,
     });
 
     return res.status(200).json({ success: true, message: 'Reserva cancelada y fechas liberadas.' });

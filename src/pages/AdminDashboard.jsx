@@ -6,7 +6,7 @@ import {
   Clock, ChevronLeft, ChevronRight, ChevronDown, Plus, X, Trash2, Calendar as CalendarIcon,
   Filter, Check, ArrowUpRight, ArrowLeft, Lock, History, User, FileText,
   Sliders, AlertTriangle, Sparkles, CreditCard, Eye, Save, Sun, Moon, CalendarDays,
-  Layers, CheckSquare, MessageSquare, Send
+  Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle
 } from 'lucide-react';
 import { 
   adminLogin, 
@@ -43,11 +43,24 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'cancelaciones' | 'personalizacion' | 'auditoria'
+  // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'cancelaciones' | 'personalizacion'
   const [activeSection, setActiveSection] = useState('agendamientos');
 
-  // Sub-tabs for Agendamientos: 'tabla' | 'calendario'
+  // Sub-tabs for Agendamientos: 'tabla' | 'calendario' | 'auditoria'
   const [agendaSubTab, setAgendaSubTab] = useState('tabla');
+
+  // Time filter for "Saldo Pendiente por Cobrar": 'hoy' | 'semana' | 'mes' | 'todos'
+  const [pendingBalancePeriod, setPendingBalancePeriod] = useState('mes');
+
+  // Cancel with Reason Modal State
+  const [cancelModal, setCancelModal] = useState({
+    isOpen: false,
+    booking: null,
+    reason: '',
+    notes: '',
+    isCancelling: false,
+    error: ''
+  });
 
   // Password Change Modal State
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
@@ -69,7 +82,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [calendarViewMode, setCalendarViewMode] = useState('month'); // 'month' | 'week'
   const [revenuePeriod, setRevenuePeriod] = useState('month'); // 'month' | 'week' | 'all'
 
-  // Cancellation Requests State
+  // Cancellation Requests State (Admin only)
   const [cancellationRequests, setCancellationRequests] = useState([]);
   const [cancellationFilter, setCancellationFilter] = useState('ALL'); // 'ALL' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'
   const [resolvingCancelId, setResolvingCancelId] = useState(null);
@@ -99,12 +112,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [configSaveSuccess, setConfigSaveSuccess] = useState('');
 
-  // Purge modal state
-  const [purgeModalOpen, setPurgeModalOpen] = useState(false);
-  const [purgePassword, setPurgePassword] = useState('');
-  const [purgeError, setPurgeError] = useState('');
-  const [isPurging, setIsPurging] = useState(false);
-  const [selectedCabinFilter, setSelectedCabinFilter] = useState(cabinsData[0]?.id || 'casa-del-arbol');
+  // Search & Filter state
+  const [selectedCabinFilter, setSelectedCabinFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [tableMonthFilter, setTableMonthFilter] = useState('ALL');
@@ -121,22 +130,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
   const formatCOP = (num) => `$${Number(num || 0).toLocaleString('es-CO')} COP`;
 
-  const getStatusTextColor = (status) => {
-    const s = String(status || '').toUpperCase();
-    if (s === 'PAGA' || s === 'CONFIRMED') return 'text-emerald-400';
-    if (s === 'AGENDADA' || s === 'PENDIENTE') return 'text-amber-400';
-    if (s === 'CANCELADA' || s === 'CANCELADO' || s === 'CANCELLED') return 'text-red-400';
-    if (s === 'SOLICITUD_CANCELACION') return 'text-pink-400';
-    if (s === 'PENDING_PAYMENT' || s === 'INICIO' || s === 'CREACIÓN') return 'text-cyan-400';
-    if (s === 'BLOQUEADO' || s === 'BLOQUEO_MANUAL') return 'text-orange-400';
-    return 'text-gold-300';
-  };
-
+  // Status is strictly simplified to: AGENDADO | CANCELADO
   const formatStatusLabel = (status) => {
     const s = String(status || '').toUpperCase();
-    if (s === 'SOLICITUD_CANCELACION') return 'SOLICITUD CANCELACIÓN';
-    if (s === 'CANCELADA' || s === 'CANCELLED') return 'CANCELADO';
-    return s;
+    if (s === 'CANCELADA' || s === 'CANCELLED' || s === 'CANCELADO') return 'CANCELADO';
+    return 'AGENDADO';
+  };
+
+  const getStatusBadgeStyle = (status) => {
+    const s = String(status || '').toUpperCase();
+    if (s === 'CANCELADA' || s === 'CANCELLED' || s === 'CANCELADO') {
+      return 'bg-red-500/15 border-red-500/40 text-red-400';
+    }
+    return 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400';
   };
 
   const fetchDashboardData = async (key) => {
@@ -150,10 +156,18 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         if (data.role) setUserRole(data.role);
       }
 
-      // Solicitudes de cancelación
-      const cancelData = await getAdminCancellationRequests(targetKey);
-      if (cancelData.success) {
-        setCancellationRequests(cancelData.requests || []);
+      // Solicitudes de cancelación (para Admin)
+      if ((data.role || userRole) === 'admin') {
+        const cancelData = await getAdminCancellationRequests(targetKey);
+        if (cancelData.success) {
+          setCancellationRequests(cancelData.requests || []);
+        }
+
+        // Historial de auditoría
+        const auditData = await getAdminAuditLogs(targetKey);
+        if (auditData.success) {
+          setAuditLogs(auditData.logs || []);
+        }
       }
 
       // Configuración de sitio CMS
@@ -163,14 +177,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           ...prev,
           ...cmsData.config
         }));
-      }
-
-      // Si es admin, consultar el historial de auditoría
-      if ((data.role || userRole) === 'admin') {
-        const auditData = await getAdminAuditLogs(targetKey);
-        if (auditData.success) {
-          setAuditLogs(auditData.logs || []);
-        }
       }
     } catch (err) {
       console.error('Error fetching admin data:', err);
@@ -187,13 +193,13 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
   // Suscripción reactiva instantánea a cambios en tiempo real (<100ms) sin recargar la página
   useEffect(() => {
-    if (!isAuthenticated || userRole !== 'admin') return;
+    if (!isAuthenticated) return;
 
     const unsubscribe = subscribeToSystemChanges((sub) => {
       if (sub) {
         if (sub.status === 'unpaid') {
           setUserRole('unpaid');
-        } else if (sub.adminPassword && adminKey && sub.adminPassword !== adminKey) {
+        } else if (sub.adminPassword && adminKey && sub.adminPassword !== adminKey && userRole === 'admin') {
           // La contraseña de admin fue cambiada remotamente desde el panel Owner
           setShowSessionClosedModal(true);
         }
@@ -256,7 +262,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     setIsLoading(true);
 
     try {
-      const res = await adminLogin(usernameInput.trim(), passwordInput.trim());
+      const res = await adminLogin(passwordInput.trim(), usernameInput.trim());
       if (res.success) {
         localStorage.setItem('andicas_admin_token', passwordInput.trim());
         localStorage.setItem('andicas_user_role', res.role || 'admin');
@@ -282,28 +288,45 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     onNavigate('home');
   };
 
-  const handleStatusChange = async (bookingReference, newStatus) => {
-    try {
-      const res = await updateBookingStatusAdmin(bookingReference, newStatus, adminKey);
-      if (res.success) {
-        setBookings(prev => prev.map(b => b.booking_reference === bookingReference ? { ...b, status: newStatus } : b));
-        fetchDashboardData(adminKey);
-      }
-    } catch (err) {
-      alert('Error actualizando estado de reserva.');
-    }
+  const handleOpenCancelModal = (booking) => {
+    setCancelModal({
+      isOpen: true,
+      booking,
+      reason: '',
+      notes: '',
+      isCancelling: false,
+      error: ''
+    });
   };
 
-  const handleCancelBooking = async (bookingReference) => {
-    if (!window.confirm(`¿Confirmas la cancelación de la reserva ${bookingReference}? Las fechas se liberarán.`)) return;
+  const handleConfirmCancelBooking = async (e) => {
+    e.preventDefault();
+    if (!cancelModal.booking) return;
+
+    if (!cancelModal.reason.trim()) {
+      setCancelModal(prev => ({ ...prev, error: 'Debes ingresar el motivo de la cancelación.' }));
+      return;
+    }
+
+    setCancelModal(prev => ({ ...prev, isCancelling: true, error: '' }));
+
     try {
-      const res = await cancelBookingAdmin(bookingReference, adminKey);
+      const fullReason = `${cancelModal.reason.trim()}${cancelModal.notes ? ` · Notas: ${cancelModal.notes.trim()}` : ''}`;
+      const res = await cancelBookingAdmin(cancelModal.booking.booking_reference, fullReason, adminKey);
+      
       if (res.success) {
-        setBookings(prev => prev.map(b => b.booking_reference === bookingReference ? { ...b, status: 'CANCELADA' } : b));
+        setBookings(prev => prev.map(b => 
+          b.booking_reference === cancelModal.booking.booking_reference 
+            ? { ...b, status: 'CANCELADA' } 
+            : b
+        ));
+        setCancelModal({ isOpen: false, booking: null, reason: '', notes: '', isCancelling: false, error: '' });
         fetchDashboardData(adminKey);
+      } else {
+        setCancelModal(prev => ({ ...prev, isCancelling: false, error: res.error || 'No se pudo cancelar la reserva.' }));
       }
     } catch (err) {
-      alert('Error cancelando reserva.');
+      setCancelModal(prev => ({ ...prev, isCancelling: false, error: 'Error de conexión con el servidor.' }));
     }
   };
 
@@ -377,12 +400,14 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     });
   };
 
-  // Calendar calculations
+  // Helper formatting dates & calculations
+  const todayDate = new Date();
+  const todayStr = todayDate.toISOString().split('T')[0];
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const firstDayOfMonth = new Date(year, month, 1);
   const lastDayOfMonth = new Date(year, month + 1, 0);
-  const startDayOfWeek = (firstDayOfMonth.getDay() + 6) % 7; // Lunes = 0
+  const startDayOfWeek = (firstDayOfMonth.getDay() + 6) % 7;
   const daysInMonth = lastDayOfMonth.getDate();
 
   const monthNamesList = [
@@ -400,27 +425,40 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     calendarDays.push({ dayNum: d, dateStr });
   }
 
-  // Vista Semanal
-  const currDayOfWeek = (currentDate.getDay() + 6) % 7;
-  const startOfWeek = new Date(currentDate);
-  startOfWeek.setDate(currentDate.getDate() - currDayOfWeek);
+  // Week calculation
+  const currDayOfWeek = (todayDate.getDay() + 6) % 7;
+  const startOfWeek = new Date(todayDate);
+  startOfWeek.setDate(todayDate.getDate() - currDayOfWeek);
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
+  const endOfWeekStr = endOfWeek.toISOString().split('T')[0];
+  const currentMonthStr = todayStr.substring(0, 7);
 
-  const weekDays = [];
-  const dayLabels = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(startOfWeek);
-    d.setDate(startOfWeek.getDate() + i);
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    weekDays.push({ dayNum: d.getDate(), dayName: dayLabels[i], dateStr });
-  }
+  // Financial Metrics (Admin Only)
+  const activeScheduledBookings = bookings.filter(b => b.status !== 'CANCELADA' && b.status !== 'CANCELLED');
+  const totalRevenue = activeScheduledBookings.reduce((sum, b) => sum + (b.total_amount_cop || 0), 0);
+  const totalDepositsCollected = activeScheduledBookings.reduce((sum, b) => sum + (b.deposit_amount_cop || 0), 0);
+  const totalRemainingPendingGlobal = activeScheduledBookings.reduce((sum, b) => {
+    const remaining = (b.total_amount_cop || 0) - (b.deposit_amount_cop || 0);
+    return sum + Math.max(0, remaining);
+  }, 0);
 
-  // Financial Metrics Calculation
-  const validBookings = bookings.filter(b => b.status !== 'CANCELADA' && b.status !== 'CANCELLED');
-  const totalRevenue = validBookings.reduce((sum, b) => sum + (b.total_amount_cop || 0), 0);
-  const totalDepositsCollected = validBookings
-    .filter(b => b.status === 'PAGA')
-    .reduce((sum, b) => sum + (b.deposit_amount_cop || 0), 0);
-  const totalRemainingPending = validBookings.reduce((sum, b) => {
+  // Remaining Balance Filtered for the Bottom Card (Available to Staff & Admin)
+  const pendingFilteredBookings = activeScheduledBookings.filter(b => {
+    if (pendingBalancePeriod === 'hoy') {
+      return b.check_in_date === todayStr;
+    }
+    if (pendingBalancePeriod === 'semana') {
+      return b.check_in_date >= startOfWeekStr && b.check_in_date <= endOfWeekStr;
+    }
+    if (pendingBalancePeriod === 'mes') {
+      return b.check_in_date && b.check_in_date.startsWith(currentMonthStr);
+    }
+    return true; // 'todos'
+  });
+
+  const periodPendingBalanceTotal = pendingFilteredBookings.reduce((sum, b) => {
     const remaining = (b.total_amount_cop || 0) - (b.deposit_amount_cop || 0);
     return sum + Math.max(0, remaining);
   }, 0);
@@ -435,17 +473,62 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       (b.client_phone || '').includes(searchQuery);
 
     const matchesCabin = selectedCabinFilter === 'ALL' || b.cabin_id === selectedCabinFilter;
-    const matchesStatus = statusFilter === 'ALL' || b.status === statusFilter;
+    
+    // Status filter: 'ALL' | 'AGENDADO' | 'CANCELADO'
+    let matchesStatus = true;
+    if (statusFilter === 'AGENDADO') {
+      matchesStatus = b.status !== 'CANCELADA' && b.status !== 'CANCELLED' && b.status !== 'CANCELADO';
+    } else if (statusFilter === 'CANCELADO') {
+      matchesStatus = b.status === 'CANCELADA' || b.status === 'CANCELLED' || b.status === 'CANCELADO';
+    }
+
     const matchesMonth = tableMonthFilter === 'ALL' || (b.check_in_date && b.check_in_date.startsWith(tableMonthFilter));
 
     return matchesSearch && matchesCabin && matchesStatus && matchesMonth;
   });
 
-  // Filtered cancellation requests
+  // Filtered cancellation requests (Admin only)
   const filteredCancellations = cancellationRequests.filter(r => {
     if (cancellationFilter === 'ALL') return true;
     return r.status === cancellationFilter;
   });
+
+  // Helper for audit badges
+  const getAuditMovementBadge = (prev, next) => {
+    const n = String(next || '').toUpperCase();
+    if (n.includes('CANCEL')) {
+      return <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/40 font-cartoon font-bold text-[10px]">CANCELADO</span>;
+    }
+    if (n.includes('PAGA') || n.includes('AGEN') || n.includes('CONFIRM')) {
+      return <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-cartoon font-bold text-[10px]">AGENDADO</span>;
+    }
+    return <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-cartoon font-bold text-[10px]">{n}</span>;
+  };
+
+  const getAuditUserBadge = (changedBy) => {
+    const u = String(changedBy || '').toLowerCase();
+    if (u.includes('admin') || u.includes('owner')) {
+      return (
+        <span className="px-2 py-0.5 rounded-full bg-gold-500/20 text-gold-300 border border-gold-500/40 font-cartoon font-bold text-[10px] inline-flex items-center gap-1">
+          <Crown className="w-3 h-3 text-gold-400" />
+          <span>Administrador</span>
+        </span>
+      );
+    }
+    if (u.includes('recep') || u.includes('staff')) {
+      return (
+        <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-cartoon font-bold text-[10px] inline-flex items-center gap-1">
+          <User className="w-3 h-3 text-cyan-400" />
+          <span>Recepción</span>
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-cartoon font-bold text-[10px] inline-flex items-center gap-1">
+        <span>🌐 {changedBy}</span>
+      </span>
+    );
+  };
 
   if (!isAuthenticated) {
     return (
@@ -532,18 +615,25 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       <aside className="w-full lg:w-72 bg-jade-950/95 border-b lg:border-b-0 lg:border-r border-white/10 p-4 sm:p-5 flex flex-col justify-between shrink-0 shadow-2xl z-30">
         <div className="space-y-6">
           
-          {/* Brand & Status Header */}
+          {/* Brand & Corona Header */}
           <div className="flex items-center justify-between pb-4 border-b border-white/10">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gold-gradient flex items-center justify-center text-jade-950 shadow-gold-glow font-display font-black text-lg">
-                A
-              </div>
+              {userRole === 'admin' ? (
+                <div className="w-10 h-10 rounded-2xl bg-gold-gradient flex items-center justify-center text-jade-950 shadow-gold-glow">
+                  <Crown className="w-5 h-5 text-jade-950 fill-jade-950" />
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-2xl bg-jade-900 border border-white/10 flex items-center justify-center text-gold-400">
+                  <User className="w-5 h-5" />
+                </div>
+              )}
+
               <div>
                 <h2 className="font-display text-base font-black text-linen-100 uppercase tracking-wide leading-none">
                   Andicas Panel
                 </h2>
                 <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block mt-0.5">
-                  {userRole === 'admin' ? 'Administrador' : 'Recepción / Staff'}
+                  {userRole === 'admin' ? '👑 Administrador General' : '👤 Recepción / Operativo'}
                 </span>
               </div>
             </div>
@@ -560,7 +650,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           {/* Section Navigation Buttons */}
           <nav className="space-y-1.5 font-cartoon text-xs uppercase">
             
-            {/* 1. Agendamientos & Calendario */}
+            {/* 1. Agendamientos & Calendario (Visible para todos) */}
             <button
               onClick={() => setActiveSection('agendamientos')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
@@ -578,69 +668,58 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </span>
             </button>
 
-            {/* 2. Recaudos & Caja */}
-            <button
-              onClick={() => setActiveSection('recaudos')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
-                activeSection === 'recaudos'
-                  ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                  : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <DollarSign className="w-4 h-4" />
-                <span>Recaudos & Caja</span>
-              </div>
-            </button>
-
-            {/* 3. Cancelaciones */}
-            <button
-              onClick={() => setActiveSection('cancelaciones')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
-                activeSection === 'cancelaciones'
-                  ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                  : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
-                <span>Cancelaciones</span>
-              </div>
-              {pendingCancellationCount > 0 && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500 text-white font-mono font-bold animate-pulse">
-                  {pendingCancellationCount}
-                </span>
-              )}
-            </button>
-
-            {/* 4. Personalización / CMS Lite */}
-            <button
-              onClick={() => setActiveSection('personalizacion')}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
-                activeSection === 'personalizacion'
-                  ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                  : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Sliders className="w-4 h-4" />
-                <span>Personalización</span>
-              </div>
-            </button>
-
-            {/* 5. Auditoría */}
+            {/* 2. Recaudos & Caja (Exclusivo Administrador) */}
             {userRole === 'admin' && (
               <button
-                onClick={() => setActiveSection('auditoria')}
+                onClick={() => setActiveSection('recaudos')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
-                  activeSection === 'auditoria'
+                  activeSection === 'recaudos'
                     ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
                     : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <History className="w-4 h-4" />
-                  <span>Auditoría</span>
+                  <DollarSign className="w-4 h-4" />
+                  <span>Recaudos & Caja</span>
+                </div>
+              </button>
+            )}
+
+            {/* 3. Cancelaciones (Exclusivo Administrador) */}
+            {userRole === 'admin' && (
+              <button
+                onClick={() => setActiveSection('cancelaciones')}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
+                  activeSection === 'cancelaciones'
+                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                    : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  <span>Cancelaciones</span>
+                </div>
+                {pendingCancellationCount > 0 && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500 text-white font-mono font-bold animate-pulse">
+                    {pendingCancellationCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* 4. Personalización / CMS Lite (Exclusivo Administrador) */}
+            {userRole === 'admin' && (
+              <button
+                onClick={() => setActiveSection('personalizacion')}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
+                  activeSection === 'personalizacion'
+                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                    : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Sliders className="w-4 h-4" />
+                  <span>Personalización</span>
                 </div>
               </button>
             )}
@@ -685,27 +764,27 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
         
         {/* ======================================================================= */}
-        {/* SECCIÓN 1: AGENDAMIENTOS & CALENDARIO INTERACTIVO */}
+        {/* SECCIÓN 1: AGENDAMIENTOS, CALENDARIO & AUDITORÍA INTEGRADA */}
         {/* ======================================================================= */}
         {activeSection === 'agendamientos' && (
           <div className="space-y-6">
             
-            {/* Header & Sub-tab Switcher */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
+            {/* Header & Sub-tab Switcher (Lista | Calendario | Auditoría) */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
               <div>
                 <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-                  Gestión de Estadías & Fechas
+                  Operaciones de Hospedaje & Control
                 </span>
                 <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
-                  Agendamientos & Calendario
+                  Agendamientos de Cabañas
                 </h1>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <div className="flex items-center bg-jade-950 p-1 rounded-2xl border border-white/10 font-cartoon text-xs">
                   <button
                     onClick={() => setAgendaSubTab('tabla')}
-                    className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
                       agendaSubTab === 'tabla'
                         ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
                         : 'text-linen-300 hover:text-white'
@@ -715,7 +794,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   </button>
                   <button
                     onClick={() => setAgendaSubTab('calendario')}
-                    className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
                       agendaSubTab === 'calendario'
                         ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
                         : 'text-linen-300 hover:text-white'
@@ -723,6 +802,18 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   >
                     Calendario Visual
                   </button>
+                  {userRole === 'admin' && (
+                    <button
+                      onClick={() => setAgendaSubTab('auditoria')}
+                      className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
+                        agendaSubTab === 'auditoria'
+                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                          : 'text-linen-300 hover:text-white'
+                      }`}
+                    >
+                      🛡️ Auditoría
+                    </button>
+                  )}
                 </div>
 
                 <button
@@ -767,10 +858,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     className="bg-jade-950 border border-white/15 rounded-xl px-3 py-2 text-xs text-linen-100 focus:border-gold-400 outline-none cursor-pointer"
                   >
                     <option value="ALL">Todos los Estados</option>
-                    <option value="PAGA">Paga (Confirmada)</option>
-                    <option value="AGENDADA">Agendada (Pendiente Pago)</option>
-                    <option value="SOLICITUD_CANCELACION">Solicitud Cancelación</option>
-                    <option value="CANCELADA">Cancelada</option>
+                    <option value="AGENDADO">Agendado</option>
+                    <option value="CANCELADO">Cancelado</option>
                   </select>
                 </div>
 
@@ -824,33 +913,16 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                                 <span className="text-[10px] text-hoja-400 font-mono">Anticipo: {formatCOP(b.deposit_amount_cop)}</span>
                               </td>
                               <td className="p-3.5">
-                                <span className={`px-2.5 py-1 rounded-full font-cartoon font-bold text-[10px] uppercase border inline-block ${
-                                  b.status === 'PAGA' 
-                                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                                    : b.status === 'SOLICITUD_CANCELACION'
-                                    ? 'bg-pink-500/15 border-pink-500/30 text-pink-400'
-                                    : b.status === 'CANCELADA'
-                                    ? 'bg-red-500/15 border-red-500/30 text-red-400'
-                                    : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                                }`}>
+                                <span className={`px-2.5 py-1 rounded-full font-cartoon font-bold text-[10px] uppercase border inline-block ${getStatusBadgeStyle(b.status)}`}>
                                   {formatStatusLabel(b.status)}
                                 </span>
                               </td>
                               <td className="p-3.5 text-right space-x-1">
-                                {b.status !== 'PAGA' && b.status !== 'CANCELADA' && (
+                                {userRole === 'admin' && b.status !== 'CANCELADA' && b.status !== 'CANCELLED' && b.status !== 'CANCELADO' && (
                                   <button
-                                    onClick={() => handleStatusChange(b.booking_reference, 'PAGA')}
-                                    className="p-1.5 rounded-lg bg-emerald-600/30 text-emerald-300 hover:bg-emerald-600/50 transition-colors"
-                                    title="Marcar como Paga"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                {b.status !== 'CANCELADA' && (
-                                  <button
-                                    onClick={() => handleCancelBooking(b.booking_reference)}
-                                    className="p-1.5 rounded-lg bg-red-600/30 text-red-300 hover:bg-red-600/50 transition-colors"
-                                    title="Cancelar Reserva"
+                                    onClick={() => handleOpenCancelModal(b)}
+                                    className="p-1.5 rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/40 border border-red-500/30 transition-colors"
+                                    title="Cancelar Reserva con Motivo"
                                   >
                                     <Ban className="w-3.5 h-3.5" />
                                   </button>
@@ -959,10 +1031,11 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                         return <div key={`empty-${idx}`} className="p-3 sm:p-4 rounded-2xl bg-white/[0.01]" />;
                       }
 
-                      const isToday = day.dateStr === new Date().toISOString().split('T')[0];
+                      const isToday = day.dateStr === todayStr;
                       const dayBookings = bookings.filter(b => 
                         b.status !== 'CANCELADA' && 
                         b.status !== 'CANCELLED' && 
+                        b.status !== 'CANCELADO' &&
                         day.dateStr >= b.check_in_date && 
                         day.dateStr < b.check_out_date
                       );
@@ -990,7 +1063,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                             </span>
                             {dayBookings.length > 0 && (
                               <span className="text-[9px] font-cartoon font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">
-                                {dayBookings.length} {dayBookings.length === 1 ? 'Reserva' : 'Reservas'}
+                                {dayBookings.length} {dayBookings.length === 1 ? 'Agendada' : 'Agendadas'}
                               </span>
                             )}
                           </div>
@@ -1019,13 +1092,192 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 </div>
               </div>
             )}
+
+            {/* VISTA 1C: AUDITORÍA DE AGENDAMIENTOS CON COLORES VIBRANTES */}
+            {agendaSubTab === 'auditoria' && userRole === 'admin' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-3xl glass-dark border border-white/10 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                      🛡️ Historial de Trazabilidad & Auditoría
+                    </h3>
+                    <p className="text-xs text-linen-300">
+                      Registro cronológico de movimientos, cancelaciones, cambios de fechas y operadores.
+                    </p>
+                  </div>
+                  <span className="text-xs font-mono text-linen-400">
+                    {auditLogs.length} eventos registrados
+                  </span>
+                </div>
+
+                <div className="rounded-3xl glass-dark border border-white/10 overflow-hidden shadow-xl">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs font-fredoka">
+                      <thead className="bg-jade-900/80 font-cartoon text-[11px] text-gold-400 uppercase tracking-wider border-b border-white/10">
+                        <tr>
+                          <th className="p-3.5">Fecha / Hora</th>
+                          <th className="p-3.5">Referencia</th>
+                          <th className="p-3.5">Huésped / Recurso</th>
+                          <th className="p-3.5">Movimiento</th>
+                          <th className="p-3.5">Operador</th>
+                          <th className="p-3.5">Detalles / Motivo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {auditLogs.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="p-8 text-center text-linen-400 italic">
+                              No hay registros de auditoría aún.
+                            </td>
+                          </tr>
+                        ) : (
+                          auditLogs.map((log, idx) => (
+                            <tr key={log.id || idx} className="hover:bg-white/[0.02] transition-colors">
+                              <td className="p-3.5 font-mono text-[11px] text-linen-300">
+                                {log.created_at ? new Date(log.created_at).toLocaleString('es-CO') : 'Reciente'}
+                              </td>
+                              <td className="p-3.5 font-mono font-bold text-gold-400">
+                                {log.booking_reference}
+                              </td>
+                              <td className="p-3.5 text-linen-200 font-medium">
+                                {log.client_name}
+                              </td>
+                              <td className="p-3.5">
+                                {getAuditMovementBadge(log.previous_status, log.new_status)}
+                              </td>
+                              <td className="p-3.5">
+                                {getAuditUserBadge(log.changed_by)}
+                              </td>
+                              <td className="p-3.5 text-linen-300 text-[11px] italic">
+                                {log.notes}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* =================================================================== */}
+            {/* BARRA INFERIOR DE SALDOS PENDIENTES POR COBRAR EN RECEPCIÓN */}
+            {/* (Visible para todo usuario: Admin y Staff) */}
+            {/* =================================================================== */}
+            <div className="p-5 sm:p-6 rounded-3xl glass-dark border border-amber-500/40 shadow-2xl space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+                <div>
+                  <span className="text-[10px] font-cartoon text-amber-400 uppercase tracking-widest block">
+                    Control de Caja en Recepción
+                  </span>
+                  <h3 className="font-display text-base sm:text-lg font-black text-white uppercase tracking-wide">
+                    Saldo Restante Pendiente por Cobrar
+                  </h3>
+                </div>
+
+                {/* Time Filters */}
+                <div className="flex items-center gap-1.5 bg-jade-950 p-1 rounded-2xl border border-white/10 font-cartoon text-xs">
+                  <button
+                    onClick={() => setPendingBalancePeriod('hoy')}
+                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                      pendingBalancePeriod === 'hoy'
+                        ? 'bg-amber-500 text-jade-950 font-bold shadow-md'
+                        : 'text-linen-300 hover:text-white'
+                    }`}
+                  >
+                    Hoy
+                  </button>
+                  <button
+                    onClick={() => setPendingBalancePeriod('semana')}
+                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                      pendingBalancePeriod === 'semana'
+                        ? 'bg-amber-500 text-jade-950 font-bold shadow-md'
+                        : 'text-linen-300 hover:text-white'
+                    }`}
+                  >
+                    Esta Semana
+                  </button>
+                  <button
+                    onClick={() => setPendingBalancePeriod('mes')}
+                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                      pendingBalancePeriod === 'mes'
+                        ? 'bg-amber-500 text-jade-950 font-bold shadow-md'
+                        : 'text-linen-300 hover:text-white'
+                    }`}
+                  >
+                    Este Mes
+                  </button>
+                  <button
+                    onClick={() => setPendingBalancePeriod('todos')}
+                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                      pendingBalancePeriod === 'todos'
+                        ? 'bg-amber-500 text-jade-950 font-bold shadow-md'
+                        : 'text-linen-300 hover:text-white'
+                    }`}
+                  >
+                    Todo
+                  </button>
+                </div>
+              </div>
+
+              {/* Balance Summary & Guest Quick Strip */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                <div className="lg:col-span-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1">
+                  <span className="text-[10px] text-amber-300 uppercase font-cartoon block">
+                    Total a Recaudar al Check-in:
+                  </span>
+                  <span className="font-mono text-2xl font-black text-amber-300 block">
+                    {formatCOP(periodPendingBalanceTotal)}
+                  </span>
+                  <span className="text-[11px] text-linen-300 block">
+                    {pendingFilteredBookings.length} {pendingFilteredBookings.length === 1 ? 'estadía por recibir' : 'estadías por recibir en este período'}
+                  </span>
+                </div>
+
+                <div className="lg:col-span-8">
+                  {pendingFilteredBookings.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-linen-400/70 italic rounded-2xl bg-jade-900/40 border border-white/5">
+                      No hay estadías pendientes de cobro para el período seleccionado.
+                    </div>
+                  ) : (
+                    <div className="flex gap-2.5 overflow-x-auto pb-1 text-xs">
+                      {pendingFilteredBookings.map((b) => {
+                        const remaining = (b.total_amount_cop || 0) - (b.deposit_amount_cop || 0);
+                        return (
+                          <div
+                            key={b.id || b.booking_reference}
+                            className="p-3 rounded-2xl bg-jade-900/80 border border-white/10 min-w-[200px] shrink-0 space-y-1"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-linen-100 truncate block max-w-[120px]">
+                                {b.client_name}
+                              </span>
+                              <span className="text-[9px] font-mono text-gold-400 bg-gold-500/10 px-1.5 py-0.5 rounded">
+                                {b.check_in_date}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-linen-400 block truncate">{b.cabin_name}</span>
+                            <div className="pt-1 border-t border-white/10 flex items-center justify-between text-xs font-mono">
+                              <span className="text-[10px] text-linen-400">Resta:</span>
+                              <span className="font-bold text-amber-300">{formatCOP(remaining)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
           </div>
         )}
 
         {/* ======================================================================= */}
-        {/* SECCIÓN 2: RECAUDOS, CAJA & MÉTRICAS */}
+        {/* SECCIÓN 2: RECAUDOS, CAJA & MÉTRICAS (SOLO ADMIN) */}
         {/* ======================================================================= */}
-        {activeSection === 'recaudos' && (
+        {activeSection === 'recaudos' && userRole === 'admin' && (
           <div className="space-y-6">
             <div className="p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
               <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
@@ -1052,7 +1304,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
                   Ventas Totales Proyectadas
                 </span>
-                <span className="font-mono text-xl sm:text-2xl font-black text-gold- gradient text-gold-300 block">
+                <span className="font-mono text-xl sm:text-2xl font-black text-gold-300 block">
                   {formatCOP(totalRevenue)}
                 </span>
                 <span className="text-[11px] text-linen-400 block">Monto total de estadías activas</span>
@@ -1063,19 +1315,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   Saldos Pendientes en Recepción
                 </span>
                 <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 block">
-                  {formatCOP(totalRemainingPending)}
+                  {formatCOP(totalRemainingPendingGlobal)}
                 </span>
                 <span className="text-[11px] text-linen-400 block">Por cobrar al check-in en efectivo/datafono</span>
               </div>
 
               <div className="p-5 rounded-3xl glass-dark border border-cyan-500/30 space-y-1 shadow-lg">
                 <span className="text-[10px] font-cartoon text-cyan-400 uppercase tracking-wider block">
-                  Total Reservas Activas
+                  Total Reservas Agendadas
                 </span>
                 <span className="font-mono text-xl sm:text-2xl font-black text-cyan-300 block">
-                  {validBookings.length}
+                  {activeScheduledBookings.length}
                 </span>
-                <span className="text-[11px] text-linen-400 block">Estadías agendadas en el sistema</span>
+                <span className="text-[11px] text-linen-400 block">Estadías activas en el sistema</span>
               </div>
             </div>
 
@@ -1086,7 +1338,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {cabinsData.map((cabin) => {
-                  const cabinBookings = validBookings.filter(b => b.cabin_id === cabin.id);
+                  const cabinBookings = activeScheduledBookings.filter(b => b.cabin_id === cabin.id);
                   const cabinRevenue = cabinBookings.reduce((sum, b) => sum + (b.total_amount_cop || 0), 0);
 
                   return (
@@ -1109,9 +1361,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         )}
 
         {/* ======================================================================= */}
-        {/* SECCIÓN 3: SOLICITUDES DE CANCELACIÓN */}
+        {/* SECCIÓN 3: SOLICITUDES DE CANCELACIÓN (SOLO ADMIN) */}
         {/* ======================================================================= */}
-        {activeSection === 'cancelaciones' && (
+        {activeSection === 'cancelaciones' && userRole === 'admin' && (
           <div className="space-y-6">
             <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
               <div>
@@ -1240,9 +1492,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         )}
 
         {/* ======================================================================= */}
-        {/* SECCIÓN 4: PERSONALIZACIÓN DE PÁGINA (CMS LITE) */}
+        {/* SECCIÓN 4: PERSONALIZACIÓN DE PÁGINA (CMS LITE - SOLO ADMIN) */}
         {/* ======================================================================= */}
-        {activeSection === 'personalizacion' && (
+        {activeSection === 'personalizacion' && userRole === 'admin' && (
           <div className="space-y-6">
             <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
               <div>
@@ -1455,74 +1707,119 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             </div>
           </div>
         )}
+      </main>
 
-        {/* ======================================================================= */}
-        {/* SECCIÓN 5: AUDITORÍA & HISTORIAL */}
-        {/* ======================================================================= */}
-        {activeSection === 'auditoria' && userRole === 'admin' && (
-          <div className="space-y-6">
-            <div className="p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
-              <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-                Trazabilidad & Seguridad de Operaciones
-              </span>
-              <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
-                Historial de Auditoría
-              </h1>
-            </div>
-
-            <div className="rounded-3xl glass-dark border border-white/10 overflow-hidden shadow-xl">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-fredoka">
-                  <thead className="bg-jade-900/80 font-cartoon text-[11px] text-gold-400 uppercase tracking-wider border-b border-white/10">
-                    <tr>
-                      <th className="p-3.5">Fecha / Hora</th>
-                      <th className="p-3.5">Referencia</th>
-                      <th className="p-3.5">Huésped / Recurso</th>
-                      <th className="p-3.5">Movimiento</th>
-                      <th className="p-3.5">Operador</th>
-                      <th className="p-3.5">Detalles</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {auditLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-8 text-center text-linen-400 italic">
-                          No hay registros de auditoría aún.
-                        </td>
-                      </tr>
-                    ) : (
-                      auditLogs.map((log, idx) => (
-                        <tr key={log.id || idx} className="hover:bg-white/[0.02] transition-colors">
-                          <td className="p-3.5 font-mono text-[11px] text-linen-300">
-                            {log.created_at ? new Date(log.created_at).toLocaleString('es-CO') : 'Reciente'}
-                          </td>
-                          <td className="p-3.5 font-mono font-bold text-gold-400">
-                            {log.booking_reference}
-                          </td>
-                          <td className="p-3.5 text-linen-200">
-                            {log.client_name}
-                          </td>
-                          <td className="p-3.5">
-                            <span className="px-2 py-0.5 rounded bg-white/10 font-cartoon text-[10px] uppercase text-linen-200">
-                              {log.previous_status} → {log.new_status}
-                            </span>
-                          </td>
-                          <td className="p-3.5 font-bold text-linen-100">
-                            {log.changed_by}
-                          </td>
-                          <td className="p-3.5 text-linen-400 text-[11px]">
-                            {log.notes}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+      {/* ======================================================================= */}
+      {/* MODAL: CANCELAR RESERVA CON MOTIVO (SOLO ADMIN) */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {cancelModal.isOpen && cancelModal.booking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !cancelModal.isCancelling && setCancelModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/85 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-red-500/50 shadow-2xl space-y-4 z-10 text-linen-100"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2 text-red-400">
+                  <Ban className="w-5 h-5" />
+                  <h3 className="font-display text-base font-black text-white uppercase">
+                    Cancelar Reserva
+                  </h3>
+                </div>
+                <button
+                  disabled={cancelModal.isCancelling}
+                  onClick={() => setCancelModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            </div>
+
+              <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-xs space-y-1.5 font-fredoka">
+                <div className="flex justify-between">
+                  <span className="text-linen-400">Referencia:</span>
+                  <span className="font-mono font-bold text-gold-300">{cancelModal.booking.booking_reference}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-linen-400">Huésped:</span>
+                  <span className="font-bold text-white">{cancelModal.booking.client_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-linen-400">Cabaña:</span>
+                  <span className="text-linen-200">{cancelModal.booking.cabin_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-linen-400">Fechas:</span>
+                  <span className="font-mono text-linen-200">{cancelModal.booking.check_in_date} al {cancelModal.booking.check_out_date}</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleConfirmCancelBooking} className="space-y-3 font-fredoka text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Motivo Obligatorio de Cancelación:
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    placeholder="Ej. Solicitud directa del cliente / No show / Fuerza mayor..."
+                    value={cancelModal.reason}
+                    onChange={(e) => setCancelModal(prev => ({ ...prev, reason: e.target.value }))}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-red-400 rounded-xl px-3 py-2 text-xs text-linen-100 outline-none resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-linen-400 uppercase block mb-1">
+                    Notas Administrativas / Acuerdo (Opcional):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Se acordó reprogramación para noviembre / Penalidad 40%..."
+                    value={cancelModal.notes}
+                    onChange={(e) => setCancelModal(prev => ({ ...prev, notes: e.target.value }))}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 outline-none"
+                  />
+                </div>
+
+                {cancelModal.error && (
+                  <div className="p-2.5 rounded-xl bg-red-900/40 border border-red-500/50 text-red-300 text-xs">
+                    {cancelModal.error}
+                  </div>
+                )}
+
+                <div className="pt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={cancelModal.isCancelling}
+                    onClick={() => setCancelModal(prev => ({ ...prev, isOpen: false }))}
+                    className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-xs uppercase font-bold cursor-pointer transition-colors"
+                  >
+                    Volver
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={cancelModal.isCancelling}
+                    className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-cartoon text-xs uppercase font-bold cursor-pointer transition-all shadow-md disabled:opacity-50"
+                  >
+                    {cancelModal.isCancelling ? 'Procesando...' : 'Confirmar Cancelación'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </div>
         )}
-      </main>
+      </AnimatePresence>
 
       {/* ======================================================================= */}
       {/* MODAL: VENTANA EMERGENTE INTERACTIVA DEL DÍA (CALENDAR DAY POPUP) */}
@@ -1601,12 +1898,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-linen-100 text-sm">{b.cabin_name}</span>
-                        <span className={`px-2 py-0.5 rounded-full font-cartoon font-bold text-[10px] uppercase border ${
-                          b.status === 'PAGA'
-                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                            : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                        }`}>
-                          {b.status === 'PAGA' ? 'PAGA (50% ABONADO)' : 'AGENDADA (PENDIENTE)'}
+                        <span className={`px-2 py-0.5 rounded-full font-cartoon font-bold text-[10px] uppercase border ${getStatusBadgeStyle(b.status)}`}>
+                          {formatStatusLabel(b.status)}
                         </span>
                       </div>
 
@@ -1633,8 +1926,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           <span className="font-bold text-hoja-400">{formatCOP(b.deposit_amount_cop)}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-linen-500 block">Saldo en Recepción:</span>
-                          <span className="font-bold text-linen-200">{formatCOP((b.total_amount_cop || 0) - (b.deposit_amount_cop || 0))}</span>
+                          <span className="text-[10px] text-amber-300 block">Saldo en Recepción:</span>
+                          <span className="font-bold text-amber-300">{formatCOP((b.total_amount_cop || 0) - (b.deposit_amount_cop || 0))}</span>
                         </div>
                       </div>
 
@@ -1649,15 +1942,15 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           <span>WhatsApp</span>
                         </a>
 
-                        {b.status !== 'PAGA' && (
+                        {userRole === 'admin' && b.status !== 'CANCELADA' && b.status !== 'CANCELLED' && (
                           <button
                             onClick={() => {
-                              handleStatusChange(b.booking_reference, 'PAGA');
                               setDayAgendaModal(prev => ({ ...prev, isOpen: false }));
+                              handleOpenCancelModal(b);
                             }}
-                            className="px-3 py-1.5 rounded-xl bg-gold-gradient text-jade-950 font-cartoon text-xs uppercase font-bold transition-all"
+                            className="px-3 py-1.5 rounded-xl bg-red-600/30 text-red-300 hover:bg-red-600/50 font-cartoon text-xs uppercase font-bold transition-all"
                           >
-                            Marcar como Paga
+                            Cancelar
                           </button>
                         )}
                       </div>

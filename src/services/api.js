@@ -180,14 +180,24 @@ export async function updateBookingStatusAdmin(bookingReference, newStatus, admi
 /**
  * Cancela una reserva desde el panel de administración
  */
-export async function cancelBookingAdmin(bookingReference, adminKey) {
+export async function cancelBookingAdmin(bookingReference, reasonOrAdminKey, optionalAdminKey) {
+  let reason = '';
+  let adminKey = '';
+
+  if (typeof reasonOrAdminKey === 'string' && optionalAdminKey) {
+    reason = reasonOrAdminKey;
+    adminKey = optionalAdminKey;
+  } else if (typeof reasonOrAdminKey === 'string') {
+    adminKey = reasonOrAdminKey;
+  }
+
   const res = await fetch(`${API_BASE}/api/bookings/admin/cancel-booking`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-admin-key': adminKey,
     },
-    body: JSON.stringify({ booking_reference: bookingReference }),
+    body: JSON.stringify({ booking_reference: bookingReference, reason }),
   });
   return res.json();
 }
