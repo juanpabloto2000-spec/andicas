@@ -67,6 +67,11 @@ export const contactData = {
       desc: "Toda reserva de cabaña o evento se confirma oficialmente mediante el abono del 50% a nuestras cuentas institucionales."
     },
     {
+      id: "cancelacion",
+      title: "Política de Cancelación (3 Días & Penalidad 40%)",
+      desc: "Las solicitudes de cancelación deben radicarse con mínimo 3 días (72 horas) de anticipación al día de check-in. Solicitudes con menos de 3 días conllevan una penalidad del 40% sobre el monto abonado por costos de bloqueo de cupo."
+    },
+    {
       id: "alimentos",
       title: "Prohibido Ingreso de Comida/Bebidas Externas",
       desc: "Contamos con restaurante gourmet, bar artesanal y tiendas con amplia oferta gastronómica."
@@ -90,7 +95,8 @@ export const parkRules = [
     rules: [
       "Anticipo obligatorio del 50% para congelar tarifa y asegurar cupo.",
       "Consignaciones únicamente a cuentas de Andicas Bioparque S.A.S.",
-      "Cancelaciones con mínimo 72h de anticipación para reprogramación."
+      "Cancelaciones deben radicarse con mínimo 3 días (72h) de antelación en la web.",
+      "Cancelaciones con menos de 3 días de anticipación aplican una penalidad del 40% sobre el valor abonado."
     ]
   },
   {

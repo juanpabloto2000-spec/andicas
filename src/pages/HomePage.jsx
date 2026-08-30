@@ -34,8 +34,12 @@ const RULES_CATEGORIES = [
         text: 'Los pagos se realizan exclusivamente a las cuentas institucionales a nombre de Andicas Bioparque S.A.S. (NIT 901.890.345-1).'
       },
       {
-        title: 'Reprogramación Flexible',
-        text: 'Notifica cambios con al menos 72 horas de anticipación para reprogramar tu fecha sin penalidad sujeta a disponibilidad.'
+        title: 'Cancelación con 3 Días (72h) de Anticipación',
+        text: 'Las cancelaciones deben radicarse formalmente en la web con mínimo 3 días (72h) antes de la llegada para evaluación de trámite sin penalidad.'
+      },
+      {
+        title: 'Penalidad del 40% por Cancelación Tardía',
+        text: 'Solicitudes efectuadas con menos de 3 días de antelación incurrirán en una penalidad del 40% sobre el valor abonado para cubrir costos de bloqueo de cupo.'
       }
     ]
   },

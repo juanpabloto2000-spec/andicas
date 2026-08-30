@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, ArrowRight, Check, Ban, Sparkles, CreditCard, ShieldCheck, 
-  CheckCircle2, Mail, Phone, User, ExternalLink, HelpCircle, Lock
+  CheckCircle2, Mail, Phone, User, ExternalLink, HelpCircle, Lock, AlertTriangle
 } from 'lucide-react';
 import { cabinsData, cabinAddons, generalCabinPolicy } from '../data/cabins';
 import CustomCalendar from '../components/CustomCalendar';
@@ -11,7 +11,7 @@ import BookingSuccessModal from '../components/BookingSuccessModal';
 import { contactData } from '../data/banking';
 import { getCabinAvailability, createWompiCheckout, openWompiWidget, simulatePayment } from '../services/api';
 
-export default function CabanasPage({ onNavigate, onShowToast, activeModules }) {
+export default function CabanasPage({ onNavigate, onShowToast, activeModules, onOpenCancellation }) {
   const [selectedCabin, setSelectedCabin] = useState(cabinsData[0]);
   const [blockedDates, setBlockedDates] = useState([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
@@ -644,6 +644,18 @@ export default function CabanasPage({ onNavigate, onShowToast, activeModules }) 
                       </div>
                     </>
                   )}
+
+                  {/* Enlace para Cancelación o Reprogramación de Reserva */}
+                  <div className="pt-2 border-t border-white/10 text-center">
+                    <button
+                      type="button"
+                      onClick={() => onOpenCancellation && onOpenCancellation()}
+                      className="text-[11px] font-fredoka text-linen-300 hover:text-gold-300 transition-colors inline-flex items-center gap-1.5 cursor-pointer underline underline-offset-2"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>¿Deseas solicitar la cancelación de una reserva?</span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}

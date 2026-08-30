@@ -12,6 +12,7 @@ import AiAssistantModal from './components/AiAssistantModal';
 import BookingModal from './components/BookingModal';
 import BookingSummaryModal from './components/BookingSummaryModal';
 import ParkRulesModal from './components/ParkRulesModal';
+import CancellationRequestModal from './components/CancellationRequestModal';
 import Preloader from './components/Preloader';
 import Toast from './components/Toast';
 import PublicLockoutScreen from './components/PublicLockoutScreen';
@@ -29,6 +30,7 @@ export default function App() {
 
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [bookingType, setBookingType] = useState('cabana');
+  const [cancellationModalOpen, setCancellationModalOpen] = useState(false);
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
@@ -39,6 +41,10 @@ export default function App() {
     setCurrentPage(page);
     window.location.hash = page === 'home' ? '' : `#/${page}`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleOpenCancellation = () => {
+    setCancellationModalOpen(true);
   };
 
   // Suscripción reactiva instantánea a cambios en Supabase Realtime (<100ms) sin necesidad de refrescar
@@ -160,6 +166,7 @@ export default function App() {
                 onNavigate={navigateTo}
                 onShowToast={showToastNotification}
                 activeModules={activeModules}
+                onOpenCancellation={handleOpenCancellation}
               />
             </motion.div>
           )}
@@ -233,6 +240,7 @@ export default function App() {
         onOpenSummary={handleOpenSummary}
         initialType={bookingType}
         activeModules={activeModules}
+        onOpenCancellation={handleOpenCancellation}
       />
 
       <BookingSummaryModal
@@ -247,6 +255,11 @@ export default function App() {
       <ParkRulesModal
         isOpen={rulesModalOpen}
         onClose={() => setRulesModalOpen(false)}
+      />
+
+      <CancellationRequestModal
+        isOpen={cancellationModalOpen}
+        onClose={() => setCancellationModalOpen(false)}
       />
 
       {/* Toast */}

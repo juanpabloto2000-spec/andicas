@@ -857,4 +857,282 @@ router.post('/admin/set-module-status', requireAdminOrStaffAuth, requireAdminOnl
   }
 });
 
+/**
+ * 13. POST /api/bookings/cancel-request (Público)
+ * Registra una solicitud de cancelación con cálculo de regla de 72h y penalidad del 40%
+ */
+router.post('/cancel-request', async (req, res) => {
+  try {
+    const { booking_reference, client_name, client_email, client_phone, reason } = req.body;
+
+    if (!booking_reference || !client_name) {
+      return res.status(400).json({ error: 'El número de reserva y el nombre completo son obligatorios.' });
+    }
+
+    const cleanRef = String(booking_reference).trim().toUpperCase();
+
+    // 1. Buscar la reserva en Supabase o mockStore
+    let booking = null;
+    if (supabase) {
+      const { data } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('booking_reference', cleanRef)
+        .maybeSingle();
+      booking = data;
+    }
+
+    if (!booking && mockStore.bookings) {
+      booking = mockStore.bookings.find(b => b.booking_reference === cleanRef);
+    }
+
+    // 2. Calcular días de diferencia hasta la fecha de check-in
+    let checkInDate = booking?.check_in_date;
+    let diffDays = null;
+    let isEligibleForFullReview = true;
+    let penaltyPercentage = 0;
+
+    if (checkInDate) {
+      const checkInTime = new Date(checkInDate).getTime();
+      const nowTime = new Date().getTime();
+      const diffMs = checkInTime - nowTime;
+      diffDays = Math.round((diffMs / (1000 * 60 * 60 * 24)) * 10) / 10;
+      
+      // Regla de Oro: Mínimo 3 días (72h) antes de la fecha de llegada
+      isEligibleForFullReview = diffDays >= 3;
+      penaltyPercentage = isEligibleForFullReview ? 0 : 40;
+    }
+
+    // 3. Crear registro de solicitud de cancelación
+    const cancellationRequest = {
+      id: `cancel-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      booking_reference: cleanRef,
+      client_name: client_name.trim(),
+      client_email: (client_email || booking?.client_email || '').trim(),
+      client_phone: (client_phone || booking?.client_phone || '').trim(),
+      cabin_id: booking?.cabin_id || 'N/A',
+      cabin_name: booking?.cabin_name || 'Cabaña',
+      check_in_date: checkInDate || 'Por verificar',
+      check_out_date: booking?.check_out_date || 'Por verificar',
+      total_amount_cop: booking?.total_amount_cop || 0,
+      deposit_amount_cop: booking?.deposit_amount_cop || 0,
+      reason: reason || 'Cancelación solicitada por el usuario',
+      diff_days_at_request: diffDays,
+      penalty_percentage: penaltyPercentage,
+      status: 'PENDIENTE', // PENDIENTE | APROBADA | RECHAZADA
+      created_at: new Date().toISOString(),
+    };
+
+    if (!mockStore.cancellation_requests) {
+      mockStore.cancellation_requests = [];
+    }
+    mockStore.cancellation_requests.unshift(cancellationRequest);
+
+    // 4. Actualizar estado de la reserva a SOLICITUD_CANCELACION
+    if (booking) {
+      booking.status = 'SOLICITUD_CANCELACION';
+      if (supabase) {
+        try {
+          await supabase
+            .from('bookings')
+            .update({ status: 'SOLICITUD_CANCELACION' })
+            .eq('booking_reference', cleanRef);
+        } catch (sbErr) {
+          console.warn('Error actualizando estado en Supabase:', sbErr.message);
+        }
+      }
+    }
+
+    // 5. Registrar en auditoría
+    await recordAuditLog({
+      booking_reference: cleanRef,
+      client_name: client_name.trim(),
+      cabin_name: booking?.cabin_name || 'Cabaña',
+      previous_status: booking?.status || 'PAGA',
+      new_status: 'SOLICITUD_CANCELACION',
+      changed_by: 'Huésped (Web)',
+      notes: `Solicitud con ${diffDays !== null ? `${diffDays} días de antelación.` : 'fecha manual.'} Penalidad calculada: ${penaltyPercentage}%. Motivo: ${reason || 'N/A'}`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: isEligibleForFullReview
+        ? 'Solicitud recibida oportunamente (>= 3 días). Será revisada por recepción para trámite o reprogramación.'
+        : 'Solicitud recibida. Al haberse solicitado con menos de 3 días de antelación, aplica una penalidad del 40% según nuestras políticas.',
+      cancellationRequest,
+      penaltyPercentage,
+      isEligibleForFullReview,
+      diffDays,
+    });
+  } catch (err) {
+    console.error('Error procesando solicitud de cancelación:', err);
+    return res.status(500).json({ error: 'No se pudo procesar la solicitud de cancelación.' });
+  }
+});
+
+/**
+ * 14. GET /api/bookings/admin/cancellation-requests
+ * Obtiene todas las solicitudes de cancelación para el panel de administración
+ */
+router.get('/admin/cancellation-requests', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const requests = mockStore.cancellation_requests || [];
+    return res.status(200).json({
+      success: true,
+      requests,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error obteniendo solicitudes de cancelación.' });
+  }
+});
+
+/**
+ * 15. POST /api/bookings/admin/resolve-cancellation
+ * Permite al administrador o recepción aprobar o rechazar una solicitud de cancelación
+ */
+router.post('/admin/resolve-cancellation', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const { requestId, booking_reference, action, notes } = req.body;
+    const cleanAction = String(action || '').toUpperCase(); // 'APPROVE' | 'REJECT'
+
+    if (!requestId && !booking_reference) {
+      return res.status(400).json({ error: 'ID de solicitud o referencia de reserva requerida.' });
+    }
+
+    const requests = mockStore.cancellation_requests || [];
+    const targetReq = requests.find(r => r.id === requestId || r.booking_reference === booking_reference);
+
+    const newReqStatus = cleanAction === 'APPROVE' ? 'APROBADA' : 'RECHAZADA';
+    const newBookingStatus = cleanAction === 'APPROVE' ? 'CANCELADA' : 'CONFIRMED';
+
+    if (targetReq) {
+      targetReq.status = newReqStatus;
+      targetReq.resolved_at = new Date().toISOString();
+      targetReq.resolved_by = req.userRole || 'Admin';
+      targetReq.admin_notes = notes || '';
+    }
+
+    // Actualizar la reserva
+    const ref = targetReq?.booking_reference || booking_reference;
+    if (ref) {
+      if (mockStore.bookings) {
+        const b = mockStore.bookings.find(item => item.booking_reference === ref);
+        if (b) b.status = newBookingStatus;
+      }
+      if (supabase) {
+        try {
+          await supabase
+            .from('bookings')
+            .update({ status: newBookingStatus })
+            .eq('booking_reference', ref);
+        } catch (sbErr) {
+          console.warn('Error en Supabase:', sbErr.message);
+        }
+      }
+    }
+
+    // Registrar en auditoría
+    await recordAuditLog({
+      booking_reference: ref || 'N/A',
+      client_name: targetReq?.client_name || 'Huésped',
+      cabin_name: targetReq?.cabin_name || 'Cabaña',
+      previous_status: 'SOLICITUD_CANCELACION',
+      new_status: newBookingStatus,
+      changed_by: req.userRole || 'Admin',
+      notes: `Solicitud de cancelación ${newReqStatus.toLowerCase()}. ${notes ? `Notas: ${notes}` : ''}`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Solicitud de cancelación ${newReqStatus.toLowerCase()} con éxito.`,
+      status: newReqStatus,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error resolviendo solicitud de cancelación.' });
+  }
+});
+
+/**
+ * 16. GET /api/bookings/site-config (Público & Admin)
+ * Obtiene la configuración dinámica de precios, cabañas y planes de pasadía
+ */
+router.get('/site-config', async (req, res) => {
+  try {
+    let customConfig = mockStore.site_custom_config || null;
+
+    if (!customConfig && supabase) {
+      try {
+        const { data } = await supabase
+          .from('cabins')
+          .select('*')
+          .eq('id', 'custom_site_config')
+          .maybeSingle();
+        if (data?.description) {
+          customConfig = JSON.parse(data.description);
+          mockStore.site_custom_config = customConfig;
+        }
+      } catch (err) {}
+    }
+
+    return res.status(200).json({
+      success: true,
+      config: customConfig || {},
+    });
+  } catch (err) {
+    return res.status(200).json({ success: true, config: {} });
+  }
+});
+
+/**
+ * 17. POST /api/bookings/admin/update-site-config (Admin / Owner)
+ * Guarda la configuración personalizada de cabañas, precios y planes en Supabase Cloud
+ */
+router.post('/admin/update-site-config', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+  try {
+    const { config } = req.body;
+
+    if (!config || typeof config !== 'object') {
+      return res.status(400).json({ error: 'Objeto de configuración no válido.' });
+    }
+
+    mockStore.site_custom_config = {
+      ...(mockStore.site_custom_config || {}),
+      ...config,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (supabase) {
+      try {
+        await supabase.from('cabins').upsert({
+          id: 'custom_site_config',
+          name: 'Custom Site Config CMS',
+          type: 'active',
+          price_per_night: 0,
+          description: JSON.stringify(mockStore.site_custom_config),
+        });
+      } catch (sbErr) {
+        console.warn('Error guardando custom_site_config en Supabase:', sbErr.message);
+      }
+    }
+
+    await recordAuditLog({
+      booking_reference: 'CONFIG_CMS',
+      client_name: 'Personalización de Página',
+      cabin_name: 'Tarifas & Planes',
+      previous_status: 'CONFIG_PREVIA',
+      new_status: 'CONFIG_ACTUALIZADA',
+      changed_by: 'Administrador General',
+      notes: 'Precios, disponibilidad de planes o medios de pago actualizados desde el panel.',
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Configuración de página y precios guardada con éxito en la nube.',
+      config: mockStore.site_custom_config,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error guardando configuración de página.' });
+  }
+});
+
 export default router;

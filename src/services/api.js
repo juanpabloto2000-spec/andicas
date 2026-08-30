@@ -438,5 +438,104 @@ export async function setSubscriptionStatusAdmin(status, adminKey) {
   return res.json();
 }
 
+/**
+ * 13. Envía una solicitud formal de cancelación de reserva (Público)
+ */
+export async function requestBookingCancellation(payload) {
+  const res = await fetch(`${API_BASE}/api/bookings/cancel-request`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+/**
+ * 14. Obtiene todas las solicitudes de cancelación para el panel de administración
+ */
+export async function getAdminCancellationRequests(adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/cancellation-requests`, {
+    headers: {
+      'x-admin-key': adminKey,
+    },
+  });
+  return res.json();
+}
+
+/**
+ * 15. Resuelve (aprueba/rechaza) una solicitud de cancelación desde el panel
+ */
+export async function resolveCancellationRequestAdmin({ requestId, booking_reference, action, notes, adminKey }) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/resolve-cancellation`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ requestId, booking_reference, action, notes }),
+  });
+  return res.json();
+}
+
+/**
+ * 16. Consulta la configuración dinámica de precios y planes (CMS Lite)
+ */
+export async function getSiteCustomConfig() {
+  try {
+    const { data } = await andicasSb
+      .from('cabins')
+      .select('*')
+      .eq('id', 'custom_site_config')
+      .maybeSingle();
+
+    if (data?.description) {
+      return { success: true, config: JSON.parse(data.description) };
+    }
+  } catch (err) {}
+
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/site-config`);
+    if (res.ok) return await res.json();
+  } catch (err) {}
+
+  return { success: true, config: {} };
+}
+
+/**
+ * 17. Actualiza la configuración dinámica de precios, cabañas y planes en la nube
+ */
+export async function updateSiteCustomConfigAdmin(config, adminKey) {
+  // 1. Guardar directo en Supabase
+  try {
+    await andicasSb.from('cabins').upsert({
+      id: 'custom_site_config',
+      name: 'Custom Site Config CMS',
+      type: 'active',
+      price_per_night: 0,
+      description: JSON.stringify(config),
+    });
+  } catch (err) {
+    console.warn('Error guardando config en Supabase:', err);
+  }
+
+  // 2. Sincronizar con backend
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/update-site-config`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+      body: JSON.stringify({ config }),
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: true, message: 'Configuración guardada en la nube' };
+  }
+}
+
+
 
 

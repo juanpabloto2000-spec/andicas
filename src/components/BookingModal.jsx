@@ -14,7 +14,8 @@ export default function BookingModal({
   onClose, 
   onOpenSummary,
   initialType = 'cabana',
-  activeModules
+  activeModules,
+  onOpenCancellation
 }) {
   const [selectedType, setSelectedType] = useState(initialType);
   const [selectedCabin, setSelectedCabin] = useState(cabinsData[0]);
@@ -567,7 +568,7 @@ export default function BookingModal({
             </div>
 
             {/* 7. Submit Button */}
-            <div className="pt-1">
+            <div className="pt-1 space-y-2">
               <button
                 type="submit"
                 className="w-full py-3.5 rounded-xl sm:rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center justify-center gap-2 cursor-pointer transition-all border border-gold-400"
@@ -575,6 +576,19 @@ export default function BookingModal({
                 <span>Ver Resumen & Confirmar Disponibilidad</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onOpenCancellation) onOpenCancellation();
+                  }}
+                  className="text-[11px] font-fredoka text-linen-400 hover:text-gold-300 transition-colors underline underline-offset-2 cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <span>¿Tienes una reserva previa y necesitas cancelarla? Solicitar aquí</span>
+                </button>
+              </div>
             </div>
           </form>
           )}
