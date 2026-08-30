@@ -29,9 +29,51 @@ async function getEffectiveAdminSecret() {
   return ADMIN_SECRET;
 }
 
+// Helper para obtener la lista de usuarios creados
+async function getSystemUsers() {
+  if (mockStore.system_users && Array.isArray(mockStore.system_users)) {
+    return mockStore.system_users;
+  }
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('cabins')
+        .select('*')
+        .eq('id', 'system_users')
+        .maybeSingle();
+      if (data?.description) {
+        mockStore.system_users = JSON.parse(data.description);
+        return mockStore.system_users;
+      }
+    } catch (err) {
+      console.warn('Nota: system_users en Supabase:', err.message);
+    }
+  }
+  return mockStore.system_users || [];
+}
+
+// Helper para guardar la lista de usuarios creados
+async function saveSystemUsers(users) {
+  mockStore.system_users = users;
+  if (supabase) {
+    try {
+      await supabase.from('cabins').upsert({
+        id: 'system_users',
+        name: 'System Users Store',
+        type: 'active',
+        price_per_night: 0,
+        description: JSON.stringify(users)
+      });
+    } catch (err) {
+      console.warn('Error guardando system_users en Supabase:', err.message);
+    }
+  }
+}
+
 // Middleware para verificar clave de admin, staff o estado de cuenta suspendida
 async function requireAdminOrStaffAuth(req, res, next) {
   const authHeader = req.headers['x-admin-key'] || req.headers['authorization'];
+  const cleanToken = (authHeader || '').replace(/^Bearer\s+/i, '').trim();
   const effectiveAdminKey = await getEffectiveAdminSecret();
 
   // Si el sistema está configurado globalmente como 'unpaid'
@@ -40,23 +82,36 @@ async function requireAdminOrStaffAuth(req, res, next) {
     return next();
   }
 
+  // 1. Admin Master
   if (
-    authHeader === effectiveAdminKey || 
-    authHeader === `Bearer ${effectiveAdminKey}` ||
-    authHeader === ADMIN_SECRET || 
-    authHeader === `Bearer ${ADMIN_SECRET}`
+    cleanToken === effectiveAdminKey || 
+    cleanToken === ADMIN_SECRET
   ) {
-    req.userRole = 'admin';
+    req.userRole = 'master_admin';
     return next();
   }
-  if (authHeader === STAFF_SECRET || authHeader === `Bearer ${STAFF_SECRET}`) {
+
+  // 2. Verificar en usuarios registrados
+  const users = await getSystemUsers();
+  const matchedUser = users.find(u => u.password === cleanToken || u.username === cleanToken);
+  if (matchedUser) {
+    req.userRole = matchedUser.role; // 'admin' | 'staff'
+    req.currentUser = matchedUser;
+    return next();
+  }
+
+  // 3. Staff genérico
+  if (cleanToken === STAFF_SECRET) {
     req.userRole = 'staff';
     return next();
   }
-  if (authHeader === UNPAID_SECRET || authHeader === `Bearer ${UNPAID_SECRET}` || authHeader === 'UNPAID_TOKEN_LOCKOUT') {
+
+  // 4. Clave de bloqueo
+  if (cleanToken === UNPAID_SECRET || cleanToken === 'UNPAID_TOKEN_LOCKOUT') {
     req.userRole = 'unpaid';
     return next();
   }
+
   return res.status(401).json({ error: 'Acceso no autorizado al panel administrativo.' });
 }
 
@@ -65,8 +120,16 @@ function requireAdminOnly(req, res, next) {
   if (req.userRole === 'unpaid') {
     return res.status(403).json({ error: 'Acceso restringido: No se registró pago del servicio.' });
   }
-  if (req.userRole !== 'admin') {
+  if (req.userRole !== 'admin' && req.userRole !== 'master_admin') {
     return res.status(403).json({ error: 'Acceso restringido: Esta acción requiere permisos de Administrador.' });
+  }
+  next();
+}
+
+// Middleware para restringir acciones exclusivas de Admin Master
+function requireMasterAdminOnly(req, res, next) {
+  if (req.userRole !== 'master_admin') {
+    return res.status(403).json({ error: 'Acceso restringido: Esta acción es exclusiva del Administrador Master.' });
   }
   next();
 }
@@ -108,25 +171,18 @@ router.get('/availability/:cabinId', async (req, res) => {
     let blockedDates = [];
 
     if (supabase) {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('blocked_dates')
-        .select('blocked_date, reason')
+        .select('blocked_date')
         .eq('cabin_id', cabinId);
-
-      if (!error && data) {
-        blockedDates = data.map((d) => d.blocked_date);
-      }
+      blockedDates = (data || []).map((x) => x.blocked_date);
     } else {
       blockedDates = (mockStore.blocked_dates || [])
-        .filter((b) => b.cabin_id === cabinId)
-        .map((b) => b.blocked_date);
+        .filter((x) => x.cabin_id === cabinId)
+        .map((x) => x.blocked_date);
     }
 
-    return res.status(200).json({
-      success: true,
-      cabin_id: cabinId,
-      blocked_dates: blockedDates,
-    });
+    return res.status(200).json({ cabin_id: cabinId, blocked_dates: blockedDates });
   } catch (err) {
     return res.status(500).json({ error: 'Error consultando disponibilidad' });
   }
@@ -134,11 +190,12 @@ router.get('/availability/:cabinId', async (req, res) => {
 
 /**
  * 2. POST /api/admin/login
- * Valida usuario y clave de acceso para rol Administrador, Estándar (Staff) o Usuario Oculto (Suspendido)
+ * Valida usuario y clave de acceso para rol Admin Master, Sub-Admin o Usuario Estándar (Staff)
  */
 router.post('/admin/login', async (req, res) => {
   const { username = '', password = '' } = req.body;
   const cleanUser = String(username).trim().toLowerCase();
+  const cleanPass = String(password).trim();
   const effectiveAdminKey = await getEffectiveAdminSecret();
 
   // Si el sistema está configurado globalmente como 'unpaid'
@@ -151,12 +208,8 @@ router.post('/admin/login', async (req, res) => {
     });
   }
 
-  const isAdminUser = !cleanUser || cleanUser === 'admin' || cleanUser === 'administrador';
-  const isStaffUser = !cleanUser || cleanUser === 'recepcion' || cleanUser === 'staff' || cleanUser === 'estandar' || cleanUser === 'recepcionista';
-  const isUnpaidUser = cleanUser === 'unpaid' || cleanUser === 'bloqueado' || cleanUser === 'nopago' || cleanUser === 'suspendido';
-
   // 1. Usuario Oculto / Clave de Suspensión por Falta de Pago
-  if ((isUnpaidUser || !cleanUser || isAdminUser || isStaffUser) && password === UNPAID_SECRET) {
+  if (cleanPass === UNPAID_SECRET) {
     return res.status(200).json({
       success: true,
       token: UNPAID_SECRET,
@@ -165,23 +218,41 @@ router.post('/admin/login', async (req, res) => {
     });
   }
 
-  // 2. Administrador General (Verifica clave efectiva de Supabase o env)
-  if (isAdminUser && (password === effectiveAdminKey || password === ADMIN_SECRET)) {
+  // 2. Administrador Master (Clave maestra de Supabase o env)
+  if ((!cleanUser || cleanUser === 'admin' || cleanUser === 'master' || cleanUser === 'admin_master' || cleanUser === 'administrador') && (cleanPass === effectiveAdminKey || cleanPass === ADMIN_SECRET)) {
     return res.status(200).json({ 
       success: true, 
-      token: password, 
-      role: 'admin',
-      roleLabel: 'Administrador General (Acceso Total)'
+      token: cleanPass, 
+      role: 'master_admin',
+      roleLabel: '👑 Administrador Master',
+      username: 'admin_master',
+      name: 'Administrador Master'
     });
   }
 
-  // 3. Recepción / Staff
-  if (isStaffUser && password === STAFF_SECRET) {
+  // 3. Buscar en la base de datos de usuarios creados
+  const users = await getSystemUsers();
+  const user = users.find(u => u.username.toLowerCase() === cleanUser && u.password === cleanPass);
+  if (user) {
+    return res.status(200).json({
+      success: true,
+      token: user.password,
+      role: user.role, // 'admin' | 'staff'
+      roleLabel: user.role === 'admin' ? '👑 Administrador' : '👤 Usuario / Empleado',
+      username: user.username,
+      name: user.name || user.username
+    });
+  }
+
+  // 4. Recepción / Staff por defecto
+  if ((cleanUser === 'recepcion' || cleanUser === 'staff' || cleanUser === 'estandar') && cleanPass === STAFF_SECRET) {
     return res.status(200).json({ 
       success: true, 
       token: STAFF_SECRET, 
       role: 'staff',
-      roleLabel: 'Usuario Estándar / Recepción'
+      roleLabel: '👤 Usuario Estándar / Recepción',
+      username: 'recepcion',
+      name: 'Recepción'
     });
   }
 
@@ -1134,6 +1205,160 @@ router.post('/admin/update-site-config', requireAdminOrStaffAuth, requireAdminOn
     });
   } catch (err) {
     return res.status(500).json({ error: 'Error guardando configuración de página.' });
+  }
+});
+
+/**
+ * 18. GET /api/bookings/admin/users
+ * Lista todos los usuarios del sistema (Exclusivo Admin Master)
+ */
+router.get('/admin/users', requireAdminOrStaffAuth, requireMasterAdminOnly, async (req, res) => {
+  try {
+    const users = await getSystemUsers();
+    const safeUsers = users.map(u => ({
+      id: u.id,
+      username: u.username,
+      name: u.name,
+      role: u.role,
+      created_at: u.created_at
+    }));
+    return res.status(200).json({ success: true, users: safeUsers });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error consultando usuarios.' });
+  }
+});
+
+/**
+ * 19. POST /api/bookings/admin/users/create
+ * Crea un nuevo usuario con rol asignado (Exclusivo Admin Master)
+ */
+router.post('/admin/users/create', requireAdminOrStaffAuth, requireMasterAdminOnly, async (req, res) => {
+  try {
+    const { username, password, name, role } = req.body;
+
+    if (!username || !password || String(password).trim().length < 4) {
+      return res.status(400).json({ error: 'El usuario y la contraseña (mínimo 4 caracteres) son obligatorios.' });
+    }
+
+    const cleanUser = String(username).trim().toLowerCase();
+    const users = await getSystemUsers();
+
+    if (users.some(u => u.username.toLowerCase() === cleanUser)) {
+      return res.status(400).json({ error: 'El nombre de usuario ya está registrado.' });
+    }
+
+    const newUser = {
+      id: `usr-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      username: cleanUser,
+      password: String(password).trim(),
+      name: (name || cleanUser).trim(),
+      role: role === 'admin' ? 'admin' : 'staff',
+      created_at: new Date().toISOString()
+    };
+
+    users.unshift(newUser);
+    await saveSystemUsers(users);
+
+    await recordAuditLog({
+      booking_reference: 'USUARIOS_SISTEMA',
+      client_name: newUser.name,
+      cabin_name: 'Gestión Usuarios',
+      previous_status: 'CREAR_CUENTA',
+      new_status: `ROL_${newUser.role.toUpperCase()}`,
+      changed_by: 'Admin Master',
+      notes: `Usuario creado: ${newUser.username} (${newUser.name}) con permisos ${newUser.role === 'admin' ? 'Administrador' : 'Empleado/Recepción'}`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Usuario creado con éxito.',
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        name: newUser.name,
+        role: newUser.role,
+        created_at: newUser.created_at
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando usuario.' });
+  }
+});
+
+/**
+ * 20. POST /api/bookings/admin/users/update-password
+ * Cambia la contraseña de un usuario existente (Exclusivo Admin Master)
+ */
+router.post('/admin/users/update-password', requireAdminOrStaffAuth, requireMasterAdminOnly, async (req, res) => {
+  try {
+    const { userId, newPassword } = req.body;
+
+    if (!userId || !newPassword || String(newPassword).trim().length < 4) {
+      return res.status(400).json({ error: 'ID de usuario y nueva contraseña válida (mínimo 4 caracteres) requeridos.' });
+    }
+
+    const users = await getSystemUsers();
+    const targetUser = users.find(u => u.id === userId);
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    targetUser.password = String(newPassword).trim();
+    await saveSystemUsers(users);
+
+    await recordAuditLog({
+      booking_reference: 'USUARIOS_SISTEMA',
+      client_name: targetUser.name,
+      cabin_name: 'Gestión Usuarios',
+      previous_status: 'PASSWORD_PREVIA',
+      new_status: 'PASSWORD_ACTUALIZADA',
+      changed_by: 'Admin Master',
+      notes: `Contraseña modificada para el usuario: ${targetUser.username}`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Contraseña actualizada con éxito para el usuario ${targetUser.username}.`
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando contraseña del usuario.' });
+  }
+});
+
+/**
+ * 21. POST /api/bookings/admin/users/delete
+ * Elimina un usuario del sistema (Exclusivo Admin Master)
+ */
+router.post('/admin/users/delete', requireAdminOrStaffAuth, requireMasterAdminOnly, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    let users = await getSystemUsers();
+    const targetUser = users.find(u => u.id === userId);
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    const updatedUsers = users.filter(u => u.id !== userId);
+    await saveSystemUsers(updatedUsers);
+
+    await recordAuditLog({
+      booking_reference: 'USUARIOS_SISTEMA',
+      client_name: targetUser.name,
+      cabin_name: 'Gestión Usuarios',
+      previous_status: 'USUARIO_ACTIVO',
+      new_status: 'USUARIO_ELIMINADO',
+      changed_by: 'Admin Master',
+      notes: `Usuario eliminado: ${targetUser.username}`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Usuario ${targetUser.username} eliminado del sistema.`
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando usuario.' });
   }
 });
 

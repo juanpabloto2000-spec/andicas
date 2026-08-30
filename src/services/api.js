@@ -546,6 +546,61 @@ export async function updateSiteCustomConfigAdmin(config, adminKey) {
   }
 }
 
+/**
+ * 18. Obtiene la lista de usuarios creados (Exclusivo Admin Master)
+ */
+export async function getAdminUsers(adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/users`, {
+    headers: { 'x-admin-key': adminKey },
+  });
+  return res.json();
+}
+
+/**
+ * 19. Crea un nuevo usuario en el sistema (Exclusivo Admin Master)
+ */
+export async function createAdminUser({ username, password, name, role }, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/users/create`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ username, password, name, role }),
+  });
+  return res.json();
+}
+
+/**
+ * 20. Modifica la contraseña de un usuario (Exclusivo Admin Master)
+ */
+export async function updateAdminUserPassword({ userId, newPassword }, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/users/update-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ userId, newPassword }),
+  });
+  return res.json();
+}
+
+/**
+ * 21. Elimina un usuario (Exclusivo Admin Master)
+ */
+export async function deleteAdminUser(userId, adminKey) {
+  const res = await fetch(`${API_BASE}/api/bookings/admin/users/delete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-key': adminKey,
+    },
+    body: JSON.stringify({ userId }),
+  });
+  return res.json();
+}
+
 
 
 

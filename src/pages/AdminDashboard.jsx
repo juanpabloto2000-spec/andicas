@@ -6,7 +6,7 @@ import {
   Clock, ChevronLeft, ChevronRight, ChevronDown, Plus, X, Trash2, Calendar as CalendarIcon,
   Filter, Check, ArrowUpRight, ArrowLeft, Lock, History, User, FileText,
   Sliders, AlertTriangle, Sparkles, CreditCard, Eye, Save, Sun, Moon, CalendarDays,
-  Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle
+  Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle, KeyRound, UserPlus, Shield
 } from 'lucide-react';
 import { 
   adminLogin, 
@@ -23,7 +23,11 @@ import {
   getAdminCancellationRequests,
   resolveCancellationRequestAdmin,
   getSiteCustomConfig,
-  updateSiteCustomConfigAdmin
+  updateSiteCustomConfigAdmin,
+  getAdminUsers,
+  createAdminUser,
+  updateAdminUserPassword,
+  deleteAdminUser
 } from '../services/api';
 import { cabinsData, cabinAddons } from '../data/cabins';
 import { contactData } from '../data/banking';
@@ -36,14 +40,21 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     return localStorage.getItem('andicas_admin_token') || '';
   });
   const [userRole, setUserRole] = useState(() => {
-    return localStorage.getItem('andicas_user_role') || 'admin';
+    return localStorage.getItem('andicas_user_role') || 'master_admin';
   });
-  const [usernameInput, setUsernameInput] = useState('admin');
+  const [currentUserInfo, setCurrentUserInfo] = useState(() => {
+    return {
+      username: localStorage.getItem('andicas_username') || 'admin_master',
+      name: localStorage.getItem('andicas_user_name') || 'Administrador Master'
+    };
+  });
+
+  const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'cancelaciones' | 'personalizacion'
+  // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'cancelaciones' | 'personalizacion' | 'usuarios'
   const [activeSection, setActiveSection] = useState('agendamientos');
 
   // Sub-tabs for Agendamientos: 'tabla' | 'calendario' | 'auditoria'
@@ -51,6 +62,28 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
   // Time filter for "Saldo Pendiente por Cobrar": 'hoy' | 'semana' | 'mes' | 'todos'
   const [pendingBalancePeriod, setPendingBalancePeriod] = useState('mes');
+
+  // Users Management State (Master Admin Only)
+  const [systemUsers, setSystemUsers] = useState([]);
+  const [newUserData, setNewUserData] = useState({
+    username: '',
+    password: '',
+    name: '',
+    role: 'staff' // 'admin' | 'staff'
+  });
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [createUserError, setCreateUserError] = useState('');
+  const [createUserSuccess, setCreateUserSuccess] = useState('');
+
+  // Edit User Password Modal State (Master Admin Only)
+  const [editUserModal, setEditUserModal] = useState({
+    isOpen: false,
+    user: null,
+    newPassword: '',
+    isSaving: false,
+    error: '',
+    success: ''
+  });
 
   // Cancel with Reason Modal State
   const [cancelModal, setCancelModal] = useState({
@@ -62,7 +95,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     error: ''
   });
 
-  // Password Change Modal State
+  // Master Password Change Modal State
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
@@ -78,13 +111,12 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [bookings, setBookings] = useState([]);
   const [blockedDates, setBlockedDates] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
-  const [auditSearchQuery, setAuditSearchQuery] = useState('');
   const [calendarViewMode, setCalendarViewMode] = useState('month'); // 'month' | 'week'
   const [revenuePeriod, setRevenuePeriod] = useState('month'); // 'month' | 'week' | 'all'
 
-  // Cancellation Requests State (Admin only)
+  // Cancellation Requests State (Admin / Master only)
   const [cancellationRequests, setCancellationRequests] = useState([]);
-  const [cancellationFilter, setCancellationFilter] = useState('ALL'); // 'ALL' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'
+  const [cancellationFilter, setCancellationFilter] = useState('ALL');
   const [resolvingCancelId, setResolvingCancelId] = useState(null);
 
   // Interactive Day Popup Modal State (Calendar Day Click)
@@ -95,7 +127,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     dayBlocks: []
   });
 
-  // Customization CMS Lite State
+  // Customization CMS Lite State (Admin / Master only)
   const [siteConfig, setSiteConfig] = useState({
     cabinPrices: {},
     extraPersonPrices: {},
@@ -130,7 +162,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
   const formatCOP = (num) => `$${Number(num || 0).toLocaleString('es-CO')} COP`;
 
-  // Status is strictly simplified to: AGENDADO | CANCELADO
+  // Status formatting: strictly AGENDADO | CANCELADO
   const formatStatusLabel = (status) => {
     const s = String(status || '').toUpperCase();
     if (s === 'CANCELADA' || s === 'CANCELLED' || s === 'CANCELADO') return 'CANCELADO';
@@ -145,6 +177,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     return 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400';
   };
 
+  const isMasterAdmin = userRole === 'master_admin';
+  const isAdminOrMaster = userRole === 'master_admin' || userRole === 'admin';
+
   const fetchDashboardData = async (key) => {
     setIsLoading(true);
     try {
@@ -156,8 +191,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         if (data.role) setUserRole(data.role);
       }
 
-      // Solicitudes de cancelación (para Admin)
-      if ((data.role || userRole) === 'admin') {
+      // Solicitudes de cancelación (Admin y Master)
+      if (isAdminOrMaster || data.role === 'admin' || data.role === 'master_admin') {
         const cancelData = await getAdminCancellationRequests(targetKey);
         if (cancelData.success) {
           setCancellationRequests(cancelData.requests || []);
@@ -168,15 +203,23 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         if (auditData.success) {
           setAuditLogs(auditData.logs || []);
         }
+
+        // Configuración de sitio CMS
+        const cmsData = await getSiteCustomConfig();
+        if (cmsData.success && cmsData.config) {
+          setSiteConfig(prev => ({
+            ...prev,
+            ...cmsData.config
+          }));
+        }
       }
 
-      // Configuración de sitio CMS
-      const cmsData = await getSiteCustomConfig();
-      if (cmsData.success && cmsData.config) {
-        setSiteConfig(prev => ({
-          ...prev,
-          ...cmsData.config
-        }));
+      // Usuarios del sistema (Solo Master Admin)
+      if (isMasterAdmin || data.role === 'master_admin') {
+        const usersData = await getAdminUsers(targetKey);
+        if (usersData.success) {
+          setSystemUsers(usersData.users || []);
+        }
       }
     } catch (err) {
       console.error('Error fetching admin data:', err);
@@ -199,7 +242,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       if (sub) {
         if (sub.status === 'unpaid') {
           setUserRole('unpaid');
-        } else if (sub.adminPassword && adminKey && sub.adminPassword !== adminKey && userRole === 'admin') {
+        } else if (sub.adminPassword && adminKey && sub.adminPassword !== adminKey && userRole === 'master_admin') {
           // La contraseña de admin fue cambiada remotamente desde el panel Owner
           setShowSessionClosedModal(true);
         }
@@ -209,7 +252,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     return () => unsubscribe();
   }, [isAuthenticated, adminKey, userRole]);
 
-  const handleSaveNewPassword = async (e) => {
+  const handleSaveMasterPassword = async (e) => {
     e.preventDefault();
     setPasswordChangeError('');
     setPasswordChangeSuccess('');
@@ -227,7 +270,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     try {
       const res = await updateAdminPasswordAdmin(newAdminPassword.trim(), adminKey);
       if (res.success) {
-        setPasswordChangeSuccess('Contraseña actualizada con éxito en la nube.');
+        setPasswordChangeSuccess('Contraseña Master actualizada con éxito en la nube.');
         const cleanPass = newAdminPassword.trim();
         setAdminKey(cleanPass);
         localStorage.setItem('andicas_admin_token', cleanPass);
@@ -251,6 +294,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     setShowSessionClosedModal(false);
     localStorage.removeItem('andicas_admin_token');
     localStorage.removeItem('andicas_user_role');
+    localStorage.removeItem('andicas_username');
+    localStorage.removeItem('andicas_user_name');
     setIsAuthenticated(false);
     setAdminKey('');
     onNavigate('home');
@@ -264,12 +309,26 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     try {
       const res = await adminLogin(passwordInput.trim(), usernameInput.trim());
       if (res.success) {
-        localStorage.setItem('andicas_admin_token', passwordInput.trim());
-        localStorage.setItem('andicas_user_role', res.role || 'admin');
+        const resolvedRole = res.role || 'master_admin';
+        localStorage.setItem('andicas_admin_token', res.token || passwordInput.trim());
+        localStorage.setItem('andicas_user_role', resolvedRole);
+        localStorage.setItem('andicas_username', res.username || usernameInput.trim());
+        localStorage.setItem('andicas_user_name', res.name || usernameInput.trim());
+        
         setIsAuthenticated(true);
-        setAdminKey(passwordInput.trim());
-        setUserRole(res.role || 'admin');
-        fetchDashboardData(passwordInput.trim());
+        setAdminKey(res.token || passwordInput.trim());
+        setUserRole(resolvedRole);
+        setCurrentUserInfo({
+          username: res.username || usernameInput.trim(),
+          name: res.name || usernameInput.trim()
+        });
+
+        // Ensure active section is accessible for the role
+        if (resolvedRole === 'staff') {
+          setActiveSection('agendamientos');
+        }
+
+        fetchDashboardData(res.token || passwordInput.trim());
       } else {
         setLoginError(res.error || 'Credenciales de acceso no válidas.');
       }
@@ -283,11 +342,107 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const handleLogout = () => {
     localStorage.removeItem('andicas_admin_token');
     localStorage.removeItem('andicas_user_role');
+    localStorage.removeItem('andicas_username');
+    localStorage.removeItem('andicas_user_name');
     setIsAuthenticated(false);
     setAdminKey('');
     onNavigate('home');
   };
 
+  // User Management Handlers (Master Admin only)
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setCreateUserError('');
+    setCreateUserSuccess('');
+
+    if (!newUserData.username.trim() || !newUserData.password.trim()) {
+      setCreateUserError('El usuario y la contraseña son obligatorios.');
+      return;
+    }
+    if (newUserData.password.trim().length < 4) {
+      setCreateUserError('La contraseña debe tener al menos 4 caracteres.');
+      return;
+    }
+
+    setIsCreatingUser(true);
+    try {
+      const res = await createAdminUser(newUserData, adminKey);
+      if (res.success) {
+        setCreateUserSuccess(`Usuario "${newUserData.username}" creado exitosamente.`);
+        setNewUserData({ username: '', password: '', name: '', role: 'staff' });
+        fetchDashboardData(adminKey);
+        setTimeout(() => setCreateUserSuccess(''), 4000);
+      } else {
+        setCreateUserError(res.error || 'No se pudo crear el usuario.');
+      }
+    } catch (err) {
+      setCreateUserError('Error de conexión con el servidor.');
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
+  const handleOpenEditUserModal = (user) => {
+    setEditUserModal({
+      isOpen: true,
+      user,
+      newPassword: '',
+      isSaving: false,
+      error: '',
+      success: ''
+    });
+  };
+
+  const handleSaveUserPassword = async (e) => {
+    e.preventDefault();
+    if (!editUserModal.user || !editUserModal.newPassword.trim()) return;
+
+    if (editUserModal.newPassword.trim().length < 4) {
+      setEditUserModal(prev => ({ ...prev, error: 'La contraseña debe tener al menos 4 caracteres.' }));
+      return;
+    }
+
+    setEditUserModal(prev => ({ ...prev, isSaving: true, error: '', success: '' }));
+
+    try {
+      const res = await updateAdminUserPassword({
+        userId: editUserModal.user.id,
+        newPassword: editUserModal.newPassword.trim()
+      }, adminKey);
+
+      if (res.success) {
+        setEditUserModal(prev => ({
+          ...prev,
+          isSaving: false,
+          success: 'Contraseña actualizada con éxito.'
+        }));
+        setTimeout(() => {
+          setEditUserModal({ isOpen: false, user: null, newPassword: '', isSaving: false, error: '', success: '' });
+        }, 1200);
+      } else {
+        setEditUserModal(prev => ({ ...prev, isSaving: false, error: res.error || 'Error al actualizar.' }));
+      }
+    } catch (err) {
+      setEditUserModal(prev => ({ ...prev, isSaving: false, error: 'Error de conexión.' }));
+    }
+  };
+
+  const handleDeleteUser = async (userId, username) => {
+    if (!window.confirm(`¿Estás seguro de eliminar el usuario "${username}"?`)) return;
+    try {
+      const res = await deleteAdminUser(userId, adminKey);
+      if (res.success) {
+        setSystemUsers(prev => prev.filter(u => u.id !== userId));
+        fetchDashboardData(adminKey);
+      } else {
+        alert(res.error || 'No se pudo eliminar el usuario.');
+      }
+    } catch (err) {
+      alert('Error eliminando usuario.');
+    }
+  };
+
+  // Booking Actions
   const handleOpenCancelModal = (booking) => {
     setCancelModal({
       isOpen: true,
@@ -400,7 +555,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     });
   };
 
-  // Helper formatting dates & calculations
+  // Helper dates calculations
   const todayDate = new Date();
   const todayStr = todayDate.toISOString().split('T')[0];
   const year = currentDate.getFullYear();
@@ -435,7 +590,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const endOfWeekStr = endOfWeek.toISOString().split('T')[0];
   const currentMonthStr = todayStr.substring(0, 7);
 
-  // Financial Metrics (Admin Only)
+  // Financial Metrics (Admin / Master Only)
   const activeScheduledBookings = bookings.filter(b => b.status !== 'CANCELADA' && b.status !== 'CANCELLED');
   const totalRevenue = activeScheduledBookings.reduce((sum, b) => sum + (b.total_amount_cop || 0), 0);
   const totalDepositsCollected = activeScheduledBookings.reduce((sum, b) => sum + (b.deposit_amount_cop || 0), 0);
@@ -444,7 +599,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     return sum + Math.max(0, remaining);
   }, 0);
 
-  // Remaining Balance Filtered for the Bottom Card (Available to Staff & Admin)
+  // Remaining Balance Filtered for the Bottom Card (Available to Staff, Admin and Master)
   const pendingFilteredBookings = activeScheduledBookings.filter(b => {
     if (pendingBalancePeriod === 'hoy') {
       return b.check_in_date === todayStr;
@@ -474,7 +629,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
     const matchesCabin = selectedCabinFilter === 'ALL' || b.cabin_id === selectedCabinFilter;
     
-    // Status filter: 'ALL' | 'AGENDADO' | 'CANCELADO'
     let matchesStatus = true;
     if (statusFilter === 'AGENDADO') {
       matchesStatus = b.status !== 'CANCELADA' && b.status !== 'CANCELLED' && b.status !== 'CANCELADO';
@@ -487,7 +641,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     return matchesSearch && matchesCabin && matchesStatus && matchesMonth;
   });
 
-  // Filtered cancellation requests (Admin only)
+  // Filtered cancellation requests
   const filteredCancellations = cancellationRequests.filter(r => {
     if (cancellationFilter === 'ALL') return true;
     return r.status === cancellationFilter;
@@ -507,10 +661,18 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
   const getAuditUserBadge = (changedBy) => {
     const u = String(changedBy || '').toLowerCase();
-    if (u.includes('admin') || u.includes('owner')) {
+    if (u.includes('master')) {
       return (
         <span className="px-2 py-0.5 rounded-full bg-gold-500/20 text-gold-300 border border-gold-500/40 font-cartoon font-bold text-[10px] inline-flex items-center gap-1">
           <Crown className="w-3 h-3 text-gold-400" />
+          <span>Admin Master</span>
+        </span>
+      );
+    }
+    if (u.includes('admin') || u.includes('owner')) {
+      return (
+        <span className="px-2 py-0.5 rounded-full bg-gold-500/20 text-gold-300 border border-gold-500/40 font-cartoon font-bold text-[10px] inline-flex items-center gap-1">
+          <Shield className="w-3 h-3 text-gold-400" />
           <span>Administrador</span>
         </span>
       );
@@ -519,7 +681,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       return (
         <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-cartoon font-bold text-[10px] inline-flex items-center gap-1">
           <User className="w-3 h-3 text-cyan-400" />
-          <span>Recepción</span>
+          <span>Empleado / Recepción</span>
         </span>
       );
     }
@@ -550,7 +712,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               Panel Administrativo
             </h1>
             <p className="text-xs font-fredoka text-linen-300 mt-1">
-              Ingresa tus credenciales de recepción o administrador para gestionar la plataforma.
+              Ingresa tu usuario y contraseña de Administrador Master o Empleado.
             </p>
           </div>
 
@@ -560,6 +722,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               <input
                 type="text"
                 required
+                placeholder="Ej. admin_master, recepcion..."
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
                 className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none"
@@ -618,9 +781,13 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           {/* Brand & Corona Header */}
           <div className="flex items-center justify-between pb-4 border-b border-white/10">
             <div className="flex items-center gap-3">
-              {userRole === 'admin' ? (
+              {isMasterAdmin ? (
                 <div className="w-10 h-10 rounded-2xl bg-gold-gradient flex items-center justify-center text-jade-950 shadow-gold-glow">
                   <Crown className="w-5 h-5 text-jade-950 fill-jade-950" />
+                </div>
+              ) : isAdminOrMaster ? (
+                <div className="w-10 h-10 rounded-2xl bg-gold-gradient/80 border border-gold-400 flex items-center justify-center text-jade-950">
+                  <Shield className="w-5 h-5 text-jade-950" />
                 </div>
               ) : (
                 <div className="w-10 h-10 rounded-2xl bg-jade-900 border border-white/10 flex items-center justify-center text-gold-400">
@@ -633,7 +800,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   Andicas Panel
                 </h2>
                 <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block mt-0.5">
-                  {userRole === 'admin' ? '👑 Administrador General' : '👤 Recepción / Operativo'}
+                  {isMasterAdmin ? '👑 Admin Master' : userRole === 'admin' ? '🛡️ Administrador' : '👤 Empleado / Recepción'}
                 </span>
               </div>
             </div>
@@ -668,8 +835,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </span>
             </button>
 
-            {/* 2. Recaudos & Caja (Exclusivo Administrador) */}
-            {userRole === 'admin' && (
+            {/* 2. Recaudos & Caja (Solo Admin y Master) */}
+            {isAdminOrMaster && (
               <button
                 onClick={() => setActiveSection('recaudos')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
@@ -685,8 +852,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </button>
             )}
 
-            {/* 3. Cancelaciones (Exclusivo Administrador) */}
-            {userRole === 'admin' && (
+            {/* 3. Cancelaciones (Solo Admin y Master) */}
+            {isAdminOrMaster && (
               <button
                 onClick={() => setActiveSection('cancelaciones')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
@@ -707,8 +874,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </button>
             )}
 
-            {/* 4. Personalización / CMS Lite (Exclusivo Administrador) */}
-            {userRole === 'admin' && (
+            {/* 4. Personalización / CMS Lite (Solo Admin y Master) */}
+            {isAdminOrMaster && (
               <button
                 onClick={() => setActiveSection('personalizacion')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
@@ -723,18 +890,38 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 </div>
               </button>
             )}
+
+            {/* 5. Gestión de Usuarios / Empleados (Exclusivo Admin Master) */}
+            {isMasterAdmin && (
+              <button
+                onClick={() => setActiveSection('usuarios')}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
+                  activeSection === 'usuarios'
+                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                    : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Users className="w-4 h-4" />
+                  <span>Gestión de Usuarios</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
+                  {systemUsers.length}
+                </span>
+              </button>
+            )}
           </nav>
         </div>
 
         {/* Footer Actions */}
         <div className="pt-6 border-t border-white/10 space-y-2">
-          {userRole === 'admin' && (
+          {isMasterAdmin && (
             <button
               onClick={() => setPasswordModalOpen(true)}
               className="w-full py-2.5 px-3 rounded-xl bg-gold-500/10 hover:bg-gold-500/20 text-gold-400 border border-gold-500/30 text-xs font-cartoon uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Cambiar Clave</span>
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Clave Master</span>
             </button>
           )}
 
@@ -802,7 +989,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   >
                     Calendario Visual
                   </button>
-                  {userRole === 'admin' && (
+                  {isAdminOrMaster && (
                     <button
                       onClick={() => setAgendaSubTab('auditoria')}
                       className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
@@ -918,7 +1105,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                                 </span>
                               </td>
                               <td className="p-3.5 text-right space-x-1">
-                                {userRole === 'admin' && b.status !== 'CANCELADA' && b.status !== 'CANCELLED' && b.status !== 'CANCELADO' && (
+                                {isAdminOrMaster && b.status !== 'CANCELADA' && b.status !== 'CANCELLED' && b.status !== 'CANCELADO' && (
                                   <button
                                     onClick={() => handleOpenCancelModal(b)}
                                     className="p-1.5 rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/40 border border-red-500/30 transition-colors"
@@ -927,11 +1114,11 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                                     <Ban className="w-3.5 h-3.5" />
                                   </button>
                                 )}
-                                {userRole === 'admin' && (
+                                {isMasterAdmin && (
                                   <button
                                     onClick={() => handleDeletePermanent(b.booking_reference)}
                                     className="p-1.5 rounded-lg bg-white/5 text-linen-400 hover:bg-red-900/50 hover:text-red-300 transition-colors"
-                                    title="Eliminar registro"
+                                    title="Eliminar permanentemente"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1093,8 +1280,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
             )}
 
-            {/* VISTA 1C: AUDITORÍA DE AGENDAMIENTOS CON COLORES VIBRANTES */}
-            {agendaSubTab === 'auditoria' && userRole === 'admin' && (
+            {/* VISTA 1C: AUDITORÍA DE AGENDAMIENTOS */}
+            {agendaSubTab === 'auditoria' && isAdminOrMaster && (
               <div className="space-y-4">
                 <div className="p-4 rounded-3xl glass-dark border border-white/10 flex items-center justify-between">
                   <div>
@@ -1163,7 +1350,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
             {/* =================================================================== */}
             {/* BARRA INFERIOR DE SALDOS PENDIENTES POR COBRAR EN RECEPCIÓN */}
-            {/* (Visible para todo usuario: Admin y Staff) */}
+            {/* (Visible para todo usuario: Master, Admin y Staff) */}
             {/* =================================================================== */}
             <div className="p-5 sm:p-6 rounded-3xl glass-dark border border-amber-500/40 shadow-2xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
@@ -1275,9 +1462,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         )}
 
         {/* ======================================================================= */}
-        {/* SECCIÓN 2: RECAUDOS, CAJA & MÉTRICAS (SOLO ADMIN) */}
+        {/* SECCIÓN 2: RECAUDOS, CAJA & MÉTRICAS (SOLO ADMIN Y MASTER) */}
         {/* ======================================================================= */}
-        {activeSection === 'recaudos' && userRole === 'admin' && (
+        {activeSection === 'recaudos' && isAdminOrMaster && (
           <div className="space-y-6">
             <div className="p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
               <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
@@ -1361,9 +1548,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         )}
 
         {/* ======================================================================= */}
-        {/* SECCIÓN 3: SOLICITUDES DE CANCELACIÓN (SOLO ADMIN) */}
+        {/* SECCIÓN 3: SOLICITUDES DE CANCELACIÓN (SOLO ADMIN Y MASTER) */}
         {/* ======================================================================= */}
-        {activeSection === 'cancelaciones' && userRole === 'admin' && (
+        {activeSection === 'cancelaciones' && isAdminOrMaster && (
           <div className="space-y-6">
             <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
               <div>
@@ -1492,9 +1679,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         )}
 
         {/* ======================================================================= */}
-        {/* SECCIÓN 4: PERSONALIZACIÓN DE PÁGINA (CMS LITE - SOLO ADMIN) */}
+        {/* SECCIÓN 4: PERSONALIZACIÓN DE PÁGINA (CMS LITE - ADMIN Y MASTER) */}
         {/* ======================================================================= */}
-        {activeSection === 'personalizacion' && userRole === 'admin' && (
+        {activeSection === 'personalizacion' && isAdminOrMaster && (
           <div className="space-y-6">
             <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
               <div>
@@ -1707,10 +1894,296 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             </div>
           </div>
         )}
+
+        {/* ======================================================================= */}
+        {/* SECCIÓN 5: GESTIÓN DE USUARIOS / EMPLEADOS (EXCLUSIVO ADMIN MASTER) */}
+        {/* ======================================================================= */}
+        {activeSection === 'usuarios' && isMasterAdmin && (
+          <div className="space-y-6">
+            <div className="p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
+              <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+                Control de Acceso, Empleados & Permisos
+              </span>
+              <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
+                Gestión de Usuarios
+              </h1>
+            </div>
+
+            {/* Form to create a new user */}
+            <div className="p-6 rounded-3xl glass-dark border border-gold-500/30 space-y-4 shadow-xl">
+              <div className="flex items-center gap-2 text-gold-400">
+                <UserPlus className="w-5 h-5" />
+                <h3 className="font-cartoon text-sm uppercase tracking-wider">
+                  Crear Nuevo Usuario / Empleado:
+                </h3>
+              </div>
+
+              <form onSubmit={handleCreateUser} className="space-y-4 font-fredoka text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                      Nombre Completo / Cargo:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej. Laura Martínez (Recepción)"
+                      value={newUserData.name}
+                      onChange={(e) => setNewUserData(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                      Usuario de Inicio de Sesión:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej. laura.recepcion"
+                      value={newUserData.username}
+                      onChange={(e) => setNewUserData(prev => ({ ...prev, username: e.target.value }))}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                      Contraseña Asignada:
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Mínimo 4 caracteres"
+                      value={newUserData.password}
+                      onChange={(e) => setNewUserData(prev => ({ ...prev, password: e.target.value }))}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs font-mono text-linen-100 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                      Nivel de Permisos / Rol:
+                    </label>
+                    <select
+                      value={newUserData.role}
+                      onChange={(e) => setNewUserData(prev => ({ ...prev, role: e.target.value }))}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none cursor-pointer"
+                    >
+                      <option value="staff">👤 Usuario Normal / Empleado (Solo Agendamientos & Cobro)</option>
+                      <option value="admin">👑 Administrador (Acceso a Caja, Cancelaciones y Personalización)</option>
+                    </select>
+                  </div>
+
+                  <div className="pt-4">
+                    <button
+                      type="submit"
+                      disabled={isCreatingUser}
+                      className="w-full py-3 px-4 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center justify-center gap-2 cursor-pointer transition-all border border-gold-400 disabled:opacity-50"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>{isCreatingUser ? 'Creando...' : 'Crear Cuenta de Usuario'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {createUserError && (
+                  <div className="p-3 rounded-xl bg-red-900/40 border border-red-500/50 text-red-300 text-xs">
+                    {createUserError}
+                  </div>
+                )}
+
+                {createUserSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-900/40 border border-emerald-500/50 text-emerald-300 text-xs">
+                    {createUserSuccess}
+                  </div>
+                )}
+              </form>
+            </div>
+
+            {/* List of existing users */}
+            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                  Usuarios Registrados ({systemUsers.length}):
+                </h3>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 overflow-hidden">
+                <table className="w-full text-left text-xs font-fredoka">
+                  <thead className="bg-jade-900/80 font-cartoon text-[11px] text-gold-400 uppercase tracking-wider border-b border-white/10">
+                    <tr>
+                      <th className="p-3.5">Usuario</th>
+                      <th className="p-3.5">Nombre / Cargo</th>
+                      <th className="p-3.5">Nivel de Rol</th>
+                      <th className="p-3.5">Fecha Creación</th>
+                      <th className="p-3.5 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {systemUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-6 text-center text-linen-400/60 italic">
+                          Aún no has creado usuarios adicionales. Crea el primero arriba.
+                        </td>
+                      </tr>
+                    ) : (
+                      systemUsers.map((u) => (
+                        <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="p-3.5 font-mono font-bold text-gold-300">
+                            {u.username}
+                          </td>
+                          <td className="p-3.5 text-linen-100 font-medium">
+                            {u.name}
+                          </td>
+                          <td className="p-3.5">
+                            {u.role === 'admin' ? (
+                              <span className="px-2.5 py-1 rounded-full bg-gold-500/20 text-gold-300 border border-gold-500/40 font-cartoon font-bold text-[10px] inline-flex items-center gap-1">
+                                <Shield className="w-3 h-3 text-gold-400" />
+                                <span>Administrador</span>
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-cartoon font-bold text-[10px] inline-flex items-center gap-1">
+                                <User className="w-3 h-3 text-cyan-400" />
+                                <span>Usuario / Empleado</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-[11px] text-linen-400 font-mono">
+                            {u.created_at ? new Date(u.created_at).toLocaleDateString('es-CO') : 'Reciente'}
+                          </td>
+                          <td className="p-3.5 text-right space-x-2">
+                            <button
+                              onClick={() => handleOpenEditUserModal(u)}
+                              className="px-3 py-1.5 rounded-lg bg-gold-500/15 hover:bg-gold-500/30 text-gold-300 border border-gold-500/30 font-cartoon text-[11px] uppercase transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              title="Cambiar contraseña de este usuario"
+                            >
+                              <KeyRound className="w-3 h-3" />
+                              <span>Cambiar Clave</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteUser(u.id, u.username)}
+                              className="p-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/40 text-red-300 border border-red-500/30 transition-colors cursor-pointer"
+                              title="Eliminar usuario"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* ======================================================================= */}
-      {/* MODAL: CANCELAR RESERVA CON MOTIVO (SOLO ADMIN) */}
+      {/* MODAL: CAMBIAR CONTRASEÑA DE UN USUARIO (ADMIN MASTER ONLY) */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {editUserModal.isOpen && editUserModal.user && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !editUserModal.isSaving && setEditUserModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/85 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-gold-500/50 shadow-2xl space-y-4 z-10 text-linen-100"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2 text-gold-400">
+                  <KeyRound className="w-5 h-5" />
+                  <h3 className="font-display text-base font-black text-white uppercase">
+                    Cambiar Clave de Usuario
+                  </h3>
+                </div>
+                <button
+                  disabled={editUserModal.isSaving}
+                  onClick={() => setEditUserModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-jade-900/80 border border-white/10 space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-linen-400">Usuario:</span>
+                  <span className="font-mono font-bold text-gold-300">{editUserModal.user.username}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-linen-400">Nombre:</span>
+                  <span className="font-bold text-white">{editUserModal.user.name}</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveUserPassword} className="space-y-3 font-fredoka text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Nueva Contraseña para {editUserModal.user.username}:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Mínimo 4 caracteres"
+                    value={editUserModal.newPassword}
+                    onChange={(e) => setEditUserModal(prev => ({ ...prev, newPassword: e.target.value }))}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2 text-xs font-mono text-linen-100 outline-none"
+                  />
+                </div>
+
+                {editUserModal.error && (
+                  <div className="p-2.5 rounded-xl bg-red-900/40 border border-red-500/50 text-red-300 text-xs">
+                    {editUserModal.error}
+                  </div>
+                )}
+
+                {editUserModal.success && (
+                  <div className="p-2.5 rounded-xl bg-emerald-900/40 border border-emerald-500/50 text-emerald-300 text-xs">
+                    {editUserModal.success}
+                  </div>
+                )}
+
+                <div className="pt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={editUserModal.isSaving}
+                    onClick={() => setEditUserModal(prev => ({ ...prev, isOpen: false }))}
+                    className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-xs uppercase font-bold cursor-pointer transition-colors"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={editUserModal.isSaving}
+                    className="flex-1 py-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow flex items-center justify-center gap-1 cursor-pointer transition-all border border-gold-400 disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{editUserModal.isSaving ? 'Guardando...' : 'Actualizar Clave'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: CANCELAR RESERVA CON MOTIVO (SOLO ADMIN Y MASTER) */}
       {/* ======================================================================= */}
       <AnimatePresence>
         {cancelModal.isOpen && cancelModal.booking && (
@@ -1942,7 +2415,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           <span>WhatsApp</span>
                         </a>
 
-                        {userRole === 'admin' && b.status !== 'CANCELADA' && b.status !== 'CANCELLED' && (
+                        {isAdminOrMaster && b.status !== 'CANCELADA' && b.status !== 'CANCELLED' && (
                           <button
                             onClick={() => {
                               setDayAgendaModal(prev => ({ ...prev, isOpen: false }));
@@ -1964,10 +2437,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       </AnimatePresence>
 
       {/* ======================================================================= */}
-      {/* MODAL: CAMBIAR CONTRASEÑA ADMIN */}
+      {/* MODAL: CAMBIAR CONTRASEÑA MASTER (ADMIN MASTER ONLY) */}
       {/* ======================================================================= */}
       <AnimatePresence>
-        {passwordModalOpen && (
+        {passwordModalOpen && isMasterAdmin && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
@@ -1984,9 +2457,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             >
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
                 <div className="flex items-center gap-2 text-gold-400">
-                  <Lock className="w-5 h-5" />
+                  <Crown className="w-5 h-5" />
                   <h3 className="font-display text-base font-black text-white uppercase">
-                    Cambiar Contraseña Admin
+                    Cambiar Contraseña Master
                   </h3>
                 </div>
                 <button
@@ -1997,9 +2470,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveNewPassword} className="space-y-3 font-fredoka text-xs">
+              <form onSubmit={handleSaveMasterPassword} className="space-y-3 font-fredoka text-xs">
                 <div>
-                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Nueva Contraseña:</label>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Nueva Contraseña Master:</label>
                   <input
                     type={showPasswordText ? 'text' : 'password'}
                     required
@@ -2011,7 +2484,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Confirmar Contraseña:</label>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Confirmar Contraseña Master:</label>
                   <input
                     type={showPasswordText ? 'text' : 'password'}
                     required
@@ -2049,7 +2522,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   disabled={isChangingPassword}
                   className="w-full py-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow flex items-center justify-center gap-2 cursor-pointer border border-gold-400 disabled:opacity-50"
                 >
-                  <span>{isChangingPassword ? 'Guardando...' : 'Guardar Nueva Contraseña'}</span>
+                  <span>{isChangingPassword ? 'Guardando...' : 'Guardar Nueva Contraseña Master'}</span>
                   <Save className="w-3.5 h-3.5" />
                 </button>
               </form>
