@@ -853,16 +853,48 @@ router.get('/admin/subscription-status', async (req, res) => {
 /**
  * 11. POST /api/bookings/admin/set-subscription-status
  * Modifica el estado de suspensión / habilitación global (Killswitch)
+ * Acepta x-admin-key (Panel Dynamind), bearer token o cookie de sesión.
  */
-router.post('/admin/set-subscription-status', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+router.post('/admin/set-subscription-status', async (req, res) => {
   try {
-    const { status, action } = req.body;
-    const targetStatus = status || (action === 'disable' ? 'unpaid' : 'active');
+    const { status, action, key, modules } = req.body;
+    const authHeader = req.headers['x-admin-key'] || req.headers['authorization'];
+    const effectiveAdminKey = await getEffectiveAdminSecret();
 
+    // Comprobar autorización por clave maestra remota o sesión
+    const isMasterAuth = 
+      key === ADMIN_SECRET || 
+      key === effectiveAdminKey || 
+      authHeader === ADMIN_SECRET || 
+      authHeader === `Bearer ${ADMIN_SECRET}` || 
+      authHeader === effectiveAdminKey || 
+      authHeader === `Bearer ${effectiveAdminKey}` ||
+      (req.session && (req.session.userRole === 'MASTER' || req.session.userRole === 'ADMIN'));
+
+    if (!isMasterAuth) {
+      return res.status(403).json({ error: 'No autorizado para modificar el estado de suscripción.' });
+    }
+
+    const targetStatus = status || (action === 'disable' ? 'unpaid' : 'active');
     mockStore.subscription_status = targetStatus;
 
+    if (modules && typeof modules === 'object') {
+      mockStore.modules = {
+        ...(mockStore.modules || { bookings: true, wompi_payments: true }),
+        ...modules
+      };
+    }
+
     if (supabase) {
-      const currentDesc = JSON.stringify(mockStore.modules || { bookings: true, wompi_payments: true });
+      const currentDesc = JSON.stringify(mockStore.modules || {
+        bookings: true,
+        wompi_payments: true,
+        recaudos: true,
+        cancelaciones: true,
+        personalizacion: true,
+        users_management: true
+      });
+
       await supabase.from('cabins').upsert({
         id: 'system_settings',
         name: 'System Settings',
@@ -873,35 +905,59 @@ router.post('/admin/set-subscription-status', requireAdminOrStaffAuth, requireAd
     }
 
     await recordAuditLog({
-      booking_reference: 'SISTEMA_SUBSCRIPCIÓN',
+      booking_reference: 'SISTEMA_SUSCRIPCIÓN',
       client_name: 'Panel Maestro Dynamind',
       cabin_name: 'Andicas Eco-Resort',
       previous_status: 'CAMBIO_ESTADO',
       new_status: targetStatus.toUpperCase(),
-      changed_by: 'Owner',
+      changed_by: 'Owner / Dynamind',
       notes: `Estado de suscripción actualizado a: ${targetStatus}`,
     });
 
     return res.status(200).json({
       success: true,
       status: targetStatus,
+      modules: mockStore.modules,
       message: `Estado de suscripción actualizado a ${targetStatus}`
     });
   } catch (err) {
+    console.error('Error set-subscription-status:', err);
     return res.status(500).json({ error: 'Error actualizando suscripción.' });
   }
 });
 
 /**
  * 12. POST /api/bookings/admin/set-module-status
- * Modifica el estado modular (Agendamiento de Citas & Verificación Wompi)
+ * Modifica el estado modular desde el Panel Dynamind o Dashboard
  */
-router.post('/admin/set-module-status', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+router.post('/admin/set-module-status', async (req, res) => {
   try {
-    const { module, enabled, modules } = req.body;
+    const { module, enabled, modules, key } = req.body;
+    const authHeader = req.headers['x-admin-key'] || req.headers['authorization'];
+    const effectiveAdminKey = await getEffectiveAdminSecret();
+
+    const isMasterAuth = 
+      key === ADMIN_SECRET || 
+      key === effectiveAdminKey || 
+      authHeader === ADMIN_SECRET || 
+      authHeader === `Bearer ${ADMIN_SECRET}` || 
+      authHeader === effectiveAdminKey || 
+      authHeader === `Bearer ${effectiveAdminKey}` ||
+      (req.session && (req.session.userRole === 'MASTER' || req.session.userRole === 'ADMIN'));
+
+    if (!isMasterAuth) {
+      return res.status(403).json({ error: 'No autorizado para modificar los módulos.' });
+    }
 
     if (!mockStore.modules) {
-      mockStore.modules = { bookings: true, wompi_payments: true };
+      mockStore.modules = {
+        bookings: true,
+        wompi_payments: true,
+        recaudos: true,
+        cancelaciones: true,
+        personalizacion: true,
+        users_management: true
+      };
     }
 
     if (modules && typeof modules === 'object') {
@@ -926,6 +982,7 @@ router.post('/admin/set-module-status', requireAdminOrStaffAuth, requireAdminOnl
       message: 'Módulos actualizados con éxito.'
     });
   } catch (err) {
+    console.error('Error set-module-status:', err);
     return res.status(500).json({ error: 'Error actualizando módulos.' });
   }
 });
