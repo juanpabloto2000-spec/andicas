@@ -8,7 +8,8 @@ import {
   Sliders, AlertTriangle, Sparkles, CreditCard, Eye, EyeOff, Save, Sun, Moon, CalendarDays,
   Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle, KeyRound, UserPlus, Shield,
   Receipt, Wallet, Coins, TrendingDown, Printer, Calculator, AlertOctagon, CalendarRange,
-  Settings, Image as ImageIcon, Type, PawPrint, Compass, Waves, Flame, HeartHandshake, Layout
+  Settings, Image as ImageIcon, Type, PawPrint, Compass, Waves, Flame, HeartHandshake, Layout,
+  ArrowRightLeft
 } from 'lucide-react';
 import { 
   andicasSb,
@@ -74,14 +75,20 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     { username: 'recepcion', name: 'Recepción', role: 'staff' },
   ]);
 
-  // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'cancelaciones' | 'personalizacion' | 'usuarios'
+  // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'personalizacion' | 'usuarios'
   const [activeSection, setActiveSection] = useState('agendamientos');
 
   // Sub-tabs for Agendamientos: 'tabla' | 'calendario' | 'auditoria'
   const [agendaSubTab, setAgendaSubTab] = useState('tabla');
 
-  // Sub-tabs for Recaudos & Caja: 'caja_vivo' | 'gastos' | 'cierre' | 'historial' | 'metricas'
+  // Sub-tabs for Recaudos & Caja: 'caja_vivo' | 'gastos' | 'cierre' | 'historial_metricas'
   const [recaudosSubTab, setRecaudosSubTab] = useState('caja_vivo');
+
+  // Metrics Period Filter State (Admins Panel)
+  const [metricsPeriod, setMetricsPeriod] = useState('mes'); // 'hoy' | 'semana' | 'mes' | 'rango' | 'todos'
+  const [metricsStartDate, setMetricsStartDate] = useState('');
+  const [metricsEndDate, setMetricsEndDate] = useState('');
+  const [metricsCalendarModalOpen, setMetricsCalendarModalOpen] = useState(false);
 
   // Live Module State & Remote Subscription Status (Identical to KAL Engine)
   const [localActiveModules, setLocalActiveModules] = useState(() => activeModules || {
@@ -167,21 +174,24 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     };
   };
 
-  // Guard activeSection and agendaSubTab based on userRole
+  // Guard activeSection, agendaSubTab and recaudosSubTab based on userRole
   useEffect(() => {
     if (userRole === 'staff' || userRole === 'recepcion') {
-      if (activeSection !== 'agendamientos') {
+      if (activeSection !== 'agendamientos' && activeSection !== 'recaudos') {
         setActiveSection('agendamientos');
       }
       if (agendaSubTab !== 'tabla' && agendaSubTab !== 'calendario') {
         setAgendaSubTab('tabla');
+      }
+      if (recaudosSubTab === 'historial_metricas') {
+        setRecaudosSubTab('caja_vivo');
       }
     } else if (userRole === 'admin') {
       if (activeSection === 'usuarios') {
         setActiveSection('agendamientos');
       }
     }
-  }, [userRole, activeSection, agendaSubTab]);
+  }, [userRole, activeSection, agendaSubTab, recaudosSubTab]);
 
   useEffect(() => {
     if (activeModules) {
@@ -538,10 +548,11 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
   const formatCOP = (num) => `$${Number(num || 0).toLocaleString('es-CO')} COP`;
 
-  // Status formatting: strictly AGENDADO | CANCELADO
+  // Status formatting: AGENDADO | PAGADO | CANCELADO
   const formatStatusLabel = (status) => {
     const s = String(status || '').toUpperCase();
     if (s === 'CANCELADA' || s === 'CANCELLED' || s === 'CANCELADO') return 'CANCELADO';
+    if (s === 'PAGADO' || s === 'PAGADA' || s === 'PAID' || s === 'CONFIRMADA' || s === 'CONFIRMED') return 'PAGADO';
     return 'AGENDADO';
   };
 
@@ -550,7 +561,29 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     if (s === 'CANCELADA' || s === 'CANCELLED' || s === 'CANCELADO') {
       return 'bg-red-500/15 border-red-500/40 text-red-400';
     }
-    return 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400';
+    if (s === 'PAGADO' || s === 'PAGADA' || s === 'PAID' || s === 'CONFIRMADA' || s === 'CONFIRMED') {
+      return 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300';
+    }
+    return 'bg-amber-500/20 border-amber-500/50 text-amber-300';
+  };
+
+  const handleToggleBookingStatus = async (booking) => {
+    if (!booking) return;
+    const currentLabel = formatStatusLabel(booking.status);
+    if (currentLabel === 'CANCELADO') return; // Cancelled cannot be toggled directly
+    const nextStatus = currentLabel === 'PAGADO' ? 'AGENDADO' : 'PAGADO';
+
+    setBookings(prev => prev.map(b => 
+      b.booking_reference === booking.booking_reference 
+        ? { ...b, status: nextStatus } 
+        : b
+    ));
+
+    try {
+      await updateBookingStatusAdmin(booking.booking_reference, nextStatus, adminKey);
+    } catch (err) {
+      console.warn('Error actualizando estado de reserva:', err);
+    }
   };
 
   const isMasterAdmin = userRole === 'master_admin' || userRole === 'MASTER';
@@ -1729,6 +1762,48 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     return sum + Math.max(0, remaining);
   }, 0);
 
+  // Dynamic Period Metrics Filtered for Admins
+  const filteredMetricsBookings = activeScheduledBookings.filter(b => {
+    const checkIn = b.check_in_date || '';
+    if (metricsPeriod === 'hoy') {
+      return checkIn === todayStr;
+    }
+    if (metricsPeriod === 'semana') {
+      return checkIn >= startOfWeekStr && checkIn <= endOfWeekStr;
+    }
+    if (metricsPeriod === 'mes') {
+      return checkIn.startsWith(currentMonthStr);
+    }
+    if (metricsPeriod === 'rango') {
+      if (metricsStartDate && metricsEndDate) {
+        return checkIn >= metricsStartDate && checkIn <= metricsEndDate;
+      } else if (metricsStartDate) {
+        return checkIn >= metricsStartDate;
+      } else if (metricsEndDate) {
+        return checkIn <= metricsEndDate;
+      }
+    }
+    return true; // 'todos'
+  });
+
+  const periodRevenue = filteredMetricsBookings.reduce((sum, b) => sum + (b.total_amount_cop || 0), 0);
+  const periodDeposits = filteredMetricsBookings.reduce((sum, b) => sum + (b.deposit_amount_cop || 0), 0);
+  const periodRemaining = filteredMetricsBookings.reduce((sum, b) => {
+    const remaining = (b.total_amount_cop || 0) - (b.deposit_amount_cop || 0);
+    return sum + Math.max(0, remaining);
+  }, 0);
+
+  // Today's Pending Bookings for Reception to Collect
+  const todayPendingBookingsToCollect = activeScheduledBookings.filter(b => {
+    const remaining = (b.total_amount_cop || 0) - (b.deposit_amount_cop || 0);
+    const isToday = b.check_in_date === todayStr;
+    return remaining > 0 && (isToday || formatStatusLabel(b.status) === 'AGENDADO');
+  });
+  const totalPendingToCollectToday = todayPendingBookingsToCollect.reduce((sum, b) => {
+    const remaining = (b.total_amount_cop || 0) - (b.deposit_amount_cop || 0);
+    return sum + Math.max(0, remaining);
+  }, 0);
+
   // Remaining Balance Filtered for the Bottom Card (Available to Staff, Admin and Master)
   const pendingFilteredBookings = activeScheduledBookings.filter(b => {
     if (pendingBalancePeriod === 'hoy') {
@@ -1866,15 +1941,22 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   }}
                   className={`w-full bg-jade-950 border rounded-xl px-3.5 py-3 text-xs text-linen-100 outline-none font-bold cursor-pointer transition-colors appearance-none pr-9 ${currentTheme.badgeBorder}`}
                 >
-                  {loginUsersList.map((acc) => (
-                    <option
-                      key={acc.username}
-                      value={acc.username}
-                      className="bg-jade-950 text-linen-100 py-1"
-                    >
-                      {acc.username}
-                    </option>
-                  ))}
+                  {loginUsersList.map((acc) => {
+                    const icon = (acc.role === 'master_admin' || acc.username.includes('master'))
+                      ? '👑' 
+                      : (acc.role === 'admin' || acc.username === 'admin')
+                        ? '🛡️' 
+                        : '👤';
+                    return (
+                      <option
+                        key={acc.username}
+                        value={acc.username}
+                        className="bg-jade-950 text-linen-100 py-1.5 font-bold"
+                      >
+                        {icon} {acc.username}
+                      </option>
+                    );
+                  })}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-linen-400">
                   <ChevronDown className="w-4 h-4" />
@@ -2008,32 +2090,30 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               )}
             </button>
 
-            {/* 2. Recaudos & Caja (Solo Admin y Master) */}
-            {isAdminOrMaster && (
-              <button
-                onClick={() => setActiveSection('recaudos')}
-                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
-                  activeSection === 'recaudos'
-                    ? isRecaudosEnabled
-                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                      : 'bg-red-950/80 border border-red-500/50 text-red-300 font-bold shadow-lg shadow-red-950/40'
-                    : isRecaudosEnabled
-                      ? 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
-                      : 'bg-red-950/20 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 border border-red-500/20'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <DollarSign className="w-4 h-4" />
-                  <span>Recaudos & Caja</span>
+            {/* 2. Recaudos & Caja (Acceso con permisos adaptados) */}
+            <button
+              onClick={() => setActiveSection('recaudos')}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
+                activeSection === 'recaudos'
+                  ? isRecaudosEnabled
+                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                    : 'bg-red-950/80 border border-red-500/50 text-red-300 font-bold shadow-lg shadow-red-950/40'
+                  : isRecaudosEnabled
+                    ? 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                    : 'bg-red-950/20 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 border border-red-500/20'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <DollarSign className="w-4 h-4" />
+                <span>Recaudos & Caja</span>
+              </div>
+              {!isRecaudosEnabled && (
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold">
+                  <Lock className="w-3 h-3 text-red-400" />
+                  <span>Bloqueado</span>
                 </div>
-                {!isRecaudosEnabled && (
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold">
-                    <Lock className="w-3 h-3 text-red-400" />
-                    <span>Bloqueado</span>
-                  </div>
-                )}
-              </button>
-            )}
+              )}
+            </button>
 
             {/* 3. Personalización / CMS (Solo Admin y Master) */}
             {isAdminOrMaster && (
@@ -2226,15 +2306,13 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   )}
                 </div>
 
-                  {isAdminOrMaster && (
-                    <button
-                      onClick={() => setBlockModalOpen(true)}
-                      className="px-4 py-2.5 rounded-2xl bg-hoja-600 hover:bg-hoja-500 text-white font-cartoon text-xs uppercase font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>+ Bloquear Fechas</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setBlockModalOpen(true)}
+                    className="px-4 py-2.5 rounded-2xl bg-hoja-600 hover:bg-hoja-500 text-white font-cartoon text-xs uppercase font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Bloquear Fechas</span>
+                  </button>
                 </div>
               </div>
 
@@ -2325,9 +2403,18 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                                 <span className="text-[10px] text-hoja-400 font-mono">Anticipo: {formatCOP(b.deposit_amount_cop)}</span>
                               </td>
                               <td className="p-3.5">
-                                <span className={`px-2.5 py-1 rounded-full font-cartoon font-bold text-[10px] uppercase border inline-block ${getStatusBadgeStyle(b.status)}`}>
-                                  {formatStatusLabel(b.status)}
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleBookingStatus(b)}
+                                  disabled={b.status === 'CANCELADA' || b.status === 'CANCELLED' || b.status === 'CANCELADO'}
+                                  className={`px-2.5 py-1 rounded-full font-cartoon font-bold text-[10px] uppercase border inline-flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95 ${getStatusBadgeStyle(b.status)} disabled:opacity-80 disabled:cursor-not-allowed`}
+                                  title={b.status === 'CANCELADA' || b.status === 'CANCELLED' || b.status === 'CANCELADO' ? 'Reserva cancelada' : 'Clic para cambiar entre AGENDADO y PAGADO'}
+                                >
+                                  <span>{formatStatusLabel(b.status)}</span>
+                                  {b.status !== 'CANCELADA' && b.status !== 'CANCELLED' && b.status !== 'CANCELADO' && (
+                                    <ArrowRightLeft className="w-2.5 h-2.5 opacity-80" />
+                                  )}
+                                </button>
                               </td>
                               <td className="p-3.5 text-right space-x-1">
                                 {isAdminOrMaster && b.status !== 'CANCELADA' && b.status !== 'CANCELLED' && b.status !== 'CANCELADO' && (
@@ -2821,7 +2908,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         {/* ======================================================================= */}
         {/* SECCIÓN 2: RECAUDOS & CAJA (OPERACIÓN, CIERRE ESTRICTO & HISTORIAL) */}
         {/* ======================================================================= */}
-        {activeSection === 'recaudos' && isAdminOrMaster && (
+        {activeSection === 'recaudos' && (
           isRecaudosEnabled ? (
             <div className="space-y-6">
             
@@ -2875,17 +2962,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   <span>+ Registrar Cobro</span>
                 </button>
 
-                <button
-                  onClick={() => setIsExpenseModalOpen(true)}
-                  className="px-3.5 py-2.5 rounded-2xl bg-red-600/80 hover:bg-red-600 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <TrendingDown className="w-3.5 h-3.5" />
-                  <span>+ Gasto</span>
-                </button>
+                {isAdminOrMaster && (
+                  <button
+                    onClick={() => setIsExpenseModalOpen(true)}
+                    className="px-3.5 py-2.5 rounded-2xl bg-red-600/80 hover:bg-red-600 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <TrendingDown className="w-3.5 h-3.5" />
+                    <span>+ Gasto</span>
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Sub-Tabs Selector Comprimido a 3 Vistas */}
+            {/* Sub-Tabs Selector */}
             <div className="flex flex-wrap items-center gap-1.5 bg-jade-950 p-1.5 rounded-2xl border border-white/10 text-xs font-cartoon max-w-fit">
               <button
                 onClick={() => setRecaudosSubTab('caja_vivo')}
@@ -2908,25 +2997,27 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 }`}
               >
                 <Receipt className="w-3.5 h-3.5" />
-                <span>📊 Cierre Diario & Gastos</span>
-                {(todayCashSession.expenses || []).length > 0 && (
+                <span>📊 Cierre Diario & Arqueo</span>
+                {isAdminOrMaster && (todayCashSession.expenses || []).length > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full bg-red-500/30 text-red-300 font-mono text-[10px]">
                     {(todayCashSession.expenses || []).length}
                   </span>
                 )}
               </button>
 
-              <button
-                onClick={() => setRecaudosSubTab('historial_metricas')}
-                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
-                  recaudosSubTab === 'historial_metricas'
-                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                    : 'text-linen-300 hover:text-white'
-                }`}
-              >
-                <CalendarRange className="w-3.5 h-3.5" />
-                <span>📜 Historial & Métricas Globales</span>
-              </button>
+              {isAdminOrMaster && (
+                <button
+                  onClick={() => setRecaudosSubTab('historial_metricas')}
+                  className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                    recaudosSubTab === 'historial_metricas'
+                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                      : 'text-linen-300 hover:text-white'
+                  }`}
+                >
+                  <CalendarRange className="w-3.5 h-3.5" />
+                  <span>📜 Historial & Métricas Globales</span>
+                </button>
+              )}
             </div>
 
             {/* =================================================================== */}
@@ -2936,47 +3027,79 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               <div className="space-y-6">
                 
                 {/* 1.1 Live Balance Breakdown Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-                  <div className="p-4 rounded-2xl glass-dark border border-white/10 space-y-1">
-                    <span className="text-[10px] font-cartoon text-linen-400 uppercase block">1. Base Inicial</span>
-                    <span className="font-mono text-lg font-black text-gold-300 block">
-                      {formatCOP(cashSummary.baseInitial)}
-                    </span>
-                    <span className="text-[10px] text-linen-500 font-mono">Efectivo al abrir</span>
-                  </div>
+                {isAdminOrMaster ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+                    <div className="p-4 rounded-2xl glass-dark border border-white/10 space-y-1">
+                      <span className="text-[10px] font-cartoon text-linen-400 uppercase block">1. Base Inicial</span>
+                      <span className="font-mono text-lg font-black text-gold-300 block">
+                        {formatCOP(cashSummary.baseInitial)}
+                      </span>
+                      <span className="text-[10px] text-linen-500 font-mono">Efectivo al abrir</span>
+                    </div>
 
-                  <div className="p-4 rounded-2xl glass-dark border border-emerald-500/30 space-y-1">
-                    <span className="text-[10px] font-cartoon text-emerald-400 uppercase block">2. (+) Efectivo Cobrado</span>
-                    <span className="font-mono text-lg font-black text-emerald-300 block">
-                      +{formatCOP(cashSummary.totalCashIn)}
-                    </span>
-                    <span className="text-[10px] text-linen-500 font-mono">Ingresos físicos hoy</span>
-                  </div>
+                    <div className="p-4 rounded-2xl glass-dark border border-emerald-500/30 space-y-1">
+                      <span className="text-[10px] font-cartoon text-emerald-400 uppercase block">2. (+) Efectivo Cobrado</span>
+                      <span className="font-mono text-lg font-black text-emerald-300 block">
+                        +{formatCOP(cashSummary.totalCashIn)}
+                      </span>
+                      <span className="text-[10px] text-linen-500 font-mono">Ingresos físicos hoy</span>
+                    </div>
 
-                  <div className="p-4 rounded-2xl glass-dark border border-cyan-500/30 space-y-1">
-                    <span className="text-[10px] font-cartoon text-cyan-400 uppercase block">3. (+) Pagos Electrónicos</span>
-                    <span className="font-mono text-lg font-black text-cyan-300 block">
-                      +{formatCOP(cashSummary.totalElectronicIn)}
-                    </span>
-                    <span className="text-[10px] text-linen-500 font-mono">Wompi / Datáfono</span>
-                  </div>
+                    <div className="p-4 rounded-2xl glass-dark border border-cyan-500/30 space-y-1">
+                      <span className="text-[10px] font-cartoon text-cyan-400 uppercase block">3. (+) Pagos Electrónicos</span>
+                      <span className="font-mono text-lg font-black text-cyan-300 block">
+                        +{formatCOP(cashSummary.totalElectronicIn)}
+                      </span>
+                      <span className="text-[10px] text-linen-500 font-mono">Wompi / Datáfono</span>
+                    </div>
 
-                  <div className="p-4 rounded-2xl glass-dark border border-red-500/30 space-y-1">
-                    <span className="text-[10px] font-cartoon text-red-400 uppercase block">4. (-) Gastos en Caja</span>
-                    <span className="font-mono text-lg font-black text-red-300 block">
-                      -{formatCOP(cashSummary.totalExpenses)}
-                    </span>
-                    <span className="text-[10px] text-linen-500 font-mono">{(todayCashSession.expenses || []).length} egresos registrados</span>
-                  </div>
+                    <div className="p-4 rounded-2xl glass-dark border border-red-500/30 space-y-1">
+                      <span className="text-[10px] font-cartoon text-red-400 uppercase block">4. (-) Gastos en Caja</span>
+                      <span className="font-mono text-lg font-black text-red-300 block">
+                        -{formatCOP(cashSummary.totalExpenses)}
+                      </span>
+                      <span className="text-[10px] text-linen-500 font-mono">{(todayCashSession.expenses || []).length} egresos registrados</span>
+                    </div>
 
-                  <div className="p-4 rounded-2xl bg-gold-500/15 border-2 border-gold-400 space-y-1 shadow-gold-glow">
-                    <span className="text-[10px] font-cartoon text-gold-300 uppercase font-bold block">5. (=) Efectivo Esperado</span>
-                    <span className="font-mono text-lg font-black text-white block">
-                      {formatCOP(cashSummary.expectedCash)}
-                    </span>
-                    <span className="text-[10px] text-gold-200 font-mono">En cajón actualmente</span>
+                    <div className="p-4 rounded-2xl bg-gold-500/15 border-2 border-gold-400 space-y-1 shadow-gold-glow">
+                      <span className="text-[10px] font-cartoon text-gold-300 uppercase font-bold block">5. (=) Efectivo Esperado</span>
+                      <span className="font-mono text-lg font-black text-white block">
+                        {formatCOP(cashSummary.expectedCash)}
+                      </span>
+                      <span className="text-[10px] text-gold-200 font-mono">En cajón actualmente</span>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    <div className="p-4 rounded-2xl glass-dark border border-white/10 space-y-1">
+                      <span className="text-[10px] font-cartoon text-linen-400 uppercase block">1. Base Inicial del Turno</span>
+                      <span className="font-mono text-lg font-black text-gold-300 block">
+                        {formatCOP(cashSummary.baseInitial)}
+                      </span>
+                      <span className="text-[10px] text-linen-500 font-mono">Efectivo asignado al abrir</span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-400 space-y-1 shadow-md">
+                      <span className="text-[10px] font-cartoon text-amber-300 uppercase block font-bold">2. Saldo Pendiente por Cobrar</span>
+                      <span className="font-mono text-lg font-black text-white block">
+                        {formatCOP(totalPendingToCollectToday)}
+                      </span>
+                      <span className="text-[10px] text-amber-200 font-mono">
+                        {todayPendingBookingsToCollect.length} {todayPendingBookingsToCollect.length === 1 ? 'cuenta pendiente' : 'cuentas pendientes'} hoy
+                      </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl glass-dark border border-white/10 space-y-1">
+                      <span className="text-[10px] font-cartoon text-linen-400 uppercase block">3. Estado del Turno</span>
+                      <span className="font-mono text-base font-black text-emerald-300 block">
+                        {cashSummary.isLocked ? '✅ Turno Abierto' : '⚠️ Sin Apertura'}
+                      </span>
+                      <span className="text-[10px] text-linen-500 font-mono">
+                        {todayCashSession.opened_by || 'Caja Recepción'}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* 1.2 Quick Action: Registrar Cobro en Sitio & Listado de Cobros */}
                 <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
@@ -3052,81 +3175,167 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   )}
                 </div>
 
+                {/* 1.3 Listado de Reservas Pendientes por Cobrar */}
+                <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                    <div>
+                      <h3 className="font-cartoon text-sm uppercase text-amber-400 tracking-wider">
+                        Reservas con Saldo Pendiente por Cobrar
+                      </h3>
+                      <span className="text-xs text-linen-400 font-fredoka">
+                        Huéspedes con estadía activa o check-in programado para recaudar saldo restante.
+                      </span>
+                    </div>
+
+                    <span className="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-300 text-xs font-mono font-bold">
+                      Total por cobrar: {formatCOP(totalPendingToCollectToday)}
+                    </span>
+                  </div>
+
+                  {todayPendingBookingsToCollect.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-linen-400 italic rounded-2xl bg-jade-900/40 border border-white/5">
+                      No hay saldos pendientes por cobrar en este momento.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs font-fredoka">
+                        <thead className="bg-jade-900/80 font-cartoon text-[11px] text-amber-400 uppercase tracking-wider border-b border-white/10">
+                          <tr>
+                            <th className="p-3">Reserva / Huésped</th>
+                            <th className="p-3">Cabaña</th>
+                            <th className="p-3">Teléfono</th>
+                            <th className="p-3">Total Estadía</th>
+                            <th className="p-3">Anticipo</th>
+                            <th className="p-3">Saldo Restante</th>
+                            <th className="p-3 text-right">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {todayPendingBookingsToCollect.map((b) => {
+                            const pending = Math.max(0, (b.total_amount_cop || 0) - (b.deposit_amount_cop || 0));
+                            return (
+                              <tr key={b.id || b.booking_reference} className="hover:bg-white/[0.02] transition-colors">
+                                <td className="p-3">
+                                  <span className="font-mono font-bold text-gold-300 block">{b.booking_reference}</span>
+                                  <span className="text-linen-200">{b.client_name}</span>
+                                </td>
+                                <td className="p-3 text-linen-300">
+                                  {b.cabin_name}
+                                </td>
+                                <td className="p-3 font-mono text-linen-400">
+                                  {b.client_phone || '-'}
+                                </td>
+                                <td className="p-3 font-mono text-linen-300">
+                                  {formatCOP(b.total_amount_cop)}
+                                </td>
+                                <td className="p-3 font-mono text-emerald-400">
+                                  {formatCOP(b.deposit_amount_cop)}
+                                </td>
+                                <td className="p-3 font-mono font-bold text-amber-300">
+                                  {formatCOP(pending)}
+                                </td>
+                                <td className="p-3 text-right">
+                                  <button
+                                    onClick={() => setNewPaymentModal({
+                                      isOpen: true,
+                                      booking_reference: b.booking_reference,
+                                      client_name: b.client_name,
+                                      amount: String(pending),
+                                      method: 'EFECTIVO',
+                                      notes: 'Pago de saldo en recepción'
+                                    })}
+                                    className="px-3 py-1.5 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-[11px] uppercase tracking-wider shadow-sm hover:scale-105 transition-all cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>Cobrar</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
 
             {/* =================================================================== */}
-            {/* SUB-TAB 2: CIERRE DIARIO & GASTOS INTEGRADOS (LADO A LADO) */}
+            {/* SUB-TAB 2: CIERRE DIARIO & ARQUEO DE CAJA */}
             {/* =================================================================== */}
             {recaudosSubTab === 'cierre' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              <div className={`grid gap-6 items-start ${isAdminOrMaster ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'}`}>
                 
-                {/* 2.1 Columna Izquierda: Gastos del Día Integrados */}
-                <div className="p-5 sm:p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
-                    <div>
-                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
-                        <TrendingDown className="w-4 h-4 text-red-400" />
-                        <span>Gastos del Día (Salidas de Caja)</span>
-                      </h3>
-                      <span className="text-xs text-linen-400 font-fredoka">
-                        Total acumulado: <strong className="text-red-400 font-mono">{formatCOP(cashSummary.totalExpenses)}</strong>
-                      </span>
+                {/* 2.1 Columna Izquierda: Gastos del Día (Solo visible para Admin y Master) */}
+                {isAdminOrMaster && (
+                  <div className="p-5 sm:p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                      <div>
+                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                          <TrendingDown className="w-4 h-4 text-red-400" />
+                          <span>Gastos del Día (Salidas de Caja)</span>
+                        </h3>
+                        <span className="text-xs text-linen-400 font-fredoka">
+                          Total acumulado: <strong className="text-red-400 font-mono">{formatCOP(cashSummary.totalExpenses)}</strong>
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => setIsExpenseModalOpen(true)}
+                        className="px-3.5 py-2 rounded-2xl bg-red-600/80 hover:bg-red-600 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>+ Añadir Gasto</span>
+                      </button>
                     </div>
 
-                    <button
-                      onClick={() => setIsExpenseModalOpen(true)}
-                      className="px-3.5 py-2 rounded-2xl bg-red-600/80 hover:bg-red-600 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>+ Añadir Gasto</span>
-                    </button>
+                    {(todayCashSession.expenses || []).length === 0 ? (
+                      <div className="p-8 text-center text-xs text-linen-400 italic rounded-2xl bg-jade-900/40 border border-white/5">
+                        No hay gastos registrados en la caja de hoy.
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
+                        {(todayCashSession.expenses || []).map((exp) => (
+                          <div
+                            key={exp.id}
+                            className="p-3 rounded-2xl bg-jade-900/60 border border-white/10 hover:border-red-500/30 transition-all flex items-center justify-between gap-3"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-xs text-linen-100">{exp.concept}</span>
+                                <span className="px-2 py-0.5 rounded-full bg-white/5 text-linen-300 text-[9px] font-mono border border-white/10">
+                                  {exp.category}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 text-[10px] text-linen-400 font-fredoka">
+                                <span className="font-mono">
+                                  {exp.created_at ? new Date(exp.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : 'Hoy'}
+                                </span>
+                                <span>· Por: <strong>{exp.user}</strong></span>
+                                {exp.notes && <span className="italic">({exp.notes})</span>}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <span className="font-mono font-bold text-sm text-red-400">
+                                -{formatCOP(exp.amount)}
+                              </span>
+                              <button
+                                onClick={() => handleDeleteExpense(exp.id)}
+                                className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 cursor-pointer transition-colors"
+                                title="Eliminar gasto"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-
-                  {(todayCashSession.expenses || []).length === 0 ? (
-                    <div className="p-8 text-center text-xs text-linen-400 italic rounded-2xl bg-jade-900/40 border border-white/5">
-                      No hay gastos registrados en la caja de hoy.
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
-                      {(todayCashSession.expenses || []).map((exp) => (
-                        <div
-                          key={exp.id}
-                          className="p-3 rounded-2xl bg-jade-900/60 border border-white/10 hover:border-red-500/30 transition-all flex items-center justify-between gap-3"
-                        >
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-xs text-linen-100">{exp.concept}</span>
-                              <span className="px-2 py-0.5 rounded-full bg-white/5 text-linen-300 text-[9px] font-mono border border-white/10">
-                                {exp.category}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-[10px] text-linen-400 font-fredoka">
-                              <span className="font-mono">
-                                {exp.created_at ? new Date(exp.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : 'Hoy'}
-                              </span>
-                              <span>· Por: <strong>{exp.user}</strong></span>
-                              {exp.notes && <span className="italic">({exp.notes})</span>}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            <span className="font-mono font-bold text-sm text-red-400">
-                              -{formatCOP(exp.amount)}
-                            </span>
-                            <button
-                              onClick={() => handleDeleteExpense(exp.id)}
-                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 cursor-pointer transition-colors"
-                              title="Eliminar gasto"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                )}
 
                 {/* 2.2 Columna Derecha: Asistente de Arqueo o Informe de Cierre */}
                 {todayClosure ? (
@@ -3217,13 +3426,15 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                         <span>Imprimir</span>
                       </button>
 
-                      <button
-                        onClick={() => handleOpenAnnulModal(todayClosure)}
-                        className="px-3.5 py-2 rounded-xl bg-red-950/80 hover:bg-red-900 border border-red-500/60 text-red-200 font-cartoon text-[11px] uppercase font-bold flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                        <span>Reabrir Turno</span>
-                      </button>
+                      {isAdminOrMaster && (
+                        <button
+                          onClick={() => handleOpenAnnulModal(todayClosure)}
+                          className="px-3.5 py-2 rounded-xl bg-red-950/80 hover:bg-red-900 border border-red-500/60 text-red-200 font-cartoon text-[11px] uppercase font-bold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                          <span>Reabrir Turno</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -3234,10 +3445,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                         Paso Final del Turno
                       </span>
                       <h2 className="font-display text-lg sm:text-xl font-black text-linen-100 uppercase tracking-wide">
-                        Arqueo & Cierre Diario
+                        Arqueo & Cierre de Turno
                       </h2>
                       <p className="text-xs text-linen-300 font-fredoka mt-0.5">
-                        Cuenta los billetes y monedas físicos. El sistema exige cuadre exacto para procesar.
+                        Cuenta los billetes y monedas físicos. El sistema exige cuadre exacto para procesar el cierre.
                       </p>
                     </div>
 
@@ -3365,51 +3576,106 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             )}
 
             {/* =================================================================== */}
-            {/* SUB-TAB 3: HISTORIAL DE CIERRES & MÉTRICAS GLOBALES */}
+            {/* SUB-TAB 3: HISTORIAL DE CIERRES & MÉTRICAS GLOBALES (ADMINS) */}
             {/* =================================================================== */}
-            {recaudosSubTab === 'historial_metricas' && (
+            {recaudosSubTab === 'historial_metricas' && isAdminOrMaster && (
               <div className="space-y-6">
                 
+                {/* 3.0 Selector de Período & Calendario para Métricas */}
+                <div className="p-4 sm:p-5 rounded-3xl glass-dark border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block mr-1">
+                      Período de Métricas:
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5 bg-jade-950 p-1 rounded-2xl border border-white/10 text-xs font-cartoon">
+                      {[
+                        { id: 'hoy', label: 'Hoy' },
+                        { id: 'semana', label: 'Esta Semana' },
+                        { id: 'mes', label: 'Este Mes' },
+                        { id: 'todos', label: 'Todo el Historial' }
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setMetricsPeriod(item.id);
+                            setMetricsStartDate('');
+                            setMetricsEndDate('');
+                          }}
+                          className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+                            metricsPeriod === item.id
+                              ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                              : 'text-linen-300 hover:text-white'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+
+                      <button
+                        onClick={() => setMetricsCalendarModalOpen(true)}
+                        className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                          metricsPeriod === 'rango'
+                            ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                            : 'text-gold-400 hover:text-gold-300 border border-gold-500/20'
+                        }`}
+                      >
+                        <CalendarIcon className="w-3.5 h-3.5" />
+                        <span>
+                          {metricsPeriod === 'rango' && metricsStartDate && metricsEndDate
+                            ? `${metricsStartDate} al ${metricsEndDate}`
+                            : '📅 Filtrar por Calendario'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs font-mono text-linen-300">
+                    <span className="px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/30 text-gold-300 font-bold">
+                      {filteredMetricsBookings.length} {filteredMetricsBookings.length === 1 ? 'Reserva' : 'Reservas'} en período
+                    </span>
+                  </div>
+                </div>
+
                 {/* 3.1 KPI Cards Globales */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="p-5 rounded-3xl glass-dark border border-emerald-500/30 space-y-1 shadow-lg">
                     <span className="text-[10px] font-cartoon text-emerald-400 uppercase tracking-wider block">
-                      Anticipos Recaudados (50%)
+                      Anticipos Recaudados
                     </span>
                     <span className="font-mono text-xl sm:text-2xl font-black text-white block">
-                      {formatCOP(totalDepositsCollected)}
+                      {formatCOP(periodDeposits)}
                     </span>
-                    <span className="text-[11px] text-linen-400 block">Pagos confirmados por Wompi y banco</span>
+                    <span className="text-[11px] text-linen-400 block">Confirmados en el período</span>
                   </div>
 
                   <div className="p-5 rounded-3xl glass-dark border border-gold-500/30 space-y-1 shadow-lg">
                     <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
-                      Ventas Totales Proyectadas
+                      Ventas Totales
                     </span>
                     <span className="font-mono text-xl sm:text-2xl font-black text-gold-300 block">
-                      {formatCOP(totalRevenue)}
+                      {formatCOP(periodRevenue)}
                     </span>
-                    <span className="text-[11px] text-linen-400 block">Monto total de estadías activas</span>
+                    <span className="text-[11px] text-linen-400 block">Monto total de estadías</span>
                   </div>
 
                   <div className="p-5 rounded-3xl glass-dark border border-amber-500/30 space-y-1 shadow-lg">
                     <span className="text-[10px] font-cartoon text-amber-400 uppercase tracking-wider block">
-                      Saldos Pendientes en Recepción
+                      Saldos Pendientes
                     </span>
                     <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 block">
-                      {formatCOP(totalRemainingPendingGlobal)}
+                      {formatCOP(periodRemaining)}
                     </span>
-                    <span className="text-[11px] text-linen-400 block">Por cobrar al check-in en efectivo/datafono</span>
+                    <span className="text-[11px] text-linen-400 block">Por cobrar al check-in</span>
                   </div>
 
                   <div className="p-5 rounded-3xl glass-dark border border-cyan-500/30 space-y-1 shadow-lg">
                     <span className="text-[10px] font-cartoon text-cyan-400 uppercase tracking-wider block">
-                      Total Reservas Agendadas
+                      Total Reservas
                     </span>
                     <span className="font-mono text-xl sm:text-2xl font-black text-cyan-300 block">
-                      {activeScheduledBookings.length}
+                      {filteredMetricsBookings.length}
                     </span>
-                    <span className="text-[11px] text-linen-400 block">Estadías activas en el sistema</span>
+                    <span className="text-[11px] text-linen-400 block">Estadías en el período</span>
                   </div>
                 </div>
 
@@ -3420,7 +3686,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {cabinsData.map((cabin) => {
-                      const cabinBookings = activeScheduledBookings.filter(b => b.cabin_id === cabin.id);
+                      const cabinBookings = filteredMetricsBookings.filter(b => b.cabin_id === cabin.id);
                       const cabinRevenue = cabinBookings.reduce((sum, b) => sum + (b.total_amount_cop || 0), 0);
 
                       return (
@@ -5119,7 +5385,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         {/* SECCIÓN 5: GESTIÓN DE USUARIOS / EMPLEADOS (EXCLUSIVO ADMIN MASTER) */}
         {/* ======================================================================= */}
         {activeSection === 'usuarios' && isMasterAdmin && (
-          isUsersEnabled ? (
+          isUsersEnabled ? (() => {
+            const manageableUsers = systemUsers.filter(u => u.username !== 'admin_master' && !u.username.includes('master'));
+
+            return (
             <div className="space-y-6">
               {/* Header */}
               <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
@@ -5134,40 +5403,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
                 <div className="flex items-center gap-2">
                   <span className="px-3 py-1 rounded-full bg-gold-500/15 border border-gold-500/30 text-gold-300 text-xs font-mono font-bold">
-                    {systemUsers.length} {systemUsers.length === 1 ? 'Usuario Activo' : 'Usuarios Activos'}
+                    {manageableUsers.length} {manageableUsers.length === 1 ? 'Usuario Activo' : 'Usuarios Activos'}
                   </span>
                 </div>
-              </div>
-
-              {/* Master Admin Info Card */}
-              <div className="p-5 rounded-3xl bg-gradient-to-r from-[#2b3518]/80 via-jade-950/80 to-[#2b3518]/80 border border-[#55692e] shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-[#3b4b20] border border-[#6b853a] flex items-center justify-center text-[#cae47a] shadow-lg flex-shrink-0">
-                    <Crown className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-display text-sm font-black text-white uppercase">
-                        Cuenta Principal: Master Admin
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-full bg-[#3d4c20] text-[#cae47a] border border-[#55692e] font-cartoon font-bold text-[10px] uppercase">
-                        👑 Verde Militar • Super Usuario
-                      </span>
-                    </div>
-                    <p className="text-xs text-linen-300 font-fredoka mt-0.5">
-                      Acceso ilimitado a todas las secciones: Caja Mayor, Agendamientos, Cancelaciones, CMS Lite y Usuarios.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsPassModalOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-[#3b4b20] hover:bg-[#4a5f27] text-[#cae47a] border border-[#6b853a] font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shadow-sm"
-                >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  <span>Cambiar Clave Master</span>
-                </button>
               </div>
 
               {/* Form to create a new user */}
@@ -5270,17 +5508,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 <div className="flex items-center justify-between">
                   <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
                     <Users className="w-4 h-4" />
-                    <span>Usuarios Registrados & Credenciales ({systemUsers.length}):</span>
+                    <span>Usuarios Registrados & Credenciales ({manageableUsers.length}):</span>
                   </h3>
                 </div>
 
-                {systemUsers.length === 0 ? (
+                {manageableUsers.length === 0 ? (
                   <div className="p-8 rounded-3xl glass-dark border border-white/10 text-center text-linen-400/60 italic font-fredoka">
                     Aún no has creado usuarios adicionales. Utiliza el formulario superior para registrar empleados o administradores.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                    {systemUsers.map((u) => {
+                    {manageableUsers.map((u) => {
                       const isSaving = savingUserIds[u.id];
                       const feedback = userCardFeedback[u.id];
                       const isRevealed = revealedPasswords[u.id];
@@ -5348,21 +5586,20 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
                             <div>
                               <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
-                                Contraseña de Acceso:
+                                Contraseña:
                               </label>
                               <div className="relative">
                                 <input
                                   type={isRevealed ? 'text' : 'password'}
                                   value={u.password || ''}
                                   onChange={(e) => handleUserFieldChange(u.id, 'password', e.target.value)}
-                                  placeholder="Mínimo 4 caracteres"
+                                  placeholder="Nueva clave"
                                   className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none pr-9"
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => toggleRevealPassword(u.id)}
-                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-linen-400 hover:text-gold-400 transition-colors cursor-pointer"
-                                  title={isRevealed ? 'Ocultar clave' : 'Ver clave'}
+                                  onClick={() => handleTogglePasswordReveal(u.id)}
+                                  className="absolute right-2.5 top-2 text-linen-400 hover:text-white cursor-pointer"
                                 >
                                   {isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
@@ -5370,28 +5607,26 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                             </div>
                           </div>
 
-                          {/* Feedback Messages */}
-                          {feedback?.error && (
-                            <div className="p-2.5 rounded-xl bg-red-900/40 border border-red-500/50 text-red-300 text-[11px] font-fredoka">
-                              {feedback.error}
-                            </div>
-                          )}
-                          {feedback?.success && (
-                            <div className="p-2.5 rounded-xl bg-emerald-900/40 border border-emerald-500/50 text-emerald-300 text-[11px] font-fredoka font-bold text-center">
-                              {feedback.success}
-                            </div>
-                          )}
+                          {/* Save / Feedback Action */}
+                          <div className="pt-2 border-t border-white/10 flex items-center justify-between gap-2">
+                            {feedback ? (
+                              <span className={`text-[10px] font-mono font-bold ${
+                                feedback.type === 'success' ? 'text-emerald-400' : 'text-red-400'
+                              }`}>
+                                {feedback.msg}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-linen-400 font-mono">Modo edición activo</span>
+                            )}
 
-                          {/* Save Button */}
-                          <div className="pt-2 border-t border-white/10">
                             <button
                               type="button"
-                              onClick={() => handleSaveSingleUser(u)}
+                              onClick={() => handleSaveUserChanges(u.id)}
                               disabled={isSaving}
-                              className="w-full py-2.5 px-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center justify-center gap-2 cursor-pointer transition-all border border-gold-400 disabled:opacity-50"
+                              className="px-3 py-1.5 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-[11px] uppercase tracking-wider flex items-center gap-1 shadow-gold-glow hover:scale-105 transition-all cursor-pointer border border-gold-400 disabled:opacity-50"
                             >
-                              <Save className="w-3.5 h-3.5" />
-                              <span>{isSaving ? 'Guardando...' : 'Guardar Cambios'}</span>
+                              <Save className="w-3 h-3" />
+                              <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
                             </button>
                           </div>
                         </div>
@@ -5401,8 +5636,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 )}
               </div>
             </div>
-          ) : (
-            renderLockedSection('Gestión de Usuarios', 'La creación, edición y control de credenciales de empleados ha sido deshabilitada temporalmente por la administración central de Dynamind.')
+            );
+          })() : (
+            renderLockedSection('Gestión de Usuarios', 'El módulo de gestión de usuarios ha sido deshabilitado temporalmente por la administración central de Dynamind.')
           )
         )}
       </main>
@@ -6499,6 +6735,170 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   <span>{isAddingExpense ? 'Registrando...' : 'Registrar Salida de Dinero'}</span>
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: CALENDARIO ESTÉTICO / FILTRO DE MÉTRICAS (ADMINS) */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {metricsCalendarModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMetricsCalendarModalOpen(false)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-gold-500/50 shadow-2xl space-y-5 z-10 font-fredoka"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <CalendarRange className="w-5 h-5 text-gold-400" />
+                  <h3 className="font-display text-base font-black text-white uppercase tracking-wide">
+                    Filtrar Período de Métricas
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setMetricsCalendarModalOpen(false)}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Atajos Rápidos */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
+                  Atajos de Selección Rápida:
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-xs font-cartoon">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const end = new Date();
+                      const start = new Date();
+                      start.setDate(end.getDate() - 7);
+                      setMetricsStartDate(start.toISOString().split('T')[0]);
+                      setMetricsEndDate(end.toISOString().split('T')[0]);
+                    }}
+                    className="p-2.5 rounded-xl bg-jade-900/80 hover:bg-jade-800 border border-white/10 text-linen-200 text-left transition-colors cursor-pointer"
+                  >
+                    📅 Últimos 7 Días
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const end = new Date();
+                      const start = new Date();
+                      start.setDate(end.getDate() - 30);
+                      setMetricsStartDate(start.toISOString().split('T')[0]);
+                      setMetricsEndDate(end.toISOString().split('T')[0]);
+                    }}
+                    className="p-2.5 rounded-xl bg-jade-900/80 hover:bg-jade-800 border border-white/10 text-linen-200 text-left transition-colors cursor-pointer"
+                  >
+                    📅 Últimos 30 Días
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const now = new Date();
+                      const y = now.getFullYear();
+                      const m = String(now.getMonth() + 1).padStart(2, '0');
+                      const start = `${y}-${m}-01`;
+                      const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+                      const end = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+                      setMetricsStartDate(start);
+                      setMetricsEndDate(end);
+                    }}
+                    className="p-2.5 rounded-xl bg-jade-900/80 hover:bg-jade-800 border border-white/10 text-linen-200 text-left transition-colors cursor-pointer"
+                  >
+                    📅 Mes Actual
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const now = new Date();
+                      const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                      const m = now.getMonth() === 0 ? 12 : now.getMonth();
+                      const mStr = String(m).padStart(2, '0');
+                      const start = `${y}-${mStr}-01`;
+                      const lastDay = new Date(y, m, 0).getDate();
+                      const end = `${y}-${mStr}-${String(lastDay).padStart(2, '0')}`;
+                      setMetricsStartDate(start);
+                      setMetricsEndDate(end);
+                    }}
+                    className="p-2.5 rounded-xl bg-jade-900/80 hover:bg-jade-800 border border-white/10 text-linen-200 text-left transition-colors cursor-pointer"
+                  >
+                    📅 Mes Anterior
+                  </button>
+                </div>
+              </div>
+
+              {/* Selectores de Fecha */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Desde (Fecha Inicial):
+                  </label>
+                  <input
+                    type="date"
+                    value={metricsStartDate}
+                    onChange={(e) => setMetricsStartDate(e.target.value)}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2.5 text-xs text-white font-mono outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Hasta (Fecha Final):
+                  </label>
+                  <input
+                    type="date"
+                    value={metricsEndDate}
+                    onChange={(e) => setMetricsEndDate(e.target.value)}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2.5 text-xs text-white font-mono outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Botones de Acción */}
+              <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMetricsPeriod('mes');
+                    setMetricsStartDate('');
+                    setMetricsEndDate('');
+                    setMetricsCalendarModalOpen(false);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Restablecer
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!metricsStartDate && !metricsEndDate}
+                  onClick={() => {
+                    setMetricsPeriod('rango');
+                    setMetricsCalendarModalOpen(false);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all cursor-pointer border border-gold-400 disabled:opacity-50"
+                >
+                  Aplicar Período
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

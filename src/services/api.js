@@ -297,7 +297,7 @@ export async function blockDatesAdmin(cabinId, dates, reason, adminKey) {
 }
 
 /**
- * Actualiza el estado de una reserva desde el panel de administración (AGENDADA, PAGA, CANCELADA)
+ * Actualiza el estado de una reserva desde el panel de administración (AGENDADO, PAGADO, CANCELADO)
  */
 export async function updateBookingStatusAdmin(bookingReference, newStatus, adminKey) {
   try {
@@ -309,9 +309,20 @@ export async function updateBookingStatusAdmin(bookingReference, newStatus, admi
       },
       body: JSON.stringify({ booking_reference: bookingReference, new_status: newStatus }),
     });
-    return await res.json();
-  } catch (err) {
-    return { success: true };
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {}
+
+  // Fallback directo a Supabase Cloud
+  try {
+    const { data, error } = await andicasSb
+      .from('bookings')
+      .update({ status: newStatus })
+      .eq('booking_reference', bookingReference);
+    return { success: !error };
+  } catch (sbErr) {
+    return { success: false, error: sbErr.message };
   }
 }
 
