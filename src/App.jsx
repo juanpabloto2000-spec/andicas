@@ -170,13 +170,24 @@ export default function App() {
   const isAdminView = currentPage === 'dsb' || currentPage === 'admin';
   const isAiChatEnabled = activeModules.ai_chatbot !== false && customConfig.enable_ai_chatbot !== false;
 
-  // PANTALLA DE BLOQUEO POR FALTA DE PAGO (PÚBLICA - RETORNO LIMPIO INMEDIATO COMO EN KAL)
+  // 1. PANTALLA DE BLOQUEO POR FALTA DE PAGO (PÚBLICA - RETORNO LIMPIO INMEDIATO COMO EN KAL)
   if (isSiteLocked && !isAdminView) {
     return (
       <PublicLockoutScreen onGoToAdmin={() => navigateTo('dsb')} />
     );
   }
 
+  // 2. VISTA ADMINISTRATIVA AISLADA DIRECTA (IDÉNTICO A KAL - SIN INTERFERENCIA DE PRELOADER NI WRAPPERS PÚBLICOS)
+  if (isAdminView) {
+    return (
+      <AdminDashboard
+        onNavigate={navigateTo}
+        activeModules={activeModules}
+      />
+    );
+  }
+
+  // 3. VISTA PÚBLICA PRINCIPAL
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#062627] via-[#072E2F] to-[#041B1C] text-linen-100 flex flex-col justify-between selection:bg-gold-600 selection:text-jade-950 relative overflow-x-hidden">
       {/* Cinematic Logo Preloader Screen */}
@@ -201,15 +212,13 @@ export default function App() {
         />
       </div>
 
-      {/* Navbar with transparent logo sin fondo (Oculta en panel admin /dsb) */}
-      {!isAdminView && (
-        <Navbar
-          currentPage={currentPage}
-          onNavigate={navigateTo}
-          onOpenBooking={handleOpenBooking}
-          activeModules={activeModules}
-        />
-      )}
+      {/* Navbar with transparent logo sin fondo */}
+      <Navbar
+        currentPage={currentPage}
+        onNavigate={navigateTo}
+        onOpenBooking={handleOpenBooking}
+        activeModules={activeModules}
+      />
 
       {/* Main Page Content with Smooth Page Transitions */}
       <main className="flex-grow relative z-10">
@@ -263,45 +272,26 @@ export default function App() {
               />
             </motion.div>
           )}
-
-          {(currentPage === 'dsb' || currentPage === 'admin') && (
-            <motion.div
-              key="dsb"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.3 }}
-            >
-              <AdminDashboard
-                onNavigate={navigateTo}
-                activeModules={activeModules}
-              />
-            </motion.div>
-          )}
         </AnimatePresence>
       </main>
 
-      {/* Footer (Oculto en panel admin /dsb) */}
-      {!isAdminView && (
-        <Footer
-          onOpenBooking={handleOpenBooking}
-          onOpenRules={() => setRulesModalOpen(true)}
-          onNavigate={navigateTo}
-          onOpenCancellation={handleOpenCancellation}
-          socials={customConfig.socials}
-        />
-      )}
+      {/* Footer */}
+      <Footer
+        onOpenBooking={handleOpenBooking}
+        onOpenRules={() => setRulesModalOpen(true)}
+        onNavigate={navigateTo}
+        onOpenCancellation={handleOpenCancellation}
+        socials={customConfig.socials}
+      />
 
-      {/* Floating Contact Hub with Hover Trigger (Derecha, Oculto en panel admin /dsb) */}
-      {!isAdminView && (
-        <FloatingContactHub
-          onOpenWhatsAppMenu={() => handleOpenBooking('cabana')}
-          socials={customConfig.socials}
-        />
-      )}
+      {/* Floating Contact Hub with Hover Trigger (Derecha) */}
+      <FloatingContactHub
+        onOpenWhatsAppMenu={() => handleOpenBooking('cabana')}
+        socials={customConfig.socials}
+      />
 
-      {/* Floating AI Assistant Button with Robot Icon (Izquierda, Oculto en panel admin /dsb) */}
-      {!isAdminView && isAiChatEnabled && (
+      {/* Floating AI Assistant Button with Robot Icon (Izquierda) */}
+      {isAiChatEnabled && (
         <FloatingAiButton
           onOpenAiChat={() => setAiChatModalOpen(true)}
         />
