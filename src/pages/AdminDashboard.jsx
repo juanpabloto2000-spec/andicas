@@ -326,9 +326,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       }
 
       // Usuarios del sistema (Solo Master Admin)
-      if (isMasterAdmin || data.role === 'master_admin') {
+      if (isMasterAdmin || data?.role === 'master_admin') {
         const usersData = await getAdminUsers(targetKey);
-        if (usersData.success) {
+        if (usersData && usersData.success) {
           setSystemUsers(usersData.users || []);
         }
       }
