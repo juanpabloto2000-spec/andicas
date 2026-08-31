@@ -27,7 +27,10 @@ const DEFAULT_SOCIAL_LINKS = [
 ];
 
 export default function App() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    const hash = window.location.hash.replace('#/', '').replace('#', '');
+    return hash !== 'dsb' && hash !== 'admin';
+  });
   const [isSiteLocked, setIsSiteLocked] = useState(() => {
     try {
       return localStorage.getItem('andicas_subscription_status') === 'unpaid';

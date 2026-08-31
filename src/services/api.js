@@ -394,25 +394,20 @@ export async function getSubscriptionStatus() {
       remoteAdminPass = adminAuthRes.value.data.description.trim();
     }
 
-    const isLocked = dbStatus === 'unpaid';
-
-    // Evaluar todas las claves técnicas posibles respetando que `isLocked = true` apaga los servicios públicos
-    const isBookingsActive = !isLocked && 
-      parsed.bookings !== false && 
+    const isBookingsActive = parsed.bookings !== false && 
       parsed.reservations !== false && 
       parsed.booking !== false &&
       parsed.agendamiento !== false;
 
-    const isWompiActive = !isLocked && 
-      parsed.wompi_payments !== false && 
+    const isWompiActive = parsed.wompi_payments !== false && 
       parsed.wompi !== false && 
       parsed.payments !== false && 
       parsed.checkout !== false;
 
-    const isRecaudosActive = !isLocked && parsed.recaudos !== false && parsed.metrics !== false;
-    const isCancelacionesActive = !isLocked && parsed.cancelaciones !== false;
-    const isPersonalizacionActive = !isLocked && parsed.personalizacion !== false && parsed.menu_editor !== false;
-    const isUsersActive = !isLocked && parsed.users_management !== false && parsed.usuarios !== false;
+    const isRecaudosActive = parsed.recaudos !== false && parsed.metrics !== false;
+    const isCancelacionesActive = parsed.cancelaciones !== false;
+    const isPersonalizacionActive = parsed.personalizacion !== false && parsed.menu_editor !== false;
+    const isUsersActive = parsed.users_management !== false && parsed.usuarios !== false;
 
     return {
       success: true,
