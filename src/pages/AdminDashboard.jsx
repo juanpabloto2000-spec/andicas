@@ -5,7 +5,7 @@ import {
   Search, RefreshCw, LogOut, Phone, Mail, MessageCircle, Home, 
   Clock, ChevronLeft, ChevronRight, ChevronDown, Plus, X, Trash2, Calendar as CalendarIcon,
   Filter, Check, ArrowUpRight, ArrowLeft, ArrowRight, Lock, Unlock, History, User, FileText,
-  Sliders, AlertTriangle, Sparkles, CreditCard, Eye, Save, Sun, Moon, CalendarDays,
+  Sliders, AlertTriangle, Sparkles, CreditCard, Eye, EyeOff, Save, Sun, Moon, CalendarDays,
   Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle, KeyRound, UserPlus, Shield,
   Receipt, Wallet, Coins, TrendingDown, Printer, Calculator, AlertOctagon, CalendarRange
 } from 'lucide-react';
@@ -27,6 +27,7 @@ import {
   updateSiteCustomConfigAdmin,
   getAdminUsers,
   createAdminUser,
+  updateAdminUser,
   updateAdminUserPassword,
   deleteAdminUser,
   getTodayCashSession,
@@ -285,6 +286,14 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     instructions: 'Envía el comprobante con tu número de reserva por WhatsApp.',
     enabled: true
   });
+
+  // Personalización Sub-Tabs ('cabanas_planes' | 'medios_pago' | 'ia_redes')
+  const [personalizacionSubTab, setPersonalizacionSubTab] = useState('cabanas_planes');
+
+  // User Management Cards states
+  const [revealedPasswords, setRevealedPasswords] = useState({});
+  const [savingUserIds, setSavingUserIds] = useState({});
+  const [userCardFeedback, setUserCardFeedback] = useState({});
 
   // Data states
   const [bookings, setBookings] = useState([]);
@@ -625,6 +634,50 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       setCreateUserError('Error de conexión con el servidor.');
     } finally {
       setIsCreatingUser(false);
+    }
+  };
+
+  const toggleRevealPassword = (userId) => {
+    setRevealedPasswords(prev => ({ ...prev, [userId]: !prev[userId] }));
+  };
+
+  const handleUserFieldChange = (userId, field, value) => {
+    setSystemUsers(prev => prev.map(u => u.id === userId ? { ...u, [field]: value } : u));
+  };
+
+  const handleSaveSingleUser = async (user) => {
+    if (!user || !user.id) return;
+    if (user.password && String(user.password).trim().length > 0 && String(user.password).trim().length < 4) {
+      setUserCardFeedback(prev => ({ ...prev, [user.id]: { error: 'La clave debe tener al menos 4 caracteres' } }));
+      setTimeout(() => setUserCardFeedback(prev => ({ ...prev, [user.id]: null })), 3500);
+      return;
+    }
+
+    setSavingUserIds(prev => ({ ...prev, [user.id]: true }));
+    setUserCardFeedback(prev => ({ ...prev, [user.id]: null }));
+
+    try {
+      const res = await updateAdminUser({
+        userId: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        password: user.password
+      }, adminKey);
+
+      if (res.success) {
+        setUserCardFeedback(prev => ({ ...prev, [user.id]: { success: '¡Usuario y clave guardados!' } }));
+        fetchDashboardData(adminKey);
+        setTimeout(() => setUserCardFeedback(prev => ({ ...prev, [user.id]: null })), 3500);
+      } else {
+        setUserCardFeedback(prev => ({ ...prev, [user.id]: { error: res.error || 'Error al guardar.' } }));
+        setTimeout(() => setUserCardFeedback(prev => ({ ...prev, [user.id]: null })), 3500);
+      }
+    } catch (err) {
+      setUserCardFeedback(prev => ({ ...prev, [user.id]: { error: 'Error de conexión.' } }));
+      setTimeout(() => setUserCardFeedback(prev => ({ ...prev, [user.id]: null })), 3500);
+    } finally {
+      setSavingUserIds(prev => ({ ...prev, [user.id]: false }));
     }
   };
 
@@ -3293,587 +3346,695 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         {activeSection === 'personalizacion' && isAdminOrMaster && (
           isPersonalizacionEnabled ? (
             <div className="space-y-6">
-            <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
-              <div>
-                <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-                  Control en Vivo de Tarifas, Planes & Cuentas
-                </span>
-                <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
-                  Personalización de Página
-                </h1>
-              </div>
-
-              <button
-                onClick={handleSaveSiteCustomization}
-                disabled={isSavingConfig}
-                className="px-5 py-3 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center gap-2 cursor-pointer transition-all border border-gold-400 disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                <span>{isSavingConfig ? 'Guardando en la Nube...' : 'Guardar Cambios en la Nube'}</span>
-              </button>
-            </div>
-
-            {configSaveSuccess && (
-              <div className="p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold text-center animate-fade-in">
-                {configSaveSuccess}
-              </div>
-            )}
-
-            {/* 1. Gestión de Tarifas & Creación de Cabañas */}
-            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+              {/* Header & Sub-Tabs Navigation Bar */}
+              <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
                 <div>
-                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                    1. Cabañas Luxury & Hospedaje:
-                  </h3>
-                  <span className="text-xs text-linen-400 font-fredoka">
-                    Gestiona tarifas nocturnas, disponibilidad para reservas y añade nuevas cabañas al bioparque.
+                  <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+                    Control en Vivo de Tarifas, Planes, Pagos, IA & Redes
                   </span>
+                  <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
+                    Personalización de Página
+                  </h1>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setNewCabinModal(prev => ({ ...prev, isOpen: true }))}
-                  className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Añadir Cabaña</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                  {/* Sub-Tabs Selector */}
+                  <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/10 overflow-x-auto">
+                    <button
+                      type="button"
+                      onClick={() => setPersonalizacionSubTab('cabanas_planes')}
+                      className={`px-3.5 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                        personalizacionSubTab === 'cabanas_planes'
+                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                          : 'text-linen-300 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Home className="w-3.5 h-3.5" />
+                      <span>Cabañas & Planes</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPersonalizacionSubTab('medios_pago')}
+                      className={`px-3.5 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                        personalizacionSubTab === 'medios_pago'
+                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                          : 'text-linen-300 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Medios de Pago</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPersonalizacionSubTab('ia_redes')}
+                      className={`px-3.5 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                        personalizacionSubTab === 'ia_redes'
+                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                          : 'text-linen-300 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>IA & Redes</span>
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleSaveSiteCustomization}
+                    disabled={isSavingConfig}
+                    className="px-4 py-2.5 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center gap-2 cursor-pointer transition-all border border-gold-400 disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{isSavingConfig ? 'Sincronizando...' : 'Guardar en la Nube'}</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Standard Cabins Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {cabinsData.map((cabin) => {
-                  const currentPrice = siteConfig.cabinPrices?.[cabin.id] || cabin.price;
-                  const currentExtraPrice = siteConfig.extraPersonPrices?.[cabin.id] || cabin.extraPersonPrice;
-                  const isEnabled = siteConfig.cabinStatus?.[cabin.id] !== false;
+              {configSaveSuccess && (
+                <div className="p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold text-center animate-fade-in shadow-xl">
+                  {configSaveSuccess}
+                </div>
+              )}
 
-                  return (
-                    <div key={cabin.id} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-bold text-xs text-linen-100">{cabin.name}</h4>
-                          <span className="text-[10px] text-gold-400/80 font-mono uppercase">{cabin.category || cabin.type} · Max {cabin.maxGuests} pers.</span>
-                        </div>
-                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-linen-300">
-                          <input
-                            type="checkbox"
-                            checked={isEnabled}
-                            onChange={(e) => {
-                              setSiteConfig(prev => ({
-                                ...prev,
-                                cabinStatus: {
-                                  ...(prev.cabinStatus || {}),
-                                  [cabin.id]: e.target.checked
-                                }
-                              }));
-                            }}
-                            className="rounded accent-gold-500 cursor-pointer"
-                          />
-                          <span className={isEnabled ? 'text-emerald-400 font-bold' : 'text-linen-400'}>
-                            {isEnabled ? 'Activa' : 'Desactivada'}
-                          </span>
-                        </label>
+              {/* ================================================================= */}
+              {/* SUB-PESTAÑA 1: CABAÑAS Y PLANES DE PASADÍA */}
+              {/* ================================================================= */}
+              {personalizacionSubTab === 'cabanas_planes' && (
+                <div className="space-y-6">
+                  {/* 1. Gestión de Tarifas & Creación de Cabañas */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                      <div>
+                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                          1. Cabañas Luxury & Hospedaje:
+                        </h3>
+                        <span className="text-xs text-linen-400 font-fredoka">
+                          Gestiona tarifas nocturnas, disponibilidad para reservas y añade nuevas cabañas al bioparque.
+                        </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <label className="text-[10px] text-linen-400 uppercase block mb-1">Precio Noche (COP):</label>
-                          <input
-                            type="number"
-                            value={currentPrice}
-                            onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setSiteConfig(prev => ({
-                                ...prev,
-                                cabinPrices: {
-                                  ...(prev.cabinPrices || {}),
-                                  [cabin.id]: val
-                                }
-                              }));
-                            }}
-                            className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[10px] text-linen-400 uppercase block mb-1">Persona Extra (COP):</label>
-                          <input
-                            type="number"
-                            value={currentExtraPrice}
-                            onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setSiteConfig(prev => ({
-                                ...prev,
-                                extraPersonPrices: {
-                                  ...(prev.extraPersonPrices || {}),
-                                  [cabin.id]: val
-                                }
-                              }));
-                            }}
-                            className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
-                          />
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setNewCabinModal(prev => ({ ...prev, isOpen: true }))}
+                        className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Añadir Cabaña</span>
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Custom Cabins Grid */}
-              {(siteConfig.customCabins || []).length > 0 && (
-                <div className="pt-3 border-t border-white/10 space-y-3">
-                  <span className="text-[11px] font-cartoon text-gold-300 uppercase tracking-wider block">
-                    Cabañas Personalizadas Añadidas:
-                  </span>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(siteConfig.customCabins || []).map((cabin) => (
-                      <div key={cabin.id} className="p-4 rounded-2xl bg-gold-950/20 border border-gold-500/30 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="font-bold text-xs text-gold-200">{cabin.name}</span>
-                            <span className="text-[10px] text-linen-400 block font-mono">
-                              {cabin.category} · Capacidad: {cabin.maxGuests} personas
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCustomCabin(cabin.id)}
-                            className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-colors cursor-pointer"
-                            title="Eliminar cabaña"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                    {/* Standard Cabins Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {cabinsData.map((cabin) => {
+                        const currentPrice = siteConfig.cabinPrices?.[cabin.id] || cabin.price;
+                        const currentExtraPrice = siteConfig.extraPersonPrices?.[cabin.id] || cabin.extraPersonPrice;
+                        const isEnabled = siteConfig.cabinStatus?.[cabin.id] !== false;
 
-                        <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                          <div className="p-2 rounded-xl bg-black/40">
-                            <span className="text-[10px] text-linen-400 block font-fredoka">Tarifa por Noche:</span>
-                            <span className="text-emerald-300 font-bold">{formatCOP(cabin.price)}</span>
+                        return (
+                          <div key={cabin.id} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h4 className="font-bold text-xs text-linen-100">{cabin.name}</h4>
+                                <span className="text-[10px] text-gold-400/80 font-mono uppercase">{cabin.category || cabin.type} · Max {cabin.maxGuests} pers.</span>
+                              </div>
+                              <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-linen-300">
+                                <input
+                                  type="checkbox"
+                                  checked={isEnabled}
+                                  onChange={(e) => {
+                                    setSiteConfig(prev => ({
+                                      ...prev,
+                                      cabinStatus: {
+                                        ...(prev.cabinStatus || {}),
+                                        [cabin.id]: e.target.checked
+                                      }
+                                    }));
+                                  }}
+                                  className="rounded accent-gold-500 cursor-pointer"
+                                />
+                                <span className={isEnabled ? 'text-emerald-400 font-bold' : 'text-red-400'}>
+                                  {isEnabled ? 'Activa' : 'Desactivada'}
+                                </span>
+                              </label>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                              <div>
+                                <label className="text-[10px] text-linen-400 uppercase block mb-1">Precio x Noche (COP):</label>
+                                <input
+                                  type="number"
+                                  value={currentPrice}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    setSiteConfig(prev => ({
+                                      ...prev,
+                                      cabinPrices: {
+                                        ...(prev.cabinPrices || {}),
+                                        [cabin.id]: val
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-linen-400 uppercase block mb-1">Persona Extra (COP):</label>
+                                <input
+                                  type="number"
+                                  value={currentExtraPrice}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    setSiteConfig(prev => ({
+                                      ...prev,
+                                      extraPersonPrices: {
+                                        ...(prev.extraPersonPrices || {}),
+                                        [cabin.id]: val
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div className="p-2 rounded-xl bg-black/40">
-                            <span className="text-[10px] text-linen-400 block font-fredoka">Persona Extra:</span>
-                            <span className="text-gold-300 font-bold">{formatCOP(cabin.extraPersonPrice || 0)}</span>
-                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Custom Cabins Section */}
+                    {(siteConfig.customCabins || []).length > 0 && (
+                      <div className="pt-3 border-t border-white/10 space-y-3">
+                        <span className="text-[11px] font-cartoon text-gold-300 uppercase tracking-wider block">
+                          Cabañas Personalizadas Adicionales:
+                        </span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {(siteConfig.customCabins || []).map((cabin) => (
+                            <div key={cabin.id} className="p-4 rounded-2xl bg-gold-950/20 border border-gold-500/30 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="font-bold text-xs text-gold-300">{cabin.name}</h4>
+                                  <span className="text-[10px] text-linen-400 font-mono">{cabin.category || 'Luxury'} · Max {cabin.maxGuests} pers.</span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-linen-300">
+                                    <input
+                                      type="checkbox"
+                                      checked={cabin.enabled !== false}
+                                      onChange={(e) => {
+                                        const updated = (siteConfig.customCabins || []).map(c => 
+                                          c.id === cabin.id ? { ...c, enabled: e.target.checked } : c
+                                        );
+                                        setSiteConfig(prev => ({ ...prev, customCabins: updated }));
+                                      }}
+                                      className="rounded accent-gold-500 cursor-pointer"
+                                    />
+                                    <span className={cabin.enabled !== false ? 'text-emerald-400' : 'text-red-400'}>
+                                      {cabin.enabled !== false ? 'Activa' : 'Desactivada'}
+                                    </span>
+                                  </label>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteCustomCabin(cabin.id)}
+                                    className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-colors cursor-pointer"
+                                    title="Eliminar cabaña"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                  <label className="text-[10px] text-linen-400 uppercase block mb-1">Precio Noche (COP):</label>
+                                  <input
+                                    type="number"
+                                    value={cabin.price}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      const updated = (siteConfig.customCabins || []).map(c => 
+                                        c.id === cabin.id ? { ...c, price: val } : c
+                                      );
+                                      setSiteConfig(prev => ({ ...prev, customCabins: updated }));
+                                    }}
+                                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] text-linen-400 uppercase block mb-1">Persona Extra (COP):</label>
+                                  <input
+                                    type="number"
+                                    value={cabin.extraPersonPrice}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      const updated = (siteConfig.customCabins || []).map(c => 
+                                        c.id === cabin.id ? { ...c, extraPersonPrice: val } : c
+                                      );
+                                      setSiteConfig(prev => ({ ...prev, customCabins: updated }));
+                                    }}
+                                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
+                    )}
+                  </div>
+
+                  {/* 2. Planes Pasadía & Pasanoche */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                      <div>
+                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                          2. Planes de Pasadía & Experiencias:
+                        </h3>
+                        <span className="text-xs text-linen-400 font-fredoka">
+                          Modifica los nombres de los pasadías, sus tarifas, horarios o añade nuevos planes.
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setNewPlanModal(prev => ({ ...prev, isOpen: true }))}
+                        className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Añadir Plan</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {Object.entries(siteConfig.passPlans || {}).map(([planKey, planData]) => (
+                        <div key={planKey} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-mono text-gold-400 uppercase bg-gold-500/10 px-2 py-0.5 rounded border border-gold-500/20">
+                              {planData.category || 'Plan'}
+                            </span>
+                            
+                            <div className="flex items-center gap-2">
+                              <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-linen-300">
+                                <input
+                                  type="checkbox"
+                                  checked={planData.enabled !== false}
+                                  onChange={(e) => {
+                                    setSiteConfig(prev => ({
+                                      ...prev,
+                                      passPlans: {
+                                        ...(prev.passPlans || {}),
+                                        [planKey]: {
+                                          ...planData,
+                                          enabled: e.target.checked
+                                        }
+                                      }
+                                    }));
+                                  }}
+                                  className="rounded accent-gold-500 cursor-pointer"
+                                />
+                                <span className={planData.enabled !== false ? 'text-emerald-400 font-bold' : 'text-linen-400'}>
+                                  {planData.enabled !== false ? 'Activo' : 'Pausado'}
+                                </span>
+                              </label>
+
+                              {planData.isCustom && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCustomPlan(planKey)}
+                                  className="p-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer"
+                                  title="Eliminar plan personalizado"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div>
+                              <label className="text-[10px] text-linen-400 uppercase block mb-1">Nombre del Plan:</label>
+                              <input
+                                type="text"
+                                value={planData.name || planKey}
+                                onChange={(e) => {
+                                  setSiteConfig(prev => ({
+                                    ...prev,
+                                    passPlans: {
+                                      ...(prev.passPlans || {}),
+                                      [planKey]: {
+                                        ...planData,
+                                        name: e.target.value
+                                      }
+                                    }
+                                  }));
+                                }}
+                                className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-bold text-linen-100 outline-none"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] text-linen-400 uppercase block mb-1">Precio (COP):</label>
+                                <input
+                                  type="number"
+                                  value={planData.price}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    setSiteConfig(prev => ({
+                                      ...prev,
+                                      passPlans: {
+                                        ...(prev.passPlans || {}),
+                                        [planKey]: {
+                                          ...planData,
+                                          price: val
+                                        }
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-linen-400 uppercase block mb-1">Horario:</label>
+                                <input
+                                  type="text"
+                                  value={planData.schedule || ''}
+                                  onChange={(e) => {
+                                    setSiteConfig(prev => ({
+                                      ...prev,
+                                      passPlans: {
+                                        ...(prev.passPlans || {}),
+                                        [planKey]: {
+                                          ...planData,
+                                          schedule: e.target.value
+                                        }
+                                      }
+                                    }));
+                                  }}
+                                  placeholder="Ej: 9:00 AM - 5:00 PM"
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-[11px] text-linen-200 outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* 2. Planes Pasadía & Pasanoche */}
-            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
-                <div>
-                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                    2. Planes de Pasadía & Experiencias:
-                  </h3>
-                  <span className="text-xs text-linen-400 font-fredoka">
-                    Modifica los nombres de los pasadías, sus tarifas, horarios o añade nuevos planes.
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setNewPlanModal(prev => ({ ...prev, isOpen: true }))}
-                  className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Añadir Plan</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Object.entries(siteConfig.passPlans || {}).map(([planKey, planData]) => (
-                  <div key={planKey} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono text-gold-400 uppercase bg-gold-500/10 px-2 py-0.5 rounded border border-gold-500/20">
-                        {planData.category || 'Plan'}
-                      </span>
-                      
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-linen-300">
-                          <input
-                            type="checkbox"
-                            checked={planData.enabled !== false}
-                            onChange={(e) => {
-                              setSiteConfig(prev => ({
-                                ...prev,
-                                passPlans: {
-                                  ...(prev.passPlans || {}),
-                                  [planKey]: {
-                                    ...planData,
-                                    enabled: e.target.checked
-                                  }
-                                }
-                              }));
-                            }}
-                            className="rounded accent-gold-500 cursor-pointer"
-                          />
-                          <span className={planData.enabled !== false ? 'text-emerald-400 font-bold' : 'text-linen-400'}>
-                            {planData.enabled !== false ? 'Activo' : 'Pausado'}
-                          </span>
-                        </label>
-
-                        {planData.isCustom && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCustomPlan(planKey)}
-                            className="p-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer"
-                            title="Eliminar plan personalizado"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
+              {/* ================================================================= */}
+              {/* SUB-PESTAÑA 2: MEDIOS DE PAGO Y CUENTAS */}
+              {/* ================================================================= */}
+              {personalizacionSubTab === 'medios_pago' && (
+                <div className="space-y-6">
+                  {/* 3. Cuentas Bancarias & Medios de Pago */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                      <div>
+                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                          Medios de Pago & Cuentas Bancarias Oficiales:
+                        </h3>
+                        <span className="text-xs text-linen-400 font-fredoka">
+                          Configura las cuentas para abonos y agrega nuevos métodos (Nequi, Daviplata, Datáfono, Efectivo, etc.).
+                        </span>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setNewPaymentMethodModal(prev => ({ ...prev, isOpen: true }))}
+                        className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Añadir Medio de Pago</span>
+                      </button>
                     </div>
 
-                    <div className="space-y-2">
+                    {/* Official Banks */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {(siteConfig.bankAccounts || contactData.banks).map((bank, bIdx) => (
+                        <div key={bIdx} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-xs text-gold-300">{bank.bank}</h4>
+                            <span className="px-2 py-0.5 rounded-full bg-gold-500/10 text-gold-400 text-[10px] font-mono border border-gold-500/20">
+                              {bank.accountType || 'Cuenta Oficial'}
+                            </span>
+                          </div>
+                          <div className="space-y-2 text-xs">
+                            <div>
+                              <label className="text-[10px] text-linen-400 uppercase block mb-1">Número de Cuenta:</label>
+                              <input
+                                type="text"
+                                value={bank.accountNumber}
+                                onChange={(e) => {
+                                  const newBanks = [...(siteConfig.bankAccounts || contactData.banks)];
+                                  newBanks[bIdx] = { ...newBanks[bIdx], accountNumber: e.target.value };
+                                  setSiteConfig(prev => ({ ...prev, bankAccounts: newBanks }));
+                                }}
+                                className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-linen-400 uppercase block mb-1">Titular:</label>
+                              <input
+                                type="text"
+                                value={bank.holder}
+                                onChange={(e) => {
+                                  const newBanks = [...(siteConfig.bankAccounts || contactData.banks)];
+                                  newBanks[bIdx] = { ...newBanks[bIdx], holder: e.target.value };
+                                  setSiteConfig(prev => ({ ...prev, bankAccounts: newBanks }));
+                                }}
+                                className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Custom Payment Methods */}
+                    {(siteConfig.customPaymentMethods || []).length > 0 && (
+                      <div className="pt-3 border-t border-white/10 space-y-3">
+                        <span className="text-[11px] font-cartoon text-gold-300 uppercase tracking-wider block">
+                          Otros Medios de Pago Personalizados:
+                        </span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {(siteConfig.customPaymentMethods || []).map((method) => (
+                            <div key={method.id} className="p-4 rounded-2xl bg-cyan-950/20 border border-cyan-500/30 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="font-bold text-xs text-cyan-200">{method.name}</span>
+                                  <span className="text-[10px] text-linen-400 block font-mono">{method.type}</span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <label className="flex items-center gap-1 cursor-pointer text-[10px]">
+                                    <input
+                                      type="checkbox"
+                                      checked={method.enabled !== false}
+                                      onChange={(e) => {
+                                        const updated = (siteConfig.customPaymentMethods || []).map(m =>
+                                          m.id === method.id ? { ...m, enabled: e.target.checked } : m
+                                        );
+                                        setSiteConfig(prev => ({ ...prev, customPaymentMethods: updated }));
+                                      }}
+                                      className="rounded accent-cyan-500 cursor-pointer"
+                                    />
+                                    <span className={method.enabled !== false ? 'text-emerald-400' : 'text-linen-400'}>
+                                      {method.enabled !== false ? 'Activo' : 'Pausado'}
+                                    </span>
+                                  </label>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteCustomPaymentMethod(method.id)}
+                                    className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-colors cursor-pointer"
+                                    title="Eliminar método"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-1 text-xs font-mono">
+                                {method.accountNumber && (
+                                  <div className="p-2 rounded-xl bg-black/40">
+                                    <span className="text-[10px] text-linen-400 block font-fredoka">Número / Cuenta:</span>
+                                    <span className="text-white font-bold">{method.accountNumber}</span>
+                                  </div>
+                                )}
+                                {method.holder && (
+                                  <div className="p-2 rounded-xl bg-black/40">
+                                    <span className="text-[10px] text-linen-400 block font-fredoka">Titular / Indicaciones:</span>
+                                    <span className="text-linen-200 text-[11px] font-fredoka">{method.holder}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ================================================================= */}
+              {/* SUB-PESTAÑA 3: IA & REDES SOCIALES */}
+              {/* ================================================================= */}
+              {personalizacionSubTab === 'ia_redes' && (
+                <div className="space-y-6">
+                  {/* 4. Asistente Virtual & Chatbot de IA */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
                       <div>
-                        <label className="text-[10px] text-linen-400 uppercase block mb-1">Nombre del Plan:</label>
-                        <input
-                          type="text"
-                          value={planData.name || planKey}
-                          onChange={(e) => {
+                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                          <span>🤖</span>
+                          <span>Asistente Virtual Inteligente (Chatbot de IA):</span>
+                        </h3>
+                        <p className="text-xs font-fredoka text-linen-300 mt-0.5">
+                          Controla si el botón flotante del Asistente IA aparece en la página pública para responder dudas de los visitantes.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newStatus = siteConfig.enable_ai_chatbot === false ? true : false;
                             setSiteConfig(prev => ({
                               ...prev,
-                              passPlans: {
-                                ...(prev.passPlans || {}),
-                                [planKey]: {
-                                  ...planData,
-                                  name: e.target.value
-                                }
-                              }
+                              enable_ai_chatbot: newStatus
                             }));
                           }}
-                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-bold text-linen-100 outline-none"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] text-linen-400 uppercase block mb-1">Precio (COP):</label>
-                          <input
-                            type="number"
-                            value={planData.price}
-                            onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setSiteConfig(prev => ({
-                                ...prev,
-                                passPlans: {
-                                  ...(prev.passPlans || {}),
-                                  [planKey]: {
-                                    ...planData,
-                                    price: val
-                                  }
-                                }
-                              }));
-                            }}
-                            className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[10px] text-linen-400 uppercase block mb-1">Horario:</label>
-                          <input
-                            type="text"
-                            value={planData.schedule || ''}
-                            onChange={(e) => {
-                              setSiteConfig(prev => ({
-                                ...prev,
-                                passPlans: {
-                                  ...(prev.passPlans || {}),
-                                  [planKey]: {
-                                    ...planData,
-                                    schedule: e.target.value
-                                  }
-                                }
-                              }));
-                            }}
-                            placeholder="Ej: 9:00 AM - 5:00 PM"
-                            className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-[11px] text-linen-200 outline-none"
-                          />
-                        </div>
+                          className={`px-4 py-2.5 rounded-xl text-xs font-bold font-cartoon uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 border shadow-lg ${
+                            siteConfig.enable_ai_chatbot !== false
+                              ? 'bg-emerald-600/30 border-emerald-500/60 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                              : 'bg-red-950/50 border-red-500/50 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                          }`}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full ${siteConfig.enable_ai_chatbot !== false ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}`} />
+                          <span>{siteConfig.enable_ai_chatbot !== false ? 'CHATBOT ACTIVADO' : 'CHATBOT DESACTIVADO'}</span>
+                        </button>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            {/* 3. Cuentas Bancarias & Medios de Pago */}
-            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
-                <div>
-                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                    3. Medios de Pago & Cuentas Bancarias Oficiales:
-                  </h3>
-                  <span className="text-xs text-linen-400 font-fredoka">
-                    Configura las cuentas para abonos y agrega nuevos métodos (Nequi, Daviplata, Datáfono, Efectivo, etc.).
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setNewPaymentMethodModal(prev => ({ ...prev, isOpen: true }))}
-                  className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Añadir Medio de Pago</span>
-                </button>
-              </div>
-
-              {/* Official Banks */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(siteConfig.bankAccounts || contactData.banks).map((bank, bIdx) => (
-                  <div key={bIdx} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-xs text-gold-300">{bank.bank}</h4>
-                      <span className="px-2 py-0.5 rounded-full bg-gold-500/10 text-gold-400 text-[10px] font-mono border border-gold-500/20">
-                        {bank.accountType || 'Cuenta Oficial'}
+                    <div className="p-4 rounded-2xl bg-jade-900/40 border border-white/5 text-xs font-fredoka text-linen-300 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span className="text-base">{siteConfig.enable_ai_chatbot !== false ? '✨' : '💤'}</span>
+                        <span>
+                          {siteConfig.enable_ai_chatbot !== false
+                            ? 'El chatbot responderá automáticamente con información de cabañas, precios, pasadías y normas.'
+                            : 'El chatbot está oculto en vivo. Los usuarios se contactarán únicamente por WhatsApp y llamadas directas.'}
+                        </span>
                       </span>
                     </div>
-                    <div className="space-y-2 text-xs">
-                      <div>
-                        <label className="text-[10px] text-linen-400 uppercase block mb-1">Número de Cuenta:</label>
-                        <input
-                          type="text"
-                          value={bank.accountNumber}
-                          onChange={(e) => {
-                            const newBanks = [...(siteConfig.bankAccounts || contactData.banks)];
-                            newBanks[bIdx] = { ...newBanks[bIdx], accountNumber: e.target.value };
-                            setSiteConfig(prev => ({ ...prev, bankAccounts: newBanks }));
-                          }}
-                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-linen-400 uppercase block mb-1">Titular:</label>
-                        <input
-                          type="text"
-                          value={bank.holder}
-                          onChange={(e) => {
-                            const newBanks = [...(siteConfig.bankAccounts || contactData.banks)];
-                            newBanks[bIdx] = { ...newBanks[bIdx], holder: e.target.value };
-                            setSiteConfig(prev => ({ ...prev, bankAccounts: newBanks }));
-                          }}
-                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 outline-none"
-                        />
-                      </div>
-                    </div>
                   </div>
-                ))}
-              </div>
 
-              {/* Custom Payment Methods */}
-              {(siteConfig.customPaymentMethods || []).length > 0 && (
-                <div className="pt-3 border-t border-white/10 space-y-3">
-                  <span className="text-[11px] font-cartoon text-gold-300 uppercase tracking-wider block">
-                    Otros Medios de Pago Personalizados:
-                  </span>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(siteConfig.customPaymentMethods || []).map((method) => (
-                      <div key={method.id} className="p-4 rounded-2xl bg-cyan-950/20 border border-cyan-500/30 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="font-bold text-xs text-cyan-200">{method.name}</span>
-                            <span className="text-[10px] text-linen-400 block font-mono">{method.type}</span>
+                  {/* 5. Redes Sociales & Canales de la Comunidad */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                      <div>
+                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                          <span>🌐</span>
+                          <span>Redes Sociales & Canales de Contacto:</span>
+                        </h3>
+                        <p className="text-xs font-fredoka text-linen-300 mt-0.5">
+                          Modifica los enlaces directos, activa/desactiva o agrega nuevas redes sociales mostradas en el pie de página y botones flotantes.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSoc = {
+                            id: 'custom-' + Date.now(),
+                            name: 'Nueva Red Social',
+                            url: 'https://',
+                            enabled: true,
+                            icon: 'globe',
+                            tooltip: 'Enlace Oficial'
+                          };
+                          setSiteConfig(prev => ({
+                            ...prev,
+                            socials: [...(prev.socials || DEFAULT_SOCIALS), newSoc]
+                          }));
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-linen-100 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Añadir Red Social</span>
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {(siteConfig.socials || DEFAULT_SOCIALS).map((soc, sIdx) => (
+                        <div key={soc.id || sIdx} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={soc.enabled !== false}
+                              onChange={(e) => {
+                                const updated = [...(siteConfig.socials || DEFAULT_SOCIALS)];
+                                updated[sIdx] = { ...updated[sIdx], enabled: e.target.checked };
+                                setSiteConfig(prev => ({ ...prev, socials: updated }));
+                              }}
+                              className="rounded accent-gold-500 cursor-pointer w-4 h-4"
+                              title="Activar / Desactivar"
+                            />
+                            <input
+                              type="text"
+                              value={soc.name}
+                              onChange={(e) => {
+                                const updated = [...(siteConfig.socials || DEFAULT_SOCIALS)];
+                                updated[sIdx] = { ...updated[sIdx], name: e.target.value };
+                                setSiteConfig(prev => ({ ...prev, socials: updated }));
+                              }}
+                              placeholder="Nombre (ej: Instagram)"
+                              className="bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-1.5 text-xs font-bold text-linen-100 outline-none w-36"
+                            />
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <label className="flex items-center gap-1 cursor-pointer text-[10px]">
-                              <input
-                                type="checkbox"
-                                checked={method.enabled !== false}
-                                onChange={(e) => {
-                                  const updated = (siteConfig.customPaymentMethods || []).map(m =>
-                                    m.id === method.id ? { ...m, enabled: e.target.checked } : m
-                                  );
-                                  setSiteConfig(prev => ({ ...prev, customPaymentMethods: updated }));
-                                }}
-                                className="rounded accent-cyan-500 cursor-pointer"
-                              />
-                              <span className={method.enabled !== false ? 'text-emerald-400' : 'text-linen-400'}>
-                                {method.enabled !== false ? 'Activo' : 'Pausado'}
-                              </span>
-                            </label>
+                          <div className="flex-1 min-w-0">
+                            <input
+                              type="text"
+                              value={soc.url}
+                              onChange={(e) => {
+                                const updated = [...(siteConfig.socials || DEFAULT_SOCIALS)];
+                                updated[sIdx] = { ...updated[sIdx], url: e.target.value };
+                                setSiteConfig(prev => ({ ...prev, socials: updated }));
+                              }}
+                              placeholder="https://tu-perfil-o-enlace.com"
+                              className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-1.5 text-xs font-mono text-linen-200 outline-none"
+                            />
+                          </div>
 
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
                             <button
                               type="button"
-                              onClick={() => handleDeleteCustomPaymentMethod(method.id)}
-                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-colors cursor-pointer"
-                              title="Eliminar método"
+                              onClick={() => {
+                                const updated = (siteConfig.socials || DEFAULT_SOCIALS).filter((_, idx) => idx !== sIdx);
+                                setSiteConfig(prev => ({ ...prev, socials: updated }));
+                              }}
+                              className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition-colors cursor-pointer"
+                              title="Eliminar red social"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
-
-                        <div className="space-y-1 text-xs font-mono">
-                          {method.accountNumber && (
-                            <div className="p-2 rounded-xl bg-black/40">
-                              <span className="text-[10px] text-linen-400 block font-fredoka">Número / Cuenta:</span>
-                              <span className="text-white font-bold">{method.accountNumber}</span>
-                            </div>
-                          )}
-                          {method.holder && (
-                            <div className="p-2 rounded-xl bg-black/40">
-                              <span className="text-[10px] text-linen-400 block font-fredoka">Titular / Indicaciones:</span>
-                              <span className="text-linen-200 text-[11px] font-fredoka">{method.holder}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
-
-            {/* 4. Asistente Virtual & Chatbot de IA */}
-            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-                <div>
-                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
-                    <span>🤖</span>
-                    <span>4. Asistente Virtual Inteligente (Chatbot de IA):</span>
-                  </h3>
-                  <p className="text-xs font-fredoka text-linen-300 mt-0.5">
-                    Controla si el botón flotante del Asistente IA aparece en la página pública para responder dudas de los visitantes.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSiteConfig(prev => ({
-                        ...prev,
-                        enable_ai_chatbot: !prev.enable_ai_chatbot
-                      }));
-                    }}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold font-cartoon uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 border ${
-                      siteConfig.enable_ai_chatbot !== false
-                        ? 'bg-emerald-600/30 border-emerald-500/60 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-                        : 'bg-red-950/40 border-red-500/40 text-red-400'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full ${siteConfig.enable_ai_chatbot !== false ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}`} />
-                    <span>{siteConfig.enable_ai_chatbot !== false ? 'CHATBOT ACTIVADO' : 'CHATBOT DESACTIVADO'}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-jade-900/40 border border-white/5 text-xs font-fredoka text-linen-300 flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <span className="text-base">{siteConfig.enable_ai_chatbot !== false ? '✨' : '💤'}</span>
-                  <span>
-                    {siteConfig.enable_ai_chatbot !== false
-                      ? 'El chatbot responderá automáticamente con información de cabañas, precios, pasadías y normas.'
-                      : 'El chatbot está oculto. Los usuarios se contactarán únicamente por WhatsApp y llamadas directas.'}
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            {/* 5. Redes Sociales & Canales de la Comunidad */}
-            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-                <div>
-                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
-                    <span>🌐</span>
-                    <span>5. Redes Sociales & Canales de Contacto:</span>
-                  </h3>
-                  <p className="text-xs font-fredoka text-linen-300 mt-0.5">
-                    Modifica los enlaces directos, activa/desactiva o agrega nuevas redes sociales mostradas en el pie de página y botones flotantes.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newSoc = {
-                      id: 'custom-' + Date.now(),
-                      name: 'Nueva Red Social',
-                      url: 'https://',
-                      enabled: true,
-                      icon: 'globe',
-                      tooltip: 'Enlace Oficial'
-                    };
-                    setSiteConfig(prev => ({
-                      ...prev,
-                      socials: [...(prev.socials || DEFAULT_SOCIALS), newSoc]
-                    }));
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-linen-100 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Añadir Red Social</span>
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {(siteConfig.socials || DEFAULT_SOCIALS).map((soc, sIdx) => (
-                  <div key={soc.id || sIdx} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={soc.enabled !== false}
-                        onChange={(e) => {
-                          const updated = [...(siteConfig.socials || DEFAULT_SOCIALS)];
-                          updated[sIdx] = { ...updated[sIdx], enabled: e.target.checked };
-                          setSiteConfig(prev => ({ ...prev, socials: updated }));
-                        }}
-                        className="rounded accent-gold-500 cursor-pointer w-4 h-4"
-                        title="Activar / Desactivar"
-                      />
-                      <input
-                        type="text"
-                        value={soc.name}
-                        onChange={(e) => {
-                          const updated = [...(siteConfig.socials || DEFAULT_SOCIALS)];
-                          updated[sIdx] = { ...updated[sIdx], name: e.target.value };
-                          setSiteConfig(prev => ({ ...prev, socials: updated }));
-                        }}
-                        placeholder="Nombre (ej: Instagram)"
-                        className="bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-1.5 text-xs font-bold text-linen-100 outline-none w-36"
-                      />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="text"
-                        value={soc.url}
-                        onChange={(e) => {
-                          const updated = [...(siteConfig.socials || DEFAULT_SOCIALS)];
-                          updated[sIdx] = { ...updated[sIdx], url: e.target.value };
-                          setSiteConfig(prev => ({ ...prev, socials: updated }));
-                        }}
-                        placeholder="https://tu-perfil-o-enlace.com"
-                        className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-1.5 text-xs font-mono text-linen-200 outline-none"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = (siteConfig.socials || DEFAULT_SOCIALS).filter((_, idx) => idx !== sIdx);
-                          setSiteConfig(prev => ({ ...prev, socials: updated }));
-                        }}
-                        className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition-colors cursor-pointer"
-                        title="Eliminar red social"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
           ) : (
             renderLockedSection('Personalización (CMS)', 'La modificación de tarifas de pasadías, precios de cabañas y enlaces de contacto ha sido deshabilitada temporalmente por la administración central de Dynamind.')
           )
@@ -3885,187 +4046,289 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         {activeSection === 'usuarios' && isMasterAdmin && (
           isUsersEnabled ? (
             <div className="space-y-6">
-            <div className="p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
-              <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-                Control de Acceso, Empleados & Permisos
-              </span>
-              <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
-                Gestión de Usuarios
-              </h1>
-            </div>
+              {/* Header */}
+              <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+                <div>
+                  <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+                    Control de Acceso, Roles, Permisos y Claves
+                  </span>
+                  <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
+                    Gestión de Usuarios & Empleados
+                  </h1>
+                </div>
 
-            {/* Form to create a new user */}
-            <div className="p-6 rounded-3xl glass-dark border border-gold-500/30 space-y-4 shadow-xl">
-              <div className="flex items-center gap-2 text-gold-400">
-                <UserPlus className="w-5 h-5" />
-                <h3 className="font-cartoon text-sm uppercase tracking-wider">
-                  Crear Nuevo Usuario / Empleado:
-                </h3>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full bg-gold-500/15 border border-gold-500/30 text-gold-300 text-xs font-mono font-bold">
+                    {systemUsers.length} {systemUsers.length === 1 ? 'Usuario Activo' : 'Usuarios Activos'}
+                  </span>
+                </div>
               </div>
 
-              <form onSubmit={handleCreateUser} className="space-y-4 font-fredoka text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
-                      Nombre Completo / Cargo:
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ej. Laura Martínez (Recepción)"
-                      value={newUserData.name}
-                      onChange={(e) => setNewUserData(prev => ({ ...prev, name: e.target.value }))}
-                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none"
-                    />
+              {/* Master Admin Info Card */}
+              <div className="p-5 rounded-3xl bg-gradient-to-r from-gold-950/40 via-jade-950/80 to-gold-950/40 border border-gold-500/40 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gold-500/20 border border-gold-400 flex items-center justify-center text-gold-400 shadow-gold-glow flex-shrink-0">
+                    <Crown className="w-6 h-6" />
                   </div>
-
                   <div>
-                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
-                      Usuario de Inicio de Sesión:
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ej. laura.recepcion"
-                      value={newUserData.username}
-                      onChange={(e) => setNewUserData(prev => ({ ...prev, username: e.target.value }))}
-                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
-                      Contraseña Asignada:
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Mínimo 4 caracteres"
-                      value={newUserData.password}
-                      onChange={(e) => setNewUserData(prev => ({ ...prev, password: e.target.value }))}
-                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs font-mono text-linen-100 outline-none"
-                    />
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display text-sm font-black text-white uppercase">
+                        Cuenta Principal: Master Admin
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full bg-gold-500 text-jade-950 font-cartoon font-bold text-[10px] uppercase">
+                        Super Usuario
+                      </span>
+                    </div>
+                    <p className="text-xs text-linen-300 font-fredoka mt-0.5">
+                      Acceso ilimitado a todas las secciones: Caja Mayor, Agendamientos, Cancelaciones, CMS Lite y Usuarios.
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                  <div>
-                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
-                      Nivel de Permisos / Rol:
-                    </label>
-                    <select
-                      value={newUserData.role}
-                      onChange={(e) => setNewUserData(prev => ({ ...prev, role: e.target.value }))}
-                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none cursor-pointer"
-                    >
-                      <option value="staff">👤 Usuario Normal / Empleado (Solo Agendamientos & Cobro)</option>
-                      <option value="admin">👑 Administrador (Acceso a Caja, Cancelaciones y Personalización)</option>
-                    </select>
-                  </div>
-
-                  <div className="pt-4">
-                    <button
-                      type="submit"
-                      disabled={isCreatingUser}
-                      className="w-full py-3 px-4 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center justify-center gap-2 cursor-pointer transition-all border border-gold-400 disabled:opacity-50"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>{isCreatingUser ? 'Creando...' : 'Crear Cuenta de Usuario'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {createUserError && (
-                  <div className="p-3 rounded-xl bg-red-900/40 border border-red-500/50 text-red-300 text-xs">
-                    {createUserError}
-                  </div>
-                )}
-
-                {createUserSuccess && (
-                  <div className="p-3 rounded-xl bg-emerald-900/40 border border-emerald-500/50 text-emerald-300 text-xs">
-                    {createUserSuccess}
-                  </div>
-                )}
-              </form>
-            </div>
-
-            {/* List of existing users */}
-            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
-              <div className="flex items-center justify-between">
-                <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                  Usuarios Registrados ({systemUsers.length}):
-                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsPassModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-gold-500/20 hover:bg-gold-500/30 text-gold-300 border border-gold-500/40 font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shadow-sm"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Cambiar Clave Master</span>
+                </button>
               </div>
 
-              <div className="rounded-2xl border border-white/10 overflow-hidden">
-                <table className="w-full text-left text-xs font-fredoka">
-                  <thead className="bg-jade-900/80 font-cartoon text-[11px] text-gold-400 uppercase tracking-wider border-b border-white/10">
-                    <tr>
-                      <th className="p-3.5">Usuario</th>
-                      <th className="p-3.5">Nombre / Cargo</th>
-                      <th className="p-3.5">Nivel de Rol</th>
-                      <th className="p-3.5">Fecha Creación</th>
-                      <th className="p-3.5 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {systemUsers.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="p-6 text-center text-linen-400/60 italic">
-                          Aún no has creado usuarios adicionales. Crea el primero arriba.
-                        </td>
-                      </tr>
-                    ) : (
-                      systemUsers.map((u) => (
-                        <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
-                          <td className="p-3.5 font-mono font-bold text-gold-300">
-                            {u.username}
-                          </td>
-                          <td className="p-3.5 text-linen-100 font-medium">
-                            {u.name}
-                          </td>
-                          <td className="p-3.5">
-                            {u.role === 'admin' ? (
-                              <span className="px-2.5 py-1 rounded-full bg-gold-500/20 text-gold-300 border border-gold-500/40 font-cartoon font-bold text-[10px] inline-flex items-center gap-1">
-                                <Shield className="w-3 h-3 text-gold-400" />
-                                <span>Administrador</span>
-                              </span>
-                            ) : (
-                              <span className="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-cartoon font-bold text-[10px] inline-flex items-center gap-1">
-                                <User className="w-3 h-3 text-cyan-400" />
-                                <span>Usuario / Empleado</span>
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3.5 text-[11px] text-linen-400 font-mono">
-                            {u.created_at ? new Date(u.created_at).toLocaleDateString('es-CO') : 'Reciente'}
-                          </td>
-                          <td className="p-3.5 text-right space-x-2">
-                            <button
-                              onClick={() => handleOpenEditUserModal(u)}
-                              className="px-3 py-1.5 rounded-lg bg-gold-500/15 hover:bg-gold-500/30 text-gold-300 border border-gold-500/30 font-cartoon text-[11px] uppercase transition-colors inline-flex items-center gap-1 cursor-pointer"
-                              title="Cambiar contraseña de este usuario"
-                            >
-                              <KeyRound className="w-3 h-3" />
-                              <span>Cambiar Clave</span>
-                            </button>
+              {/* Form to create a new user */}
+              <div className="p-6 rounded-3xl glass-dark border border-gold-500/30 space-y-4 shadow-xl">
+                <div className="flex items-center gap-2 text-gold-400">
+                  <UserPlus className="w-5 h-5" />
+                  <h3 className="font-cartoon text-sm uppercase tracking-wider">
+                    Crear Nuevo Usuario / Empleado:
+                  </h3>
+                </div>
+
+                <form onSubmit={handleCreateUser} className="space-y-4 font-fredoka text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                        Nombre Completo / Cargo:
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej. Laura Martínez (Recepción)"
+                        value={newUserData.name}
+                        onChange={(e) => setNewUserData(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                        Usuario de Inicio de Sesión:
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej. laura.recepcion"
+                        value={newUserData.username}
+                        onChange={(e) => setNewUserData(prev => ({ ...prev, username: e.target.value }))}
+                        className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                        Contraseña Asignada:
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Mínimo 4 caracteres"
+                        value={newUserData.password}
+                        onChange={(e) => setNewUserData(prev => ({ ...prev, password: e.target.value }))}
+                        className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs font-mono text-linen-100 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                    <div>
+                      <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                        Nivel de Permisos / Rol:
+                      </label>
+                      <select
+                        value={newUserData.role}
+                        onChange={(e) => setNewUserData(prev => ({ ...prev, role: e.target.value }))}
+                        className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none cursor-pointer"
+                      >
+                        <option value="staff">👤 Usuario / Empleado (Solo Agendamientos & Cobros)</option>
+                        <option value="admin">👑 Administrador (Acceso a Caja, Cancelaciones y CMS)</option>
+                      </select>
+                    </div>
+
+                    <div className="pt-4">
+                      <button
+                        type="submit"
+                        disabled={isCreatingUser}
+                        className="w-full py-3 px-4 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center justify-center gap-2 cursor-pointer transition-all border border-gold-400 disabled:opacity-50"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{isCreatingUser ? 'Creando...' : 'Crear Cuenta de Usuario'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {createUserError && (
+                    <div className="p-3 rounded-xl bg-red-900/40 border border-red-500/50 text-red-300 text-xs">
+                      {createUserError}
+                    </div>
+                  )}
+
+                  {createUserSuccess && (
+                    <div className="p-3 rounded-xl bg-emerald-900/40 border border-emerald-500/50 text-emerald-300 text-xs">
+                      {createUserSuccess}
+                    </div>
+                  )}
+                </form>
+              </div>
+
+              {/* Cards Grid of Existing Users */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    <span>Usuarios Registrados & Credenciales ({systemUsers.length}):</span>
+                  </h3>
+                </div>
+
+                {systemUsers.length === 0 ? (
+                  <div className="p-8 rounded-3xl glass-dark border border-white/10 text-center text-linen-400/60 italic font-fredoka">
+                    Aún no has creado usuarios adicionales. Utiliza el formulario superior para registrar empleados o administradores.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    {systemUsers.map((u) => {
+                      const isSaving = savingUserIds[u.id];
+                      const feedback = userCardFeedback[u.id];
+                      const isRevealed = revealedPasswords[u.id];
+
+                      return (
+                        <div
+                          key={u.id}
+                          className="p-5 rounded-3xl glass-dark border border-white/10 hover:border-gold-500/40 transition-all shadow-xl flex flex-col justify-between space-y-4 relative overflow-hidden group"
+                        >
+                          {/* Top Badge & Username */}
+                          <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm shadow-md flex-shrink-0 ${
+                                u.role === 'admin'
+                                  ? 'bg-gold-500/20 text-gold-300 border border-gold-500/40'
+                                  : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                              }`}>
+                                {u.role === 'admin' ? <Shield className="w-5 h-5 text-gold-400" /> : <User className="w-5 h-5 text-cyan-400" />}
+                              </div>
+                              <div>
+                                <span className="font-mono font-black text-sm text-gold-300 block">
+                                  @{u.username}
+                                </span>
+                                <span className="text-[10px] text-linen-400 font-mono">
+                                  {u.created_at ? new Date(u.created_at).toLocaleDateString('es-CO') : 'Reciente'}
+                                </span>
+                              </div>
+                            </div>
 
                             <button
+                              type="button"
                               onClick={() => handleDeleteUser(u.id, u.username)}
-                              className="p-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/40 text-red-300 border border-red-500/30 transition-colors cursor-pointer"
+                              className="p-2 rounded-xl bg-red-600/10 hover:bg-red-600/25 text-red-400 border border-red-500/20 transition-colors cursor-pointer"
                               title="Eliminar usuario"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                          </div>
+
+                          {/* Editable Fields */}
+                          <div className="space-y-3 font-fredoka text-xs">
+                            <div>
+                              <label className="text-[10px] font-cartoon text-linen-400 uppercase block mb-1">
+                                Nombre Completo / Cargo:
+                              </label>
+                              <input
+                                type="text"
+                                value={u.name || ''}
+                                onChange={(e) => handleUserFieldChange(u.id, 'name', e.target.value)}
+                                placeholder="Nombre completo"
+                                className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                                Nivel de Rol & Permisos:
+                              </label>
+                              <select
+                                value={u.role || 'staff'}
+                                onChange={(e) => handleUserFieldChange(u.id, 'role', e.target.value)}
+                                className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 outline-none cursor-pointer"
+                              >
+                                <option value="staff">👤 Empleado (Agendamientos & Cobro)</option>
+                                <option value="admin">👑 Administrador (Caja, Cancelaciones, CMS)</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                                Contraseña de Acceso:
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type={isRevealed ? 'text' : 'password'}
+                                  value={u.password || ''}
+                                  onChange={(e) => handleUserFieldChange(u.id, 'password', e.target.value)}
+                                  placeholder="Mínimo 4 caracteres"
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none pr-9"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => toggleRevealPassword(u.id)}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-linen-400 hover:text-gold-400 transition-colors cursor-pointer"
+                                  title={isRevealed ? 'Ocultar clave' : 'Ver clave'}
+                                >
+                                  {isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Feedback Messages */}
+                          {feedback?.error && (
+                            <div className="p-2.5 rounded-xl bg-red-900/40 border border-red-500/50 text-red-300 text-[11px] font-fredoka">
+                              {feedback.error}
+                            </div>
+                          )}
+                          {feedback?.success && (
+                            <div className="p-2.5 rounded-xl bg-emerald-900/40 border border-emerald-500/50 text-emerald-300 text-[11px] font-fredoka font-bold text-center">
+                              {feedback.success}
+                            </div>
+                          )}
+
+                          {/* Save Button */}
+                          <div className="pt-2 border-t border-white/10">
+                            <button
+                              type="button"
+                              onClick={() => handleSaveSingleUser(u)}
+                              disabled={isSaving}
+                              className="w-full py-2.5 px-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center justify-center gap-2 cursor-pointer transition-all border border-gold-400 disabled:opacity-50"
+                            >
+                              <Save className="w-3.5 h-3.5" />
+                              <span>{isSaving ? 'Guardando...' : 'Guardar Cambios'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
           ) : (
             renderLockedSection('Gestión de Usuarios', 'La creación, edición y control de credenciales de empleados ha sido deshabilitada temporalmente por la administración central de Dynamind.')
           )

@@ -152,6 +152,14 @@ export default function App() {
             socials_hub: res.modules.socials_hub !== false
           });
         }
+        if (res.customConfig && typeof res.customConfig === 'object') {
+          setCustomConfig(prev => ({
+            ...prev,
+            ...res.customConfig,
+            enable_ai_chatbot: res.customConfig.enable_ai_chatbot !== false,
+            socials: Array.isArray(res.customConfig.socials) ? res.customConfig.socials : prev.socials
+          }));
+        }
       }
     });
 
