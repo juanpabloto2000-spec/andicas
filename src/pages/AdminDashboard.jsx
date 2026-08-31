@@ -167,18 +167,21 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     };
   };
 
-  // Guard activeSection based on userRole
+  // Guard activeSection and agendaSubTab based on userRole
   useEffect(() => {
     if (userRole === 'staff' || userRole === 'recepcion') {
       if (activeSection !== 'agendamientos') {
         setActiveSection('agendamientos');
+      }
+      if (agendaSubTab !== 'tabla' && agendaSubTab !== 'calendario') {
+        setAgendaSubTab('tabla');
       }
     } else if (userRole === 'admin') {
       if (activeSection === 'usuarios') {
         setActiveSection('agendamientos');
       }
     }
-  }, [userRole, activeSection]);
+  }, [userRole, activeSection, agendaSubTab]);
 
   useEffect(() => {
     if (activeModules) {
@@ -586,7 +589,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       if (data.success) {
         setBookings(data.bookings || []);
         if (data.blockedDates) setBlockedDates(data.blockedDates);
-        if (data.role) setUserRole(data.role);
+        
         // Historial de auditoría
         const auditData = await getAdminAuditLogs(targetKey);
         if (auditData.success) {
@@ -643,8 +646,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           }
         }
 
-        // Usuarios del sistema (Solo Master Admin)
-        if (isMasterAdmin || data?.role === 'master_admin') {
+        // Usuarios del sistema (Exclusivo Master Admin)
+        if (isMasterAdmin) {
           const usersData = await getAdminUsers(targetKey);
           if (usersData && usersData.success) {
             setSystemUsers(usersData.users || []);
@@ -748,7 +751,12 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     try {
       const res = await adminLogin(passwordInput.trim(), usernameInput.trim());
       if (res.success) {
-        const resolvedRole = res.role || 'master_admin';
+        const fallbackRole = usernameInput.toLowerCase().includes('master') 
+          ? 'master_admin' 
+          : usernameInput.toLowerCase() === 'admin' 
+            ? 'admin' 
+            : 'staff';
+        const resolvedRole = res.role || fallbackRole;
         localStorage.setItem('andicas_admin_token', res.token || passwordInput.trim());
         localStorage.setItem('andicas_user_role', resolvedRole);
         localStorage.setItem('andicas_username', res.username || usernameInput.trim());
@@ -762,9 +770,14 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           name: res.name || usernameInput.trim()
         });
 
-        // Ensure active section is accessible for the role
+        // Ensure active section and subtabs are accessible for the role
         if (resolvedRole === 'staff') {
           setActiveSection('agendamientos');
+          setAgendaSubTab('tabla');
+        } else if (resolvedRole === 'admin') {
+          if (activeSection === 'usuarios') {
+            setActiveSection('agendamientos');
+          }
         }
 
         fetchDashboardData(res.token || passwordInput.trim());

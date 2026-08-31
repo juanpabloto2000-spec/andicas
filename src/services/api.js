@@ -270,11 +270,10 @@ export async function getAdminBookings(adminKey) {
     return {
       success: true,
       bookings: bookings || [],
-      blockedDates: blockedDates || [],
-      role: 'master_admin'
+      blockedDates: blockedDates || []
     };
   } catch (sbErr) {
-    return { success: true, bookings: [], blockedDates: [], role: 'master_admin' };
+    return { success: true, bookings: [], blockedDates: [] };
   }
 }
 
