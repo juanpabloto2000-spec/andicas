@@ -2,15 +2,18 @@ import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 
 export default function Preloader({ onComplete }) {
+  const onCompleteRef = React.useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (onComplete) onComplete();
-    }, 1400);
+      if (onCompleteRef.current) onCompleteRef.current();
+    }, 1100);
 
     return () => {
       clearTimeout(timer);
     };
-  }, [onComplete]);
+  }, []);
 
   return (
     <motion.div

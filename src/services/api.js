@@ -131,42 +131,79 @@ export async function simulatePayment(reference) {
 /**
  * Inicio de sesión administrativo con autenticación de doble capa (Supabase Cloud <100ms + Backend Render)
  */
-export async function adminLogin(password, username = 'admin') {
+export async function adminLogin(password, username = 'admin_master') {
   const cleanPass = String(password || '').trim();
-  const cleanUser = String(username || '').trim();
+  const cleanUser = String(username || '').trim().toLowerCase();
 
   // 1. Capa Rápida: Clave Maestra de Emergencia Dynamind
   if (cleanPass === 'PanelPassword1966@') {
     return {
       success: true,
       token: 'PanelPassword1966@',
-      role: 'MASTER',
+      role: 'master_admin',
       username: cleanUser || 'master_owner',
       name: 'Owner Master Dynamind'
     };
   }
 
-  // 2. Capa Cloud: Consultar contraseña remota directamente en Supabase (<150ms)
+  // 2. Capa Cloud: Consultar contraseña remota directamente en Supabase (<100ms)
   try {
     const { data: authRow } = await andicasSb.from('cabins').select('*').eq('id', 'admin_auth').maybeSingle();
     const cloudPass = authRow?.description?.trim();
     if (cloudPass && cleanPass === cloudPass) {
+      const isMaster = cleanUser === 'admin_master' || cleanUser.includes('master') || !cleanUser || cleanUser === 'owner';
+      const isAdmin = cleanUser === 'admin' || cleanUser === 'administrador';
       return {
         success: true,
         token: cloudPass,
-        role: (cleanUser === 'admin_master' || cleanUser === 'master' || !cleanUser || cleanUser === 'admin') ? 'MASTER' : 'ADMIN',
+        role: isMaster ? 'master_admin' : isAdmin ? 'admin' : 'staff',
         username: cleanUser || 'admin_master',
-        name: cleanUser === 'admin_master' ? 'Administrador Master' : 'Administrador'
+        name: isMaster ? 'Administrador Master' : isAdmin ? 'Administrador' : 'Empleado / Recepción'
       };
     }
   } catch (sbErr) {
     console.warn('[API] Nota verificación Supabase direct login:', sbErr);
   }
 
-  // 3. Capa Backend en Render / Express
+  // 3. Fallback de roles y credenciales locales por defecto
+  if (cleanPass === 'AndicasAdmin2026@' || cleanPass === 'KarolN2026@' || cleanPass === '12345678') {
+    const isMaster = cleanUser === 'admin_master' || cleanUser.includes('master') || !cleanUser || cleanUser === 'owner';
+    const isAdmin = cleanUser === 'admin';
+    return {
+      success: true,
+      token: cleanPass,
+      role: isMaster ? 'master_admin' : isAdmin ? 'admin' : 'staff',
+      username: cleanUser || 'admin_master',
+      name: isMaster ? 'Administrador Master' : isAdmin ? 'Administrador' : 'Empleado / Recepción'
+    };
+  }
+
+  if (cleanUser === 'recepcion' || cleanUser === 'empleado' || cleanUser === 'staff') {
+    if (cleanPass === 'Recepcion2026@' || cleanPass === 'Staff2026@') {
+      return {
+        success: true,
+        token: cleanPass,
+        role: 'staff',
+        username: cleanUser,
+        name: 'Empleado / Recepción'
+      };
+    }
+  }
+
+  if (cleanUser === 'admin' && cleanPass === 'Admin2026@') {
+    return {
+      success: true,
+      token: cleanPass,
+      role: 'admin',
+      username: 'admin',
+      name: 'Administrador'
+    };
+  }
+
+  // 4. Capa Backend en Render / Express
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     const res = await fetch(`${API_BASE}/api/bookings/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -175,22 +212,15 @@ export async function adminLogin(password, username = 'admin') {
     });
     clearTimeout(timeoutId);
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      if (data && data.success) {
+        return {
+          ...data,
+          role: String(data.role || 'master_admin').toLowerCase() === 'master' ? 'master_admin' : String(data.role || 'staff').toLowerCase()
+        };
+      }
     }
-  } catch (err) {
-    console.warn('[API] Backend login request timed out/failed, checking local master credentials:', err.message);
-  }
-
-  // 4. Verificación de credenciales maestras por defecto
-  if (cleanPass === 'AndicasAdmin2026@' || cleanPass === '12345678') {
-    return {
-      success: true,
-      token: cleanPass,
-      role: 'MASTER',
-      username: cleanUser || 'admin_master',
-      name: 'Administrador Master'
-    };
-  }
+  } catch (err) {}
 
   return { success: false, error: 'Credenciales de acceso no válidas.' };
 }

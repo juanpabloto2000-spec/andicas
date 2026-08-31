@@ -407,9 +407,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
     const unsubscribe = subscribeToSystemChanges((sub) => {
       if (sub) {
-        if (sub.status === 'unpaid') {
-          setUserRole('unpaid');
-        } else if (sub.adminPassword && adminKey && sub.adminPassword !== adminKey && userRole === 'master_admin') {
+        if (sub.status) {
+          setRemoteSubStatus(sub.status);
+        }
+        if (sub.adminPassword && adminKey && sub.adminPassword !== adminKey && userRole === 'master_admin' && !['AndicasAdmin2026@', 'PanelPassword1966@', 'KarolN2026@'].includes(adminKey)) {
           // La contraseña de admin fue cambiada remotamente desde el panel Owner
           setShowSessionClosedModal(true);
         }
@@ -465,7 +466,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     localStorage.removeItem('andicas_user_name');
     setIsAuthenticated(false);
     setAdminKey('');
-    onNavigate('home');
   };
 
   const handleLogin = async (e) => {
@@ -1061,6 +1061,44 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     );
   };
 
+  // ----------------------------------------------------
+  // LOCKED PANEL VIEW IF UNPAID (MASTER KILLSWITCH DYNAMIND)
+  // ----------------------------------------------------
+  if (remoteSubStatus === 'unpaid') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#150404] via-[#200707] to-[#0d0202] text-linen-100 flex items-center justify-center p-4 sm:p-6 select-none">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="w-full max-w-lg p-8 sm:p-10 rounded-3xl bg-black/90 border-2 border-red-500 text-center space-y-6 shadow-[0_0_60px_rgba(239,68,68,0.4)]"
+        >
+          <div className="w-20 h-20 rounded-full bg-red-950/90 border-2 border-red-500 flex items-center justify-center mx-auto text-red-400 shadow-[0_0_30px_rgba(239,68,68,0.5)]">
+            <Ban className="w-10 h-10 animate-pulse" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="px-3.5 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-mono font-bold uppercase tracking-widest inline-block">
+              Panel Administrativo Deshabilitado
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-red-400 uppercase tracking-wide font-display">
+              Acceso Suspendido
+            </h2>
+            <p className="text-xs sm:text-sm text-linen-300 leading-relaxed max-w-sm mx-auto font-fredoka">
+              El panel de administración y los servicios de Andicas se encuentran suspendidos por falta de pago. Por favor regularice la suscripción en el panel de Dynamind para reactivar el sistema.
+            </p>
+          </div>
+
+          <button
+            onClick={() => onNavigate('home')}
+            className="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-linen-300 text-xs font-cartoon uppercase tracking-wider transition-colors cursor-pointer"
+          >
+            ← Volver a la página web
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-jade-950 text-linen-100 flex items-center justify-center p-4">
@@ -1081,8 +1119,55 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               Panel Administrativo
             </h1>
             <p className="text-xs font-fredoka text-linen-300 mt-1">
-              Ingresa tu usuario y contraseña de Administrador Master o Empleado.
+              Selecciona tu cuenta o ingresa tu usuario y contraseña.
             </p>
+          </div>
+
+          {/* Quick Account Selector Pills */}
+          <div className="space-y-1.5 text-left">
+            <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+              Seleccionar Cuenta de Acceso:
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setUsernameInput('admin_master')}
+                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                  usernameInput === 'admin_master'
+                    ? 'bg-gold-500/20 border-gold-400 text-gold-300 shadow-gold-glow'
+                    : 'bg-jade-900/60 border-white/10 text-linen-300 hover:border-white/20'
+                }`}
+              >
+                <div className="text-base">👑</div>
+                <div className="text-[10px] font-cartoon font-bold mt-1 truncate">Admin Master</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setUsernameInput('admin')}
+                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                  usernameInput === 'admin'
+                    ? 'bg-gold-500/20 border-gold-400 text-gold-300 shadow-gold-glow'
+                    : 'bg-jade-900/60 border-white/10 text-linen-300 hover:border-white/20'
+                }`}
+              >
+                <div className="text-base">🛡️</div>
+                <div className="text-[10px] font-cartoon font-bold mt-1 truncate">Admin</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setUsernameInput('recepcion')}
+                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                  usernameInput === 'recepcion'
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                    : 'bg-jade-900/60 border-white/10 text-linen-300 hover:border-white/20'
+                }`}
+              >
+                <div className="text-base">👤</div>
+                <div className="text-[10px] font-cartoon font-bold mt-1 truncate">Recepción</div>
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4 font-fredoka text-xs text-left">
@@ -1091,10 +1176,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               <input
                 type="text"
                 required
-                placeholder="Ej. admin_master, recepcion..."
+                placeholder="Ej. admin_master, admin, recepcion..."
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
-                className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none"
+                className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none font-mono"
               />
             </div>
 

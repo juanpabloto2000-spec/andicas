@@ -27,10 +27,12 @@ const DEFAULT_SOCIAL_LINKS = [
 ];
 
 export default function App() {
-  const [isLoading, setIsLoading] = useState(() => {
-    const hash = window.location.hash.replace('#/', '').replace('#', '');
-    return hash !== 'dsb' && hash !== 'admin';
-  });
+  const isInitiallyAdmin = (() => {
+    const hash = (typeof window !== 'undefined' ? window.location.hash || '' : '').toLowerCase();
+    const path = (typeof window !== 'undefined' ? window.location.pathname || '' : '').toLowerCase();
+    return hash.includes('dsb') || hash.includes('admin') || path.includes('dsb') || path.includes('admin');
+  })();
+
   const [isSiteLocked, setIsSiteLocked] = useState(() => {
     try {
       return localStorage.getItem('andicas_subscription_status') === 'unpaid';
@@ -38,9 +40,15 @@ export default function App() {
       return false;
     }
   });
+
+  const [isLoading, setIsLoading] = useState(() => {
+    const locked = typeof localStorage !== 'undefined' && localStorage.getItem('andicas_subscription_status') === 'unpaid';
+    return !isInitiallyAdmin && !locked;
+  });
+
   const [activeModules, setActiveModules] = useState({ bookings: true, wompi_payments: true });
   const [customConfig, setCustomConfig] = useState(() => {
-    const saved = localStorage.getItem('andicas_custom_settings');
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('andicas_custom_settings') : null;
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -58,8 +66,11 @@ export default function App() {
   });
 
   const [currentPage, setCurrentPage] = useState(() => {
-    const hash = window.location.hash.replace('#/', '').replace('#', '');
-    if (hash === 'cabanas' || hash === 'animales' || hash === 'admin' || hash === 'dsb') return hash === 'admin' ? 'dsb' : hash;
+    const hash = (typeof window !== 'undefined' ? window.location.hash || '' : '').toLowerCase();
+    const path = (typeof window !== 'undefined' ? window.location.pathname || '' : '').toLowerCase();
+    if (hash.includes('dsb') || hash.includes('admin') || path.includes('dsb') || path.includes('admin')) return 'dsb';
+    if (hash.includes('cabanas')) return 'cabanas';
+    if (hash.includes('animales')) return 'animales';
     return 'home';
   });
 
@@ -149,15 +160,25 @@ export default function App() {
 
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash.replace('#/', '').replace('#', '');
-      if (hash === 'cabanas' || hash === 'animales' || hash === 'dsb' || hash === 'admin') {
-        setCurrentPage(hash === 'admin' ? 'dsb' : hash);
-      } else if (!hash || hash === 'experiencia' || hash === 'cabanas-seccion' || hash === 'arma-tu-plan' || hash === 'normas' || hash === 'ubicacion') {
+      const hash = (typeof window !== 'undefined' ? window.location.hash || '' : '').toLowerCase();
+      const path = (typeof window !== 'undefined' ? window.location.pathname || '' : '').toLowerCase();
+      if (hash.includes('dsb') || hash.includes('admin') || path.includes('dsb') || path.includes('admin')) {
+        setCurrentPage('dsb');
+        setIsLoading(false);
+      } else if (hash.includes('cabanas')) {
+        setCurrentPage('cabanas');
+      } else if (hash.includes('animales')) {
+        setCurrentPage('animales');
+      } else {
         setCurrentPage('home');
       }
     };
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleHashChange);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handleHashChange);
+    };
   }, []);
 
   const showToastNotification = ({ message, subtext }) => {
