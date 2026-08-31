@@ -74,6 +74,25 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     { username: 'recepcion', name: 'Recepción', role: 'staff' },
   ]);
 
+  // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'cancelaciones' | 'personalizacion' | 'usuarios'
+  const [activeSection, setActiveSection] = useState('agendamientos');
+
+  // Sub-tabs for Agendamientos: 'tabla' | 'calendario' | 'auditoria'
+  const [agendaSubTab, setAgendaSubTab] = useState('tabla');
+
+  // Sub-tabs for Recaudos & Caja: 'caja_vivo' | 'gastos' | 'cierre' | 'historial' | 'metricas'
+  const [recaudosSubTab, setRecaudosSubTab] = useState('caja_vivo');
+
+  // Live Module State & Remote Subscription Status (Identical to KAL Engine)
+  const [localActiveModules, setLocalActiveModules] = useState(() => activeModules || {
+    bookings: true,
+    recaudos: true,
+    cancelaciones: true,
+    personalizacion: true,
+    users_management: true
+  });
+  const [remoteSubStatus, setRemoteSubStatus] = useState(() => localStorage.getItem('andicas_subscription_status') || 'active');
+
   useEffect(() => {
     (async () => {
       try {
@@ -161,16 +180,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     }
   }, [userRole, activeSection]);
 
-  // Live Module State & Remote Subscription Status (Identical to KAL Engine)
-  const [localActiveModules, setLocalActiveModules] = useState(() => activeModules || {
-    bookings: true,
-    recaudos: true,
-    cancelaciones: true,
-    personalizacion: true,
-    users_management: true
-  });
-  const [remoteSubStatus, setRemoteSubStatus] = useState(() => localStorage.getItem('andicas_subscription_status') || 'active');
-
   useEffect(() => {
     if (activeModules) {
       setLocalActiveModules(activeModules);
@@ -191,15 +200,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     });
     return () => unsubscribe();
   }, []);
-
-  // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'cancelaciones' | 'personalizacion' | 'usuarios'
-  const [activeSection, setActiveSection] = useState('agendamientos');
-
-  // Sub-tabs for Agendamientos: 'tabla' | 'calendario' | 'auditoria'
-  const [agendaSubTab, setAgendaSubTab] = useState('tabla');
-
-  // Sub-tabs for Recaudos & Caja: 'caja_vivo' | 'gastos' | 'cierre' | 'historial' | 'metricas'
-  const [recaudosSubTab, setRecaudosSubTab] = useState('caja_vivo');
 
   // Cash Session & Daily Shift State
   const [todayCashSession, setTodayCashSession] = useState({
