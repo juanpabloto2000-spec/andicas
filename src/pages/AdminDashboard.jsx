@@ -2362,7 +2362,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           </div>
         )}
         
-        <AnimatePresence mode="wait">
         {/* ======================================================================= */}
         {/* SECCIÓN 1: AGENDAMIENTOS, CALENDARIO & AUDITORÍA INTEGRADA */}
         {/* ======================================================================= */}
@@ -2372,7 +2371,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               key="sec-agendamientos"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="space-y-6"
             >
@@ -2462,14 +2460,12 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
             </div>
 
-            <AnimatePresence mode="wait">
             {/* VISTA 1A: TABLA DE AGENDAS */}
             {agendaSubTab === 'tabla' && (
               <motion.div
                 key="subtab-tabla"
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.18 }}
                 className="space-y-4"
               >
@@ -2965,7 +2961,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 </div>
               </motion.div>
             )}
-            </AnimatePresence>
 
             {/* =================================================================== */}
             {/* BARRA INFERIOR DE SALDOS PENDIENTES POR COBRAR EN RECEPCIÓN */}
@@ -3236,8 +3231,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               )}
             </div>
 
-            <AnimatePresence mode="wait">
-
             {/* =================================================================== */}
             {/* SUB-TAB 1: ARQUEO & OPERACIÓN EN VIVO */}
             {/* =================================================================== */}
@@ -3246,7 +3239,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 key="subtab-caja-vivo"
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.18 }}
                 className="space-y-6"
               >
@@ -4128,7 +4120,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
               </motion.div>
             )}
-            </AnimatePresence>
 
             </motion.div>
           ) : (
@@ -4146,7 +4137,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               key="sec-personalizacion"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="space-y-6"
             >
@@ -4277,7 +4267,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 </div>
               )}
 
-              <AnimatePresence mode="wait">
               {/* ================================================================= */}
               {/* SUB-PESTAÑA 0: GENERAL & CONTROL DE PÁGINAS Y NAVEGACIÓN */}
               {/* ================================================================= */}
@@ -4286,7 +4275,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   key="subtab-cms-general"
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.18 }}
                   className="space-y-6"
                 >
@@ -5692,7 +5680,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   </div>
                 </motion.div>
               )}
-              </AnimatePresence>
             </motion.div>
           ) : (
             renderLockedSection('Personalización (CMS)', 'La modificación de tarifas de pasadías, precios de cabañas y enlaces de contacto ha sido deshabilitada temporalmente por la administración central de Dynamind.')
@@ -5711,7 +5698,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               key="sec-usuarios"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="space-y-6"
             >
@@ -5968,7 +5954,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             renderLockedSection('Gestión de Usuarios', 'El módulo de gestión de usuarios ha sido deshabilitado temporalmente por la administración central de Dynamind.')
           )
         )}
-        </AnimatePresence>
       </main>
 
       {/* ======================================================================= */}

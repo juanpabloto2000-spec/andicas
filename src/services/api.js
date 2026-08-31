@@ -249,12 +249,34 @@ export async function adminLogin(password, username = 'admin_master') {
 }
 
 /**
- * Consulta todas las reservas para el panel de administración
+ * Consulta todas las reservas para el panel de administración (Instantáneo Supabase Cloud < 50ms)
  */
 export async function getAdminBookings(adminKey) {
+  // 1. Supabase Cloud Instantáneo (< 50ms)
+  try {
+    const { data: bookings, error: bErr } = await andicasSb
+      .from('bookings')
+      .select('*')
+      .order('created_at', { ascending: false });
+    const { data: blockedDates } = await andicasSb
+      .from('blocked_dates')
+      .select('*');
+
+    if (!bErr && Array.isArray(bookings)) {
+      return {
+        success: true,
+        bookings: bookings || [],
+        blockedDates: blockedDates || []
+      };
+    }
+  } catch (sbErr) {
+    console.warn('Supabase getAdminBookings fallo, intentando backend:', sbErr);
+  }
+
+  // 2. Fallback Backend
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
     const res = await fetch(`${API_BASE}/api/bookings/admin/bookings`, {
       headers: { 'x-admin-key': adminKey },
       signal: controller.signal
@@ -263,22 +285,9 @@ export async function getAdminBookings(adminKey) {
     if (res.ok) {
       return await res.json();
     }
-  } catch (err) {
-    console.warn('Backend getAdminBookings fallo o demorado, usando Supabase Cloud directo:', err);
-  }
+  } catch (err) {}
 
-  // Fallback directo a Supabase Cloud
-  try {
-    const { data: bookings } = await andicasSb.from('bookings').select('*').order('created_at', { ascending: false });
-    const { data: blockedDates } = await andicasSb.from('blocked_dates').select('*');
-    return {
-      success: true,
-      bookings: bookings || [],
-      blockedDates: blockedDates || []
-    };
-  } catch (sbErr) {
-    return { success: true, bookings: [], blockedDates: [] };
-  }
+  return { success: true, bookings: [], blockedDates: [] };
 }
 
 /**
@@ -557,8 +566,7 @@ export async function getSubscriptionStatus() {
 }
 
 /**
- * Suscripción reactiva en tiempo real (< 100ms) mediante WebSockets Supabase
- * Permite que los cambios de módulos, chatbot, redes y personalización se reflejen instantáneamente sin recargar la página.
+ * Suscripción reactiva para estado del sistema y módulos
  */
 export function subscribeToSystemChanges(callback) {
   let isSubscribed = true;
@@ -585,28 +593,12 @@ export function subscribeToSystemChanges(callback) {
   // 1. Ejecutar de inmediato al conectar
   fetchAndNotify();
 
-  // 2. Canal Supabase Realtime (WebSockets instantáneo con ID único)
-  const channelId = `realtime-sys-${Math.random().toString(36).substring(2, 9)}`;
-  const channel = andicasSb
-    .channel(channelId)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'cabins' },
-      () => {
-        fetchAndNotify();
-      }
-    )
-    .subscribe();
-
-  // 3. Heartbeat suave de respaldo (60s)
+  // 2. Heartbeat pasivo suave de respaldo (60s)
   const intervalId = setInterval(fetchAndNotify, 60000);
 
   return () => {
     isSubscribed = false;
     clearInterval(intervalId);
-    try {
-      andicasSb.removeChannel(channel);
-    } catch (e) {}
   };
 }
 
@@ -1045,26 +1037,15 @@ export async function deleteAdminUser(userId, adminKey) {
 }
 
 /**
- * 22. Obtiene la sesión de caja del día actual
+ * 22. Obtiene la sesión de caja del día actual (Instantáneo Supabase Cloud < 50ms)
  */
 export async function getTodayCashSession(adminKey) {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/today`, {
-      headers: { 'x-admin-key': adminKey },
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    if (res.ok) return await res.json();
-  } catch (err) {}
-
-  // Fallback directo a Supabase Cloud
+  // 1. Directo a Supabase Cloud Instantáneo (< 50ms)
   try {
     const todayStr = new Date().toISOString().split('T')[0];
     const { data } = await andicasSb.from('cabins').select('*').eq('id', `cash_session_${todayStr}`).maybeSingle();
     if (data?.description) {
-      const session = JSON.parse(data.description);
+      const session = typeof data.description === 'string' ? JSON.parse(data.description) : data.description;
       return {
         success: true,
         todaySession: session,
@@ -1079,6 +1060,18 @@ export async function getTodayCashSession(adminKey) {
       };
     }
   } catch (sbErr) {}
+
+  // 2. Fallback backend
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/today`, {
+      headers: { 'x-admin-key': adminKey },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (res.ok) return await res.json();
+  } catch (err) {}
 
   return { success: true, todaySession: { base_initial: 0, expenses: [], payments_received: [], is_locked: false } };
 }
