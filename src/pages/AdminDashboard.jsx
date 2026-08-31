@@ -7,7 +7,8 @@ import {
   Filter, Check, ArrowUpRight, ArrowLeft, ArrowRight, Lock, Unlock, History, User, FileText,
   Sliders, AlertTriangle, Sparkles, CreditCard, Eye, EyeOff, Save, Sun, Moon, CalendarDays,
   Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle, KeyRound, UserPlus, Shield,
-  Receipt, Wallet, Coins, TrendingDown, Printer, Calculator, AlertOctagon, CalendarRange
+  Receipt, Wallet, Coins, TrendingDown, Printer, Calculator, AlertOctagon, CalendarRange,
+  Settings, Image as ImageIcon, Type
 } from 'lucide-react';
 import { 
   adminLogin, 
@@ -230,6 +231,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
   // Master Password Change Modal State
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [currentAdminPassword, setCurrentAdminPassword] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
   const [showPasswordText, setShowPasswordText] = useState(false);
@@ -287,8 +289,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     enabled: true
   });
 
-  // Personalización Sub-Tabs ('cabanas_planes' | 'medios_pago' | 'ia_redes')
-  const [personalizacionSubTab, setPersonalizacionSubTab] = useState('cabanas_planes');
+  // Personalización Sub-Tabs ('general' | 'cabanas_planes' | 'medios_pago' | 'ia_redes')
+  const [personalizacionSubTab, setPersonalizacionSubTab] = useState('general');
 
   // User Management Cards states
   const [revealedPasswords, setRevealedPasswords] = useState({});
@@ -328,6 +330,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     const saved = localStorage.getItem('andicas_custom_settings');
     const parsed = saved ? JSON.parse(saved) : {};
     return {
+      siteLogo: parsed.siteLogo || '/logo sin fondo.png',
+      siteName: parsed.siteName || 'Andicas Bioparque Temático',
+      siteSlogan: parsed.siteSlogan || 'Reserva Natural, Cabañas Luxury & Santuario Animal',
+      heroTitle1: parsed.heroTitle1 || 'EL LUJO DE CONECTAR CON LA',
+      heroTitle2: parsed.heroTitle2 || 'NATURALEZA',
+      heroSubtitle: parsed.heroSubtitle || 'Piscina natural con caverna, cabañas en los árboles con jacuzzi privado y aventuras inolvidables para toda la familia.',
+      cabanasSectionTitle: parsed.cabanasSectionTitle || 'Cabañas Luxury & Suites Panorámicas',
+      cabanasSectionSubtitle: parsed.cabanasSectionSubtitle || 'Descanso exclusivo rodeado de naturaleza con jacuzzis climatizados y atención de primera clase.',
+      pasadiasSectionTitle: parsed.pasadiasSectionTitle || 'Planes de Pasadía & Aventura Familiar',
+      pasadiasSectionSubtitle: parsed.pasadiasSectionSubtitle || 'Un día inolvidable con piscinas naturales, show equino, senderismo ecológico y santuario animal.',
+      cabinImages: parsed.cabinImages || {},
       customCabins: Array.isArray(parsed.customCabins) ? parsed.customCabins : [],
       cabinPrices: parsed.cabinPrices || {},
       extraPersonPrices: parsed.extraPersonPrices || {},
@@ -445,7 +458,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           ]);
 
           if (cashTodayRes.status === 'fulfilled' && cashTodayRes.value?.success) {
-            setTodayCashSession(cashTodayRes.value.todaySession || {});
+            const s = cashTodayRes.value.todaySession || {};
+            setTodayCashSession({
+              date: s.date || new Date().toISOString().split('T')[0],
+              base_initial: s.base_initial || 0,
+              opened_by: s.opened_by || null,
+              opened_at: s.opened_at || null,
+              is_locked: !!s.is_locked,
+              expenses: Array.isArray(s.expenses) ? s.expenses : [],
+              payments_received: Array.isArray(s.payments_received) ? s.payments_received : [],
+              users_on_shift: Array.isArray(s.users_on_shift) ? s.users_on_shift : []
+            });
             setTodayClosure(cashTodayRes.value.todayClosure || null);
             setCashSummary(cashTodayRes.value.summary || {});
           }
@@ -513,12 +536,20 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     setPasswordChangeError('');
     setPasswordChangeSuccess('');
 
+    if (!currentAdminPassword || currentAdminPassword.trim().length === 0) {
+      setPasswordChangeError('Por favor ingresa tu contraseña actual.');
+      return;
+    }
+    if (adminKey && currentAdminPassword.trim() !== adminKey && !['AndicasAdmin2026@', 'PanelPassword1966@', 'KarolN2026@'].includes(currentAdminPassword.trim())) {
+      setPasswordChangeError('La contraseña actual es incorrecta.');
+      return;
+    }
     if (!newAdminPassword || newAdminPassword.trim().length < 4) {
-      setPasswordChangeError('La contraseña debe tener al menos 4 caracteres.');
+      setPasswordChangeError('La nueva contraseña debe tener al menos 4 caracteres.');
       return;
     }
     if (newAdminPassword !== confirmAdminPassword) {
-      setPasswordChangeError('Las contraseñas no coinciden.');
+      setPasswordChangeError('Las nuevas contraseñas no coinciden.');
       return;
     }
 
@@ -532,6 +563,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         localStorage.setItem('andicas_admin_token', cleanPass);
         setTimeout(() => {
           setPasswordModalOpen(false);
+          setCurrentAdminPassword('');
           setNewAdminPassword('');
           setConfirmAdminPassword('');
           setPasswordChangeSuccess('');
@@ -601,7 +633,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     localStorage.removeItem('andicas_user_name');
     setIsAuthenticated(false);
     setAdminKey('');
-    onNavigate('home');
+    // Stays directly on the Dashboard login screen instead of going to homepage
   };
 
   // User Management Handlers (Master Admin only)
@@ -1524,50 +1556,75 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             </p>
           </div>
 
-          {/* Quick Account Selector Pills */}
-          <div className="space-y-1.5 text-left">
+          {/* Quick Account Selector Vertical List */}
+          <div className="space-y-2 text-left">
             <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
-              Seleccionar Cuenta de Acceso:
+              Cuentas de Acceso Rápido:
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setUsernameInput('admin_master')}
-                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                  usernameInput === 'admin_master'
-                    ? 'bg-gold-500/20 border-gold-400 text-gold-300 shadow-gold-glow'
-                    : 'bg-jade-900/60 border-white/10 text-linen-300 hover:border-white/20'
-                }`}
-              >
-                <div className="text-base">👑</div>
-                <div className="text-[10px] font-cartoon font-bold mt-1 truncate">Admin Master</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setUsernameInput('admin')}
-                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                  usernameInput === 'admin'
-                    ? 'bg-gold-500/20 border-gold-400 text-gold-300 shadow-gold-glow'
-                    : 'bg-jade-900/60 border-white/10 text-linen-300 hover:border-white/20'
-                }`}
-              >
-                <div className="text-base">🛡️</div>
-                <div className="text-[10px] font-cartoon font-bold mt-1 truncate">Admin</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setUsernameInput('recepcion')}
-                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                  usernameInput === 'recepcion'
-                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
-                    : 'bg-jade-900/60 border-white/10 text-linen-300 hover:border-white/20'
-                }`}
-              >
-                <div className="text-base">👤</div>
-                <div className="text-[10px] font-cartoon font-bold mt-1 truncate">Recepción</div>
-              </button>
+            <div className="space-y-2">
+              {[
+                {
+                  id: 'admin_master',
+                  name: 'Admin Master',
+                  roleLabel: 'Superusuario Master',
+                  desc: 'Control total de licencias, módulos y contraseñas',
+                  icon: '👑',
+                  color: 'border-gold-400/80 bg-gold-500/10 text-gold-300'
+                },
+                {
+                  id: 'admin',
+                  name: 'Administrador',
+                  roleLabel: 'Administrador General',
+                  desc: 'Caja, Cierres, Gastos, Personalización y CMS',
+                  icon: '🛡️',
+                  color: 'border-gold-400/50 bg-gold-500/5 text-gold-300'
+                },
+                {
+                  id: 'recepcion',
+                  name: 'Recepción',
+                  roleLabel: 'Recepción & Reservas',
+                  desc: 'Agendamientos, Calendario y Registro de Cobros',
+                  icon: '👤',
+                  color: 'border-cyan-400/50 bg-cyan-500/10 text-cyan-300'
+                }
+              ].map((acc) => {
+                const isSelected = usernameInput.toLowerCase() === acc.id;
+                return (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => {
+                      setUsernameInput(acc.id);
+                      setPasswordInput('');
+                    }}
+                    className={`w-full p-2.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                      isSelected
+                        ? 'bg-jade-900 border-gold-400 ring-2 ring-gold-400/50 shadow-gold-glow'
+                        : 'bg-jade-900/50 border-white/10 hover:border-white/20 hover:bg-jade-900/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${acc.color}`}>
+                        {acc.icon}
+                      </div>
+                      <div>
+                        <div className="font-cartoon text-xs font-bold text-linen-100 flex items-center gap-1.5">
+                          <span>@{acc.id}</span>
+                          <span className="text-[10px] text-gold-400 font-mono font-normal">({acc.roleLabel})</span>
+                        </div>
+                        <p className="text-[10px] text-linen-400 font-fredoka line-clamp-1">
+                          {acc.desc}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`px-2 py-0.5 rounded-lg text-[9px] font-cartoon font-bold uppercase ${
+                      isSelected ? 'bg-gold-500 text-jade-950 shadow-gold-glow' : 'bg-white/5 text-linen-400'
+                    }`}>
+                      {isSelected ? '✓ Activo' : 'Elegir'}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -2747,13 +2804,13 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             )}
 
             {/* =================================================================== */}
-            {/* SUB-TAB 2: CIERRE DIARIO & GASTOS INTEGRADOS */}
+            {/* SUB-TAB 2: CIERRE DIARIO & GASTOS INTEGRADOS (LADO A LADO) */}
             {/* =================================================================== */}
             {recaudosSubTab === 'cierre' && (
-              <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 
-                {/* 2.1 Gastos del Día Integrados */}
-                <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                {/* 2.1 Columna Izquierda: Gastos del Día Integrados */}
+                <div className="p-5 sm:p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
                     <div>
                       <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
@@ -2761,13 +2818,13 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                         <span>Gastos del Día (Salidas de Caja)</span>
                       </h3>
                       <span className="text-xs text-linen-400 font-fredoka">
-                        Total acumulado de salidas: <strong className="text-red-400 font-mono">{formatCOP(cashSummary.totalExpenses)}</strong>
+                        Total acumulado: <strong className="text-red-400 font-mono">{formatCOP(cashSummary.totalExpenses)}</strong>
                       </span>
                     </div>
 
                     <button
                       onClick={() => setIsExpenseModalOpen(true)}
-                      className="px-4 py-2 rounded-2xl bg-red-600/80 hover:bg-red-600 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                      className="px-3.5 py-2 rounded-2xl bg-red-600/80 hover:bg-red-600 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
                     >
                       <Plus className="w-4 h-4" />
                       <span>+ Añadir Gasto</span>
@@ -2775,231 +2832,202 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   </div>
 
                   {(todayCashSession.expenses || []).length === 0 ? (
-                    <div className="p-6 text-center text-xs text-linen-400 italic rounded-2xl bg-jade-900/40 border border-white/5">
+                    <div className="p-8 text-center text-xs text-linen-400 italic rounded-2xl bg-jade-900/40 border border-white/5">
                       No hay gastos registrados en la caja de hoy.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs font-fredoka">
-                        <thead className="bg-jade-900/80 font-cartoon text-[11px] text-gold-400 uppercase tracking-wider border-b border-white/10">
-                          <tr>
-                            <th className="p-3">Hora</th>
-                            <th className="p-3">Concepto</th>
-                            <th className="p-3">Categoría</th>
-                            <th className="p-3">Registrado por</th>
-                            <th className="p-3">Notas</th>
-                            <th className="p-3 text-right">Valor</th>
-                            <th className="p-3 text-center">Acción</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {todayCashSession.expenses.map((exp) => (
-                            <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors">
-                              <td className="p-3 font-mono text-[11px] text-linen-300">
+                    <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
+                      {(todayCashSession.expenses || []).map((exp) => (
+                        <div
+                          key={exp.id}
+                          className="p-3 rounded-2xl bg-jade-900/60 border border-white/10 hover:border-red-500/30 transition-all flex items-center justify-between gap-3"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs text-linen-100">{exp.concept}</span>
+                              <span className="px-2 py-0.5 rounded-full bg-white/5 text-linen-300 text-[9px] font-mono border border-white/10">
+                                {exp.category}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] text-linen-400 font-fredoka">
+                              <span className="font-mono">
                                 {exp.created_at ? new Date(exp.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : 'Hoy'}
-                              </td>
-                              <td className="p-3 font-bold text-linen-100">
-                                {exp.concept}
-                              </td>
-                              <td className="p-3">
-                                <span className="px-2 py-0.5 rounded-full bg-white/5 text-linen-300 text-[10px] font-mono border border-white/10">
-                                  {exp.category}
-                                </span>
-                              </td>
-                              <td className="p-3 text-linen-300 font-medium">
-                                {exp.user}
-                              </td>
-                              <td className="p-3 text-linen-400 text-[11px] italic">
-                                {exp.notes || '-'}
-                              </td>
-                              <td className="p-3 text-right font-mono font-bold text-red-400">
-                                -{formatCOP(exp.amount)}
-                              </td>
-                              <td className="p-3 text-center">
-                                <button
-                                  onClick={() => handleDeleteExpense(exp.id)}
-                                  className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 cursor-pointer transition-colors"
-                                  title="Eliminar gasto"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                              </span>
+                              <span>· Por: <strong>{exp.user}</strong></span>
+                              {exp.notes && <span className="italic">({exp.notes})</span>}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <span className="font-mono font-bold text-sm text-red-400">
+                              -{formatCOP(exp.amount)}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteExpense(exp.id)}
+                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 cursor-pointer transition-colors"
+                              title="Eliminar gasto"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
 
-                {/* 2.2 SI EL CIERRE YA SE REALIZÓ HOY: MOSTRAR INFORME COMPLETO */}
+                {/* 2.2 Columna Derecha: Asistente de Arqueo o Informe de Cierre */}
                 {todayClosure ? (
-                  <div className="p-6 sm:p-8 rounded-3xl glass-dark border-2 border-gold-500/40 shadow-2xl space-y-6">
-                    
+                  <div className="p-5 sm:p-6 rounded-3xl glass-dark border-2 border-gold-500/40 shadow-2xl space-y-5">
                     {/* Encabezado del Informe */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
                       <div>
-                        <div className="flex items-center gap-2 font-mono text-[10px] text-gold-400 uppercase tracking-widest mb-1">
+                        <div className="flex items-center gap-1.5 font-mono text-[9px] text-gold-400 uppercase tracking-widest mb-0.5">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>DOCUMENTO OFICIAL DE ARQUEO DIARIO</span>
+                          <span>DOCUMENTO DE ARQUEO DIARIO</span>
                         </div>
-                        <h2 className="font-display text-xl sm:text-2xl font-black text-white uppercase tracking-wide">
-                          Informe de Cierre de Caja
+                        <h2 className="font-display text-lg sm:text-xl font-black text-white uppercase tracking-wide">
+                          Cierre de Caja Registrado
                         </h2>
-                        <p className="text-xs font-fredoka text-linen-300 mt-0.5">
-                          Fecha: <strong className="text-white font-mono">{todayClosure.date}</strong> · Cerrado a las {new Date(todayClosure.closed_at).toLocaleTimeString('es-CO')} por <strong className="text-gold-300">{todayClosure.closed_by}</strong>
+                        <p className="text-[11px] font-fredoka text-linen-300">
+                          Fecha: <strong className="text-white font-mono">{todayClosure.date}</strong> · Por <strong className="text-gold-300">{todayClosure.closed_by}</strong>
                         </p>
                       </div>
 
-                      {/* Status Result Badge */}
-                      <div className="flex items-center gap-3 self-start sm:self-auto">
-                        <div className={`px-4 py-2 rounded-2xl font-cartoon font-bold text-xs uppercase border tracking-wider shadow-lg ${
-                          todayClosure.status === 'CUADRADO'
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-emerald-500/10'
-                            : todayClosure.status === 'SOBRANTE'
-                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-cyan-500/10'
-                            : 'bg-red-500/20 text-red-300 border-red-500/50 shadow-red-500/10'
-                        }`}>
-                          {todayClosure.status === 'CUADRADO' && '✅ CUADRE PERFECTO ($0)'}
-                          {todayClosure.status === 'SOBRANTE' && `🔵 SOBRANTE (+${formatCOP(todayClosure.difference)})`}
-                          {todayClosure.status === 'FALTANTE' && `🔴 FALTANTE (${formatCOP(todayClosure.difference)})`}
-                        </div>
+                      <div className={`px-3 py-1.5 rounded-xl font-cartoon font-bold text-[11px] uppercase border tracking-wider self-start sm:self-auto ${
+                        todayClosure.status === 'CUADRADO'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                          : todayClosure.status === 'SOBRANTE'
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
+                          : 'bg-red-500/20 text-red-300 border-red-500/50'
+                      }`}>
+                        {todayClosure.status === 'CUADRADO' && '✅ CUADRE EXACTO ($0)'}
+                        {todayClosure.status === 'SOBRANTE' && `🔵 SOBRANTE (+${formatCOP(todayClosure.difference)})`}
+                        {todayClosure.status === 'FALTANTE' && `🔴 FALTANTE (${formatCOP(todayClosure.difference)})`}
+                      </div>
+                    </div>
+
+                    {/* Resumen Financiero en Grid */}
+                    <div className="grid grid-cols-2 gap-3 font-fredoka text-xs">
+                      <div className="p-3 rounded-xl bg-black/40 border border-white/10 font-mono">
+                        <span className="text-linen-400 text-[10px] block">Base Inicial:</span>
+                        <span className="text-sm font-bold text-white block">{formatCOP(todayClosure.base_initial)}</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-black/40 border border-emerald-500/30 font-mono">
+                        <span className="text-emerald-400 text-[10px] block">(+) Efectivo Recaudado:</span>
+                        <span className="text-sm font-bold text-emerald-300 block">+{formatCOP(todayClosure.total_cash_received)}</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-black/40 border border-cyan-500/30 font-mono">
+                        <span className="text-cyan-400 text-[10px] block">(+) Pagos Electrónicos:</span>
+                        <span className="text-sm font-bold text-cyan-300 block">+{formatCOP(todayClosure.total_electronic_received)}</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-black/40 border border-red-500/30 font-mono">
+                        <span className="text-red-400 text-[10px] block">(-) Gastos en Caja:</span>
+                        <span className="text-sm font-bold text-red-300 block">-{formatCOP(todayClosure.total_expenses)}</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-black/40 border border-gold-500/30 font-mono">
+                        <span className="text-gold-400 text-[10px] block">(=) Efectivo Esperado:</span>
+                        <span className="text-sm font-bold text-gold-200 block">{formatCOP(todayClosure.expected_cash)}</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-gold-500/20 border border-gold-400 font-mono shadow-gold-glow">
+                        <span className="text-gold-300 text-[10px] font-bold block">Efectivo Contado:</span>
+                        <span className="text-sm font-black text-white block">{formatCOP(todayClosure.actual_cash)}</span>
                       </div>
                     </div>
 
                     {/* Usuarios en Turno */}
-                    <div className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-2">
-                      <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
-                        👥 Personal & Operadores en Turno Durante el Día:
+                    <div className="p-3 rounded-xl bg-jade-900/60 border border-white/10 space-y-1.5">
+                      <span className="text-[9px] font-cartoon text-gold-400 uppercase tracking-wider block">
+                        👥 Personal en Turno:
                       </span>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1.5">
                         {(todayClosure.users_on_shift || []).map((u, i) => (
-                          <span key={i} className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs font-fredoka text-linen-200 flex items-center gap-1.5">
-                            <User className="w-3 h-3 text-gold-400" />
+                          <span key={i} className="px-2.5 py-0.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-fredoka text-linen-200 flex items-center gap-1">
+                            <User className="w-2.5 h-2.5 text-gold-400" />
                             <span>{u}</span>
                           </span>
                         ))}
                       </div>
                     </div>
 
-                    {/* Resumen Financiero Completo */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 font-fredoka text-xs">
-                      <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-1 font-mono">
-                        <span className="text-linen-400 text-[11px] block">Base Inicial Efectivo:</span>
-                        <span className="text-base font-bold text-white block">{formatCOP(todayClosure.base_initial)}</span>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-black/40 border border-emerald-500/30 space-y-1 font-mono">
-                        <span className="text-emerald-400 text-[11px] block">(+) Total Efectivo Recaudado:</span>
-                        <span className="text-base font-bold text-emerald-300 block">+{formatCOP(todayClosure.total_cash_received)}</span>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-black/40 border border-cyan-500/30 space-y-1 font-mono">
-                        <span className="text-cyan-400 text-[11px] block">(+) Total Pagos Electrónicos:</span>
-                        <span className="text-base font-bold text-cyan-300 block">+{formatCOP(todayClosure.total_electronic_received)}</span>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-black/40 border border-red-500/30 space-y-1 font-mono">
-                        <span className="text-red-400 text-[11px] block">(-) Total Gastos en Caja:</span>
-                        <span className="text-base font-bold text-red-300 block">-{formatCOP(todayClosure.total_expenses)}</span>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-black/40 border border-gold-500/30 space-y-1 font-mono">
-                        <span className="text-gold-400 text-[11px] block">(=) Efectivo Físico Esperado:</span>
-                        <span className="text-base font-bold text-gold-200 block">{formatCOP(todayClosure.expected_cash)}</span>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-gold-500/20 border-2 border-gold-400 space-y-1 font-mono shadow-gold-glow">
-                        <span className="text-gold-300 text-[11px] font-bold block">Efectivo Físico Contado en Arqueo:</span>
-                        <span className="text-base font-black text-white block">{formatCOP(todayClosure.actual_cash)}</span>
-                      </div>
-                    </div>
-
-                    {/* Observaciones */}
-                    {todayClosure.notes && (
-                      <div className="p-4 rounded-2xl bg-black/30 border border-white/10 space-y-1 text-xs font-fredoka">
-                        <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
-                          Observaciones del Cajero:
-                        </span>
-                        <p className="text-linen-200 italic">{todayClosure.notes}</p>
-                      </div>
-                    )}
-
-                    {/* Barra de Acciones del Cierre de Hoy */}
-                    <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+                    {/* Acciones */}
+                    <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2">
                       <button
                         onClick={() => window.print()}
-                        className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-xs uppercase flex items-center gap-2 cursor-pointer transition-colors"
+                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-[11px] uppercase flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Printer className="w-4 h-4" />
-                        <span>Imprimir / Exportar Informe</span>
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Imprimir</span>
                       </button>
 
-                      {/* Botón para anular el cierre del día de hoy si hubo equivocación */}
                       <button
                         onClick={() => handleOpenAnnulModal(todayClosure)}
-                        className="px-5 py-2.5 rounded-2xl bg-red-950/80 hover:bg-red-900 border border-red-500/60 text-red-200 font-cartoon text-xs uppercase font-bold flex items-center gap-2 cursor-pointer transition-all shadow-md"
+                        className="px-3.5 py-2 rounded-xl bg-red-950/80 hover:bg-red-900 border border-red-500/60 text-red-200 font-cartoon text-[11px] uppercase font-bold flex items-center gap-1.5 cursor-pointer"
                       >
-                        <AlertTriangle className="w-4 h-4 text-red-400" />
-                        <span>Anular Cierre de Hoy (Reabrir Turno)</span>
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                        <span>Reabrir Turno</span>
                       </button>
                     </div>
-
                   </div>
                 ) : (
-                  /* SI AÚN NO SE HA CERRADO HOY: ASISTENTE DE ARQUEO ESTRICTO */
-                  <div className="p-6 sm:p-8 rounded-3xl glass-dark border border-white/10 space-y-6 shadow-xl">
-                    <div className="border-b border-white/10 pb-4">
-                      <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
+                  /* Formulario de Arqueo y Cierre Diario */
+                  <div className="p-5 sm:p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="border-b border-white/10 pb-3">
+                      <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
                         Paso Final del Turno
                       </span>
-                      <h2 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
-                        Realizar Cierre de Caja Diario & Arqueo
+                      <h2 className="font-display text-lg sm:text-xl font-black text-linen-100 uppercase tracking-wide">
+                        Arqueo & Cierre Diario
                       </h2>
-                      <p className="text-xs text-linen-300 font-fredoka mt-1">
-                        Cuenta los billetes y monedas en el cajón físico. El sistema exige cuadre exacto para procesar el cierre.
+                      <p className="text-xs text-linen-300 font-fredoka mt-0.5">
+                        Cuenta los billetes y monedas físicos. El sistema exige cuadre exacto para procesar.
                       </p>
                     </div>
 
-                    {/* Live Calculation Preview */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-fredoka text-xs">
-                      <div className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-1">
-                        <span className="text-linen-400">Base Inicial + Efectivo Recaudado:</span>
-                        <span className="font-mono text-base font-bold text-emerald-400 block">
+                    {/* Previsualización del Cálculo de Caja */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 font-fredoka text-xs">
+                      <div className="p-3 rounded-xl bg-jade-900/60 border border-white/10 space-y-0.5">
+                        <span className="text-linen-400 text-[10px]">Base + Efectivo:</span>
+                        <span className="font-mono text-sm font-bold text-emerald-400 block">
                           {formatCOP(cashSummary.baseInitial + cashSummary.totalCashIn)}
                         </span>
                       </div>
 
-                      <div className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-1">
-                        <span className="text-linen-400">Total Gastos Egresados:</span>
-                        <span className="font-mono text-base font-bold text-red-400 block">
+                      <div className="p-3 rounded-xl bg-jade-900/60 border border-white/10 space-y-0.5">
+                        <span className="text-linen-400 text-[10px]">Total Gastos:</span>
+                        <span className="font-mono text-sm font-bold text-red-400 block">
                           -{formatCOP(cashSummary.totalExpenses)}
                         </span>
                       </div>
 
-                      <div className="p-4 rounded-2xl bg-gold-500/15 border border-gold-400/50 space-y-1">
-                        <span className="text-gold-300 font-bold">Efectivo Físico Esperado en Cajón:</span>
-                        <span className="font-mono text-lg font-black text-white block">
+                      <div className="p-3 rounded-xl bg-gold-500/15 border border-gold-400/50 space-y-0.5">
+                        <span className="text-gold-300 text-[10px] font-bold">Esperado en Cajón:</span>
+                        <span className="font-mono text-sm font-black text-white block">
                           {formatCOP(cashSummary.expectedCash)}
                         </span>
                       </div>
                     </div>
 
-                    {/* Closing Form */}
+                    {/* Formulario de Cierre */}
                     <form onSubmit={handleInitiateCloseCashShift} className="space-y-4 text-xs font-fredoka">
                       <div>
-                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1.5 font-bold">
-                          Efectivo Físico Total Contado en Caja ($ COP) (*):
+                        <label className="text-linen-300 font-cartoon uppercase text-[10px] block mb-1 font-bold">
+                          Efectivo Físico Contado en Caja ($ COP) (*):
                         </label>
                         <input
                           type="number"
                           required
                           min="0"
                           step="100"
-                          placeholder="Digita el dinero real contado físicamente en caja..."
+                          placeholder="Digita el dinero real contado..."
                           value={countedCashInput}
                           onChange={(e) => setCountedCashInput(e.target.value)}
-                          className="w-full bg-jade-900 border border-white/20 focus:border-gold-400 rounded-2xl px-4 py-3.5 text-base text-white font-mono placeholder:text-linen-500 outline-none"
+                          className="w-full bg-jade-900 border border-white/20 focus:border-gold-400 rounded-xl px-3.5 py-3 text-base text-white font-mono placeholder:text-linen-500 outline-none"
                         />
                       </div>
 
@@ -3008,60 +3036,60 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                         <motion.div
                           initial={{ opacity: 0, y: -5 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className={`p-4 rounded-2xl border text-xs font-fredoka space-y-1 ${
+                          className={`p-3 rounded-xl border text-xs font-fredoka space-y-1 ${
                             Number(countedCashInput) - cashSummary.expectedCash === 0
                               ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-200'
                               : 'bg-red-950/70 border-red-500/50 text-red-200'
                           }`}
                         >
-                          <div className="flex items-center justify-between font-cartoon font-bold uppercase text-xs">
-                            <span>Estado de Cuadre:</span>
-                            <span className="font-mono text-sm">
+                          <div className="flex items-center justify-between font-cartoon font-bold uppercase text-[11px]">
+                            <span>Cuadre:</span>
+                            <span className="font-mono text-xs">
                               {Number(countedCashInput) - cashSummary.expectedCash === 0
-                                ? '✅ Cuadre Perfecto ($0 COP de diferencia)'
+                                ? '✅ Cuadre Exacto ($0)'
                                 : Number(countedCashInput) - cashSummary.expectedCash > 0
-                                ? `⚠️ DESCUADRE: Sobrante de +${formatCOP(Number(countedCashInput) - cashSummary.expectedCash)}`
-                                : `⚠️ DESCUADRE: Faltante de ${formatCOP(Number(countedCashInput) - cashSummary.expectedCash)}`}
+                                ? `⚠️ Sobrante: +${formatCOP(Number(countedCashInput) - cashSummary.expectedCash)}`
+                                : `⚠️ Faltante: ${formatCOP(Number(countedCashInput) - cashSummary.expectedCash)}`}
                             </span>
                           </div>
                           {Number(countedCashInput) - cashSummary.expectedCash !== 0 && (
-                            <p className="text-[11px] text-red-300 font-fredoka">
-                              El valor contado debe coincidir exactamente con el esperado ({formatCOP(cashSummary.expectedCash)}) para poder emitir el cierre.
+                            <p className="text-[10px] text-red-300 font-fredoka">
+                              Debe coincidir con {formatCOP(cashSummary.expectedCash)} para autorizar el cierre.
                             </p>
                           )}
                         </motion.div>
                       )}
 
                       <div>
-                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1.5">
-                          Observaciones / Novedades del Cierre (Opcional):
+                        <label className="text-linen-300 font-cartoon uppercase text-[10px] block mb-1">
+                          Observaciones / Novedades (Opcional):
                         </label>
                         <textarea
                           rows={2}
-                          placeholder="Ej: Turno entregado sin novedades, billetes organizados..."
+                          placeholder="Notas sobre el turno..."
                           value={closureNotesInput}
                           onChange={(e) => setClosureNotesInput(e.target.value)}
-                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-linen-500 outline-none resize-none"
+                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white placeholder:text-linen-500 outline-none resize-none"
                         />
                       </div>
 
                       {closeShiftError && (
-                        <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
+                        <div className="p-2.5 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
                           {closeShiftError}
                         </div>
                       )}
                       {closeShiftSuccess && (
-                        <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs">
+                        <div className="p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs">
                           {closeShiftSuccess}
                         </div>
                       )}
 
-                      <div className="pt-2">
+                      <div className="pt-1">
                         {countedCashInput !== '' && Number(countedCashInput) === cashSummary.expectedCash ? (
                           <button
                             type="submit"
                             disabled={isClosingShift}
-                            className="w-full py-4 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-sm uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-gold-400"
+                            className="w-full py-3.5 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-gold-400"
                           >
                             <Lock className="w-4 h-4" />
                             <span>📋 Proceder al Cierre de Caja</span>
@@ -3070,7 +3098,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           <button
                             type="button"
                             disabled
-                            className="w-full py-4 rounded-2xl bg-zinc-800/80 text-zinc-500 font-cartoon font-bold text-xs uppercase tracking-wider border border-white/10 cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full py-3.5 rounded-xl bg-zinc-800/80 text-zinc-500 font-cartoon font-bold text-xs uppercase tracking-wider border border-white/10 cursor-not-allowed flex items-center justify-center gap-2"
                           >
                             <Lock className="w-4 h-4" />
                             <span>🚫 Cierre Bloqueado (Se requiere cuadre exacto)</span>
@@ -3362,6 +3390,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/10 overflow-x-auto">
                     <button
                       type="button"
+                      onClick={() => setPersonalizacionSubTab('general')}
+                      className={`px-3.5 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                        personalizacionSubTab === 'general'
+                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                          : 'text-linen-300 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      <span>General</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setPersonalizacionSubTab('cabanas_planes')}
                       className={`px-3.5 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                         personalizacionSubTab === 'cabanas_planes'
@@ -3414,6 +3455,206 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               {configSaveSuccess && (
                 <div className="p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold text-center animate-fade-in shadow-xl">
                   {configSaveSuccess}
+                </div>
+              )}
+
+              {/* ================================================================= */}
+              {/* SUB-PESTAÑA 0: GENERAL (MARCA, LOGOS, TÍTULOS Y CABAÑAS) */}
+              {/* ================================================================= */}
+              {personalizacionSubTab === 'general' && (
+                <div className="space-y-6">
+                  {/* 0.1 Identidad de Marca & Logo General */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="border-b border-white/10 pb-3">
+                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-gold-400" />
+                        <span>1. Identidad de Marca & Logo del Sitio Web:</span>
+                      </h3>
+                      <span className="text-xs text-linen-400 font-fredoka">
+                        Configura el logo oficial, nombre institucional y eslogan principal del portal.
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      {/* Logo Preview & Input */}
+                      <div className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-3 flex flex-col items-center justify-between text-center">
+                        <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
+                          Logo Principal (PNG / SVG Transparente)
+                        </span>
+                        <div className="w-28 h-28 p-2 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden">
+                          <img
+                            src={siteConfig.siteLogo || '/logo sin fondo.png'}
+                            alt="Logo Preview"
+                            className="max-h-full max-w-full object-contain filter drop-shadow-md"
+                            onError={(e) => { e.target.src = '/logo sin fondo.png'; }}
+                          />
+                        </div>
+                        <div className="w-full space-y-2">
+                          <input
+                            type="text"
+                            value={siteConfig.siteLogo || ''}
+                            onChange={(e) => setSiteConfig(prev => ({ ...prev, siteLogo: e.target.value }))}
+                            placeholder="/logo sin fondo.png o https://..."
+                            className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSiteConfig(prev => ({ ...prev, siteLogo: '/logo sin fondo.png' }))}
+                            className="text-[10px] text-linen-400 hover:text-gold-300 underline font-fredoka cursor-pointer"
+                          >
+                            Restaurar logo predeterminado
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Site Name & Slogan */}
+                      <div className="md:col-span-2 space-y-4 font-fredoka text-xs">
+                        <div>
+                          <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                            Nombre Oficial del Bioparque:
+                          </label>
+                          <input
+                            type="text"
+                            value={siteConfig.siteName || ''}
+                            onChange={(e) => setSiteConfig(prev => ({ ...prev, siteName: e.target.value }))}
+                            placeholder="Andicas Bioparque Temático"
+                            className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none font-bold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                            Eslogan Institucional:
+                          </label>
+                          <input
+                            type="text"
+                            value={siteConfig.siteSlogan || ''}
+                            onChange={(e) => setSiteConfig(prev => ({ ...prev, siteSlogan: e.target.value }))}
+                            placeholder="Reserva Natural, Cabañas Luxury & Santuario Animal"
+                            className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none"
+                          />
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-gold-500/10 border border-gold-500/20 text-[11px] text-linen-300 leading-relaxed">
+                          💡 <strong>Sincronización en Vivo:</strong> Cualquier cambio de logo o título se actualiza instantáneamente en la barra de navegación (Navbar), pie de página y marca de agua sin requerir recargar la página.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 0.2 Textos de la Portada (Hero Section) */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="border-b border-white/10 pb-3">
+                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                        <Type className="w-4 h-4 text-gold-400" />
+                        <span>2. Textos de la Portada Principal (Hero):</span>
+                      </h3>
+                      <span className="text-xs text-linen-400 font-fredoka">
+                        Personaliza los títulos de bienvenida y el subtítulo de apertura del sitio web.
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-fredoka text-xs">
+                      <div>
+                        <label className="text-[10px] font-cartoon text-linen-400 uppercase block mb-1">
+                          Línea Superior del Título:
+                        </label>
+                        <input
+                          type="text"
+                          value={siteConfig.heroTitle1 || ''}
+                          onChange={(e) => setSiteConfig(prev => ({ ...prev, heroTitle1: e.target.value }))}
+                          placeholder="EL LUJO DE CONECTAR CON LA"
+                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none font-bold uppercase"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                          Palabra / Frase Destacada 3D Oro:
+                        </label>
+                        <input
+                          type="text"
+                          value={siteConfig.heroTitle2 || ''}
+                          onChange={(e) => setSiteConfig(prev => ({ ...prev, heroTitle2: e.target.value }))}
+                          placeholder="NATURALEZA"
+                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-gold-300 outline-none font-bold uppercase"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="text-[10px] font-cartoon text-linen-400 uppercase block mb-1">
+                          Subtítulo Descriptivo de la Portada:
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={siteConfig.heroSubtitle || ''}
+                          onChange={(e) => setSiteConfig(prev => ({ ...prev, heroSubtitle: e.target.value }))}
+                          placeholder="Piscina natural con caverna, cabañas en los árboles con jacuzzi privado..."
+                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none resize-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 0.3 Portadas / Logos / Fotos de Cabañas */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="border-b border-white/10 pb-3">
+                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4 text-gold-400" />
+                        <span>3. Fotos & Logos de Portada de Cabañas:</span>
+                      </h3>
+                      <span className="text-xs text-linen-400 font-fredoka">
+                        Cambia la imagen o logo de portada de cada cabaña luxury individualmente.
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {cabinsData.map((cabin) => {
+                        const currentImg = siteConfig.cabinImages?.[cabin.id] || cabin.image;
+                        return (
+                          <div key={cabin.id} className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-3 flex items-start gap-3.5">
+                            <div className="w-20 h-20 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex-shrink-0">
+                              <img
+                                src={currentImg}
+                                alt={cabin.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => { e.target.src = cabin.image; }}
+                              />
+                            </div>
+
+                            <div className="flex-grow space-y-2 font-fredoka text-xs">
+                              <div>
+                                <h4 className="font-bold text-linen-100 text-xs">{cabin.name}</h4>
+                                <span className="text-[10px] text-gold-400 font-mono">{cabin.type}</span>
+                              </div>
+
+                              <div>
+                                <label className="text-[9px] font-cartoon text-linen-400 uppercase block mb-1">
+                                  URL de la Imagen / Logo de Portada:
+                                </label>
+                                <input
+                                  type="text"
+                                  value={siteConfig.cabinImages?.[cabin.id] || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setSiteConfig(prev => ({
+                                      ...prev,
+                                      cabinImages: {
+                                        ...(prev.cabinImages || {}),
+                                        [cabin.id]: val
+                                      }
+                                    }));
+                                  }}
+                                  placeholder={cabin.image}
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-linen-100 outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -4722,6 +4963,18 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
 
               <form onSubmit={handleSaveMasterPassword} className="space-y-3 font-fredoka text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Contraseña Actual (Vieja):</label>
+                  <input
+                    type={showPasswordText ? 'text' : 'password'}
+                    required
+                    placeholder="Digita tu clave master actual"
+                    value={currentAdminPassword}
+                    onChange={(e) => setCurrentAdminPassword(e.target.value)}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2 text-xs text-linen-100 outline-none"
+                  />
+                </div>
+
                 <div>
                   <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Nueva Contraseña Master:</label>
                   <input

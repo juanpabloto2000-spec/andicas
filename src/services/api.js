@@ -165,7 +165,30 @@ export async function adminLogin(password, username = 'admin_master') {
     console.warn('[API] Nota verificación Supabase direct login:', sbErr);
   }
 
-  // 3. Fallback de roles y credenciales locales por defecto
+  // 3. Capa Cloud: Consultar usuarios registrados en Supabase
+  try {
+    const { data: usersRow } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
+    if (usersRow?.description) {
+      const users = JSON.parse(usersRow.description);
+      if (Array.isArray(users)) {
+        const matchingUser = users.find(u => 
+          u.username.toLowerCase() === cleanUser && 
+          String(u.password).trim() === cleanPass
+        );
+        if (matchingUser) {
+          return {
+            success: true,
+            token: matchingUser.password,
+            role: matchingUser.role === 'admin' ? 'admin' : 'staff',
+            username: matchingUser.username,
+            name: matchingUser.name || matchingUser.username
+          };
+        }
+      }
+    }
+  } catch (err) {}
+
+  // 4. Fallback de roles y credenciales locales por defecto
   if (cleanPass === 'AndicasAdmin2026@' || cleanPass === 'KarolN2026@' || cleanPass === '12345678') {
     const isMaster = cleanUser === 'admin_master' || cleanUser.includes('master') || !cleanUser || cleanUser === 'owner';
     const isAdmin = cleanUser === 'admin';
@@ -190,7 +213,7 @@ export async function adminLogin(password, username = 'admin_master') {
     }
   }
 
-  if (cleanUser === 'admin' && cleanPass === 'Admin2026@') {
+  if (cleanUser === 'admin' && (cleanPass === 'Admin2026@' || cleanPass === 'AndicasAdmin2026@')) {
     return {
       success: true,
       token: cleanPass,
@@ -723,28 +746,62 @@ export async function updateSiteCustomConfigAdmin(config, adminKey) {
   }
 }
 
+const DEFAULT_PREDEFINED_USERS = [
+  {
+    id: 'usr-admin-default',
+    username: 'admin',
+    name: 'Administrador General',
+    role: 'admin',
+    password: 'AndicasAdmin2026@',
+    created_at: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'usr-recepcion-default',
+    username: 'recepcion',
+    name: 'Recepción & Reservas',
+    role: 'staff',
+    password: 'Recepcion2026@',
+    created_at: '2026-01-01T00:00:00.000Z'
+  }
+];
+
 /**
  * 18. Obtiene la lista de usuarios creados (Exclusivo Admin Master)
  */
 export async function getAdminUsers(adminKey) {
+  let userList = [];
   try {
     const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
     if (data?.description) {
       const users = JSON.parse(data.description);
       if (Array.isArray(users)) {
-        return { success: true, users };
+        userList = users;
       }
     }
   } catch (err) {}
 
-  try {
-    const res = await fetch(`${API_BASE}/api/bookings/admin/users`, {
-      headers: { 'x-admin-key': adminKey },
-    });
-    if (res.ok) return await res.json();
-  } catch (err) {}
+  if (userList.length === 0) {
+    try {
+      const res = await fetch(`${API_BASE}/api/bookings/admin/users`, {
+        headers: { 'x-admin-key': adminKey },
+      });
+      if (res.ok) {
+        const d = await res.json();
+        if (d?.success && Array.isArray(d?.users)) {
+          userList = d.users;
+        }
+      }
+    } catch (err) {}
+  }
 
-  return { success: true, users: [] };
+  // Ensure default predefined users (admin, recepcion) are present and editable
+  DEFAULT_PREDEFINED_USERS.forEach(def => {
+    if (!userList.some(u => u.username.toLowerCase() === def.username.toLowerCase())) {
+      userList.push(def);
+    }
+  });
+
+  return { success: true, users: userList };
 }
 
 /**
@@ -802,24 +859,43 @@ export async function createAdminUser({ username, password, name, role }, adminK
 export async function updateAdminUser({ userId, username, name, role, password }, adminKey) {
   try {
     const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
+    let users = [];
     if (data?.description) {
-      let users = JSON.parse(data.description);
-      if (Array.isArray(users)) {
-        const target = users.find(u => u.id === userId);
-        if (target) {
-          if (name) target.name = name.trim();
-          if (role) target.role = role === 'admin' ? 'admin' : 'staff';
-          if (password && String(password).trim().length >= 4) target.password = String(password).trim();
-          await andicasSb.from('cabins').upsert({
-            id: 'system_users',
-            name: 'System Users Store',
-            type: 'active',
-            price_per_night: 0,
-            description: JSON.stringify(users)
-          });
-        }
-      }
+      try { users = JSON.parse(data.description); } catch (e) {}
     }
+    if (!Array.isArray(users)) users = [];
+
+    // Ensure predefined users are included in array if not yet saved
+    DEFAULT_PREDEFINED_USERS.forEach(def => {
+      if (!users.some(u => u.username.toLowerCase() === def.username.toLowerCase())) {
+        users.push({ ...def });
+      }
+    });
+
+    let target = users.find(u => u.id === userId || (username && u.username.toLowerCase() === username.toLowerCase()));
+    if (target) {
+      if (name) target.name = name.trim();
+      if (role) target.role = role === 'admin' ? 'admin' : 'staff';
+      if (password && String(password).trim().length >= 4) target.password = String(password).trim();
+    } else {
+      target = {
+        id: userId || `usr-${Date.now()}`,
+        username: (username || '').trim().toLowerCase(),
+        name: (name || username || '').trim(),
+        role: role === 'admin' ? 'admin' : 'staff',
+        password: password ? String(password).trim() : 'AndicasAdmin2026@',
+        created_at: new Date().toISOString()
+      };
+      users.push(target);
+    }
+
+    await andicasSb.from('cabins').upsert({
+      id: 'system_users',
+      name: 'System Users Store',
+      type: 'active',
+      price_per_night: 0,
+      description: JSON.stringify(users)
+    });
   } catch (err) {}
 
   try {

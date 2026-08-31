@@ -116,7 +116,8 @@ export default function HomePage({
   onOpenSummary, 
   onNavigate, 
   onShowToast,
-  activeModules
+  activeModules,
+  customConfig = {}
 }) {
   const [activeRuleCategory, setActiveRuleCategory] = useState(RULES_CATEGORIES[0]);
 
@@ -133,7 +134,7 @@ export default function HomePage({
   return (
     <div className="space-y-0 relative z-10">
       {/* 1. Hero Section */}
-      <Hero onOpenBooking={onOpenBooking} activeModules={activeModules} />
+      <Hero onOpenBooking={onOpenBooking} activeModules={activeModules} customConfig={customConfig} />
 
       {/* 2. La Experiencia Quimbayas (With CardStack Component) */}
       {activeModules?.experiencia !== false && (
@@ -453,7 +454,7 @@ export default function HomePage({
 
       {/* 7. Ubicación & Garantía Bancaria */}
       {activeModules?.ubicacion !== false && (
-        <LocationAndBanking onShowToast={onShowToast} />
+        <LocationAndBanking onShowToast={onShowToast} customConfig={customConfig} />
       )}
     </div>
   );

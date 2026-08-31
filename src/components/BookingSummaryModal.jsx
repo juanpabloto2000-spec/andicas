@@ -11,7 +11,8 @@ export default function BookingSummaryModal({
   onClose,
   onEdit,
   summaryData,
-  onShowToast
+  onShowToast,
+  customConfig = {}
 }) {
   const [copiedBank, setCopiedBank] = useState(null);
 
@@ -20,13 +21,20 @@ export default function BookingSummaryModal({
   const formatCOP = (num) => `$${(num || 0).toLocaleString('es-CO')} COP`;
 
   const copyAccount = (number, bankName) => {
+    if (!number) return;
     navigator.clipboard.writeText(number);
     setCopiedBank(bankName);
     if (onShowToast) {
-      onShowToast(`Número de cuenta ${bankName} copiado: ${number}`);
+      onShowToast(`Cuenta ${bankName} copiada: ${number}`);
     }
     setTimeout(() => setCopiedBank(null), 2500);
   };
+
+  const activeBanks = (customConfig.bankAccounts && customConfig.bankAccounts.length > 0)
+    ? customConfig.bankAccounts
+    : (contactData.banks || []);
+
+  const activeCustomPayments = (customConfig.customPaymentMethods || []).filter(m => m.enabled !== false);
 
   const handleFinalConfirm = () => {
     const { 
@@ -164,7 +172,7 @@ Tengo listos los datos de consignación institucional a nombre de Andicas Biopar
               </div>
             </div>
 
-            {/* Redesigned Banking Box */}
+            {/* Dynamic Banking Box */}
             <div className="p-3 sm:p-4 rounded-xl bg-jade-900/90 border border-gold-500/40 space-y-2.5 shadow-xl">
               <div className="flex items-center gap-1.5 text-[11px] font-cartoon font-bold text-linen-100 uppercase tracking-wide">
                 <ShieldCheck className="w-3.5 h-3.5 text-gold-400 flex-shrink-0" />
@@ -172,53 +180,57 @@ Tengo listos los datos de consignación institucional a nombre de Andicas Biopar
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {/* Bancolombia */}
-                <div className="p-2.5 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-between gap-2 group hover:border-gold-400 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <img src="/bancolombia.svg" alt="Bancolombia" className="h-4 w-auto object-contain max-w-[80px]" />
-                    <div>
-                      <span className="text-[8px] text-linen-400 uppercase font-cartoon block">Ahorros:</span>
-                      <span className="text-[11px] font-mono text-gold-400 font-bold block">24500098123</span>
+                {activeBanks.map((b, idx) => (
+                  <div key={b.bank || idx} className="p-2.5 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-between gap-2 group hover:border-gold-400 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <span className="text-[10px] font-bold text-gold-300 uppercase font-cartoon block">{b.bank}</span>
+                        <span className="text-[8px] text-linen-400 uppercase font-cartoon block">{b.accountType || 'Ahorros'}:</span>
+                        <span className="text-[11px] font-mono text-gold-400 font-bold block">{b.accountNumber}</span>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => copyAccount(b.accountNumber, b.bank)}
+                      className={`p-1.5 rounded-md text-[10px] font-cartoon font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm ${
+                        copiedBank === b.bank
+                          ? 'bg-hoja-500 text-jade-950'
+                          : 'bg-gold-500 hover:bg-gold-400 text-jade-950'
+                      }`}
+                      title="Copiar cuenta"
+                    >
+                      {copiedBank === b.bank ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => copyAccount('24500098123', 'Bancolombia')}
-                    className={`p-1.5 rounded-md text-[10px] font-cartoon font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm ${
-                      copiedBank === 'Bancolombia'
-                        ? 'bg-hoja-500 text-jade-950'
-                        : 'bg-gold-500 hover:bg-gold-400 text-jade-950'
-                    }`}
-                    title="Copiar cuenta"
-                  >
-                    {copiedBank === 'Bancolombia' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  </button>
-                </div>
+                ))}
 
-                {/* Davivienda */}
-                <div className="p-2.5 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-between gap-2 group hover:border-gold-400 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <img src="/logo-davivienda.svg" alt="Davivienda" className="h-4 w-auto object-contain max-w-[80px]" />
-                    <div>
-                      <span className="text-[8px] text-linen-400 uppercase font-cartoon block">Ahorros:</span>
-                      <span className="text-[11px] font-mono text-gold-400 font-bold block">189000452310</span>
+                {activeCustomPayments.map((method) => (
+                  <div key={method.id} className="p-2.5 rounded-lg bg-cyan-950/30 border border-cyan-500/30 flex items-center justify-between gap-2 group hover:border-cyan-400 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <span className="text-[10px] font-bold text-cyan-300 uppercase font-cartoon block">{method.name}</span>
+                        <span className="text-[8px] text-linen-400 uppercase font-cartoon block">{method.type}:</span>
+                        <span className="text-[11px] font-mono text-cyan-200 font-bold block">{method.accountNumber || method.holder}</span>
+                      </div>
                     </div>
+                    {method.accountNumber && (
+                      <button
+                        onClick={() => copyAccount(method.accountNumber, method.name)}
+                        className={`p-1.5 rounded-md text-[10px] font-cartoon font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm ${
+                          copiedBank === method.name
+                            ? 'bg-cyan-400 text-jade-950'
+                            : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                        }`}
+                        title="Copiar cuenta"
+                      >
+                        {copiedBank === method.name ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    )}
                   </div>
-                  <button
-                    onClick={() => copyAccount('189000452310', 'Davivienda')}
-                    className={`p-1.5 rounded-md text-[10px] font-cartoon font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm ${
-                      copiedBank === 'Davivienda'
-                        ? 'bg-hoja-500 text-jade-950'
-                        : 'bg-gold-500 hover:bg-gold-400 text-jade-950'
-                    }`}
-                    title="Copiar cuenta"
-                  >
-                    {copiedBank === 'Davivienda' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  </button>
-                </div>
+                ))}
               </div>
 
               <span className="text-[10px] text-linen-400 block text-center font-fredoka">
-                Titular: <strong>Andicas Bioparque S.A.S. (NIT 901.890.345-1)</strong>
+                Titular: <strong>{activeBanks[0]?.holder || 'Andicas Bioparque S.A.S. (NIT 901.890.345-1)'}</strong>
               </span>
             </div>
           </div>

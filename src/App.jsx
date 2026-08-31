@@ -242,7 +242,7 @@ export default function App() {
         aria-hidden="true"
       >
         <img
-          src="/logo%20sin%20fondo.png"
+          src={customConfig.siteLogo || "/logo%20sin%20fondo.png"}
           alt="Andicas Bioparque Temático Fondo"
           className="w-[75vw] max-w-3xl h-auto max-h-[75vh] object-contain opacity-[0.06] sm:opacity-[0.07] filter contrast-125 brightness-110"
         />
@@ -254,6 +254,7 @@ export default function App() {
         onNavigate={navigateTo}
         onOpenBooking={handleOpenBooking}
         activeModules={activeModules}
+        customConfig={customConfig}
       />
 
       {/* Main Page Content with Smooth Page Transitions */}
@@ -273,6 +274,7 @@ export default function App() {
                 onNavigate={navigateTo}
                 onShowToast={showToastNotification}
                 activeModules={activeModules}
+                customConfig={customConfig}
               />
             </motion.div>
           )}
@@ -361,6 +363,7 @@ export default function App() {
         summaryData={summaryData}
         onShowToast={showToastNotification}
         activeModules={activeModules}
+        customConfig={customConfig}
       />
 
       <ParkRulesModal

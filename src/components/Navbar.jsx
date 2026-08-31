@@ -6,7 +6,8 @@ export default function Navbar({
   currentPage = 'home',
   onNavigate,
   onOpenBooking,
-  activeModules = {}
+  activeModules = {},
+  customConfig = {}
 }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -155,8 +156,8 @@ export default function Navbar({
               >
                 <div className="h-12 w-auto flex items-center justify-center">
                   <img
-                    src="/logo sin fondo.png"
-                    alt="Andicas Bioparque Temático Logo"
+                    src={customConfig.siteLogo || "/logo sin fondo.png"}
+                    alt={`${customConfig.siteName || "Andicas Bioparque Temático"} Logo`}
                     className="h-12 w-auto object-contain filter drop-shadow-md group-hover:scale-105 transition-transform"
                   />
                 </div>

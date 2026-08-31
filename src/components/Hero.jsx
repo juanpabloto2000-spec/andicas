@@ -19,7 +19,7 @@ const HERO_IMAGES = [
   }
 ];
 
-export default function Hero({ onOpenBooking }) {
+export default function Hero({ onOpenBooking, customConfig = {} }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
@@ -28,6 +28,10 @@ export default function Hero({ onOpenBooking }) {
     }, 7000);
     return () => clearInterval(timer);
   }, []);
+
+  const heroLine1 = customConfig.heroTitle1 || "EL LUJO DE CONECTAR CON LA";
+  const heroLine2 = customConfig.heroTitle2 || "NATURALEZA";
+  const heroSubtitle = customConfig.heroSubtitle || "Piscina natural con caverna, cabañas en los árboles con jacuzzi privado y aventuras inolvidables para toda la familia.";
 
   return (
     <section aria-label="Hero Principal" className="relative min-h-screen flex flex-col justify-center items-center pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-transparent z-20 overflow-hidden">
@@ -71,10 +75,10 @@ export default function Hero({ onOpenBooking }) {
           className="space-y-1 mb-5 text-center max-w-4xl pt-4 w-full px-2"
         >
           <span className="font-cartoon text-lg sm:text-3xl md:text-5xl lg:text-6xl font-black uppercase text-3d-white tracking-wide block">
-            EL LUJO DE CONECTAR CON LA
+            {heroLine1}
           </span>
           <h1 className="font-display text-[2.4rem] xs:text-[2.9rem] sm:text-6xl md:text-8xl lg:text-9xl font-black uppercase text-3d-gold tracking-normal sm:tracking-wider leading-none hover:scale-[1.02] transition-transform duration-500 cursor-default select-none whitespace-nowrap inline-block">
-            NATURALEZA
+            {heroLine2}
           </h1>
         </motion.div>
 
@@ -85,7 +89,7 @@ export default function Hero({ onOpenBooking }) {
           transition={{ duration: 0.8, delay: 0.2 }}
           className="text-xs sm:text-base md:text-xl text-linen-100 font-fredoka font-normal max-w-2xl leading-relaxed mb-6 sm:mb-8 text-balance drop-shadow-md px-2"
         >
-          Piscina natural con caverna, cabañas en los árboles con jacuzzi privado y aventuras inolvidables para toda la familia.
+          {heroSubtitle}
         </motion.p>
 
         {/* Quick Booking Floating Bar with High Z-Index & Overflow Visible */}

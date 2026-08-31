@@ -7,10 +7,17 @@ import {
 import { contactData } from '../data/banking';
 import InteractiveTiltCard from './ui/InteractiveTiltCard';
 
-export default function LocationAndBanking({ onShowToast }) {
+export default function LocationAndBanking({ onShowToast, customConfig = {} }) {
   const [copiedBank, setCopiedBank] = useState(null);
 
+  const activeBanks = (customConfig.bankAccounts && customConfig.bankAccounts.length > 0)
+    ? customConfig.bankAccounts
+    : (contactData.banks || []);
+
+  const activeCustomPayments = (customConfig.customPaymentMethods || []).filter(m => m.enabled !== false);
+
   const copyToClipboard = (text, bankName) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedBank(bankName);
     setTimeout(() => setCopiedBank(null), 2500);
@@ -215,121 +222,129 @@ export default function LocationAndBanking({ onShowToast }) {
 
             {/* Bespoke Luxury Bank Cards with 3D Tilt & Cursor Glow */}
             <div className="space-y-4">
-              {/* Bancolombia Luxury Card */}
-              <InteractiveTiltCard
-                tiltIntensity={10}
-                spotlightColor="rgba(252, 212, 119, 0.2)"
-                className="rounded-2xl border border-gold-500/40 bg-gradient-to-br from-jade-900/95 via-jade-950 to-[#041a1b] p-5 shadow-2xl space-y-3.5 hover:border-gold-400 transition-all cursor-pointer"
-              >
-                {/* Top Logo (Transparent) & Classification */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <img 
-                      src="/bancolombia.svg" 
-                      alt="Bancolombia" 
-                      className="h-7 sm:h-8 w-auto object-contain max-w-[170px]"
-                    />
-                  </div>
-                  <span className="text-[10px] font-cartoon font-bold text-gold-400 uppercase tracking-widest px-2.5 py-1 rounded-lg bg-gold-600/15 border border-gold-600/30">
-                    Ahorros Oficial
-                  </span>
-                </div>
-
-                {/* Account Number Box (Subtle Elegant Opacity Layer) & Action */}
-                <div className="flex items-center justify-between bg-white/[0.06] p-3 rounded-xl border border-white/10 backdrop-blur-sm">
-                  <div>
-                    <span className="text-[10px] text-linen-400 block uppercase font-cartoon tracking-wider">
-                      Número de Cuenta:
-                    </span>
-                    <span className="font-mono text-base sm:text-lg font-black text-gold-gradient tracking-widest block">
-                      24500098123
+              {activeBanks.map((b, bIdx) => (
+                <InteractiveTiltCard
+                  key={b.bank || bIdx}
+                  tiltIntensity={10}
+                  spotlightColor="rgba(252, 212, 119, 0.2)"
+                  className="rounded-2xl border border-gold-500/40 bg-gradient-to-br from-jade-900/95 via-jade-950 to-[#041a1b] p-5 shadow-2xl space-y-3.5 hover:border-gold-400 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-display font-black text-lg text-gold-300 uppercase tracking-wide">
+                        {b.bank}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-cartoon font-bold text-gold-400 uppercase tracking-widest px-2.5 py-1 rounded-lg bg-gold-600/15 border border-gold-600/30">
+                      {b.accountType || 'Ahorros Oficial'}
                     </span>
                   </div>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      copyToClipboard('24500098123', 'Bancolombia');
-                    }}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-cartoon font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95 ${
-                      copiedBank === 'Bancolombia'
-                        ? 'bg-hoja-500 text-jade-950 shadow-hoja-glow'
-                        : 'bg-gold-500 hover:bg-gold-400 text-jade-950 shadow-gold-glow'
-                    }`}
-                    title="Copiar número de cuenta"
-                  >
-                    {copiedBank === 'Bancolombia' ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>¡Copiado!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copiar</span>
-                      </>
+                  <div className="flex items-center justify-between bg-white/[0.06] p-3 rounded-xl border border-white/10 backdrop-blur-sm">
+                    <div>
+                      <span className="text-[10px] text-linen-400 block uppercase font-cartoon tracking-wider">
+                        Número de Cuenta:
+                      </span>
+                      <span className="font-mono text-base sm:text-lg font-black text-gold-gradient tracking-widest block">
+                        {b.accountNumber}
+                      </span>
+                      {b.holder && (
+                        <span className="text-[10px] text-linen-300 block font-fredoka mt-0.5">
+                          Titular: {b.holder}
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(b.accountNumber, b.bank);
+                      }}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-cartoon font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95 ${
+                        copiedBank === b.bank
+                          ? 'bg-hoja-500 text-jade-950 shadow-hoja-glow'
+                          : 'bg-gold-500 hover:bg-gold-400 text-jade-950 shadow-gold-glow'
+                      }`}
+                      title="Copiar número de cuenta"
+                    >
+                      {copiedBank === b.bank ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>¡Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </InteractiveTiltCard>
+              ))}
+
+              {activeCustomPayments.map((method) => (
+                <InteractiveTiltCard
+                  key={method.id}
+                  tiltIntensity={10}
+                  spotlightColor="rgba(6, 182, 212, 0.2)"
+                  className="rounded-2xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/40 via-jade-950 to-[#041a1b] p-5 shadow-2xl space-y-3.5 hover:border-cyan-400 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-display font-black text-lg text-cyan-300 uppercase tracking-wide">
+                        {method.name}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-cartoon font-bold text-cyan-300 uppercase tracking-widest px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30">
+                      {method.type}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between bg-white/[0.06] p-3 rounded-xl border border-white/10 backdrop-blur-sm">
+                    <div>
+                      <span className="text-[10px] text-linen-400 block uppercase font-cartoon tracking-wider">
+                        {method.type === 'Datáfono' ? 'Modalidad:' : 'Número / Cuenta:'}
+                      </span>
+                      <span className="font-mono text-base sm:text-lg font-black text-cyan-200 tracking-widest block">
+                        {method.accountNumber || method.holder}
+                      </span>
+                      {method.holder && method.accountNumber && (
+                        <span className="text-[10px] text-linen-300 block font-fredoka mt-0.5">
+                          {method.holder}
+                        </span>
+                      )}
+                    </div>
+
+                    {method.accountNumber && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard(method.accountNumber, method.name);
+                        }}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-cartoon font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95 ${
+                          copiedBank === method.name
+                            ? 'bg-cyan-400 text-jade-950'
+                            : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                        }`}
+                        title="Copiar datos"
+                      >
+                        {copiedBank === method.name ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>¡Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copiar</span>
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
-                </div>
-              </InteractiveTiltCard>
-
-              {/* Davivienda Luxury Card */}
-              <InteractiveTiltCard
-                tiltIntensity={10}
-                spotlightColor="rgba(252, 212, 119, 0.2)"
-                className="rounded-2xl border border-gold-500/40 bg-gradient-to-br from-jade-900/95 via-jade-950 to-[#041a1b] p-5 shadow-2xl space-y-3.5 hover:border-gold-400 transition-all cursor-pointer"
-              >
-                {/* Top Logo (Transparent) & Classification */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <img 
-                      src="/logo-davivienda.svg" 
-                      alt="Davivienda" 
-                      className="h-7 sm:h-8 w-auto object-contain max-w-[170px]"
-                    />
                   </div>
-                  <span className="text-[10px] font-cartoon font-bold text-gold-400 uppercase tracking-widest px-2.5 py-1 rounded-lg bg-gold-600/15 border border-gold-600/30">
-                    Ahorros Oficial
-                  </span>
-                </div>
-
-                {/* Account Number Box (Subtle Elegant Opacity Layer) & Action */}
-                <div className="flex items-center justify-between bg-white/[0.06] p-3 rounded-xl border border-white/10 backdrop-blur-sm">
-                  <div>
-                    <span className="text-[10px] text-linen-400 block uppercase font-cartoon tracking-wider">
-                      Número de Cuenta:
-                    </span>
-                    <span className="font-mono text-base sm:text-lg font-black text-gold-gradient tracking-widest block">
-                      189000452310
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      copyToClipboard('189000452310', 'Davivienda');
-                    }}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-cartoon font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95 ${
-                      copiedBank === 'Davivienda'
-                        ? 'bg-hoja-500 text-jade-950 shadow-hoja-glow'
-                        : 'bg-gold-500 hover:bg-gold-400 text-jade-950 shadow-gold-glow'
-                    }`}
-                    title="Copiar número de cuenta"
-                  >
-                    {copiedBank === 'Davivienda' ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>¡Copiado!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copiar</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </InteractiveTiltCard>
+                </InteractiveTiltCard>
+              ))}
             </div>
 
             {/* Anti-Fraud Disclaimer */}
