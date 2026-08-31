@@ -557,7 +557,7 @@ export async function getSubscriptionStatus() {
 }
 
 /**
- * Suscripción reactiva en tiempo real (< 100ms) mediante WebSockets + Sondeo suave de respaldo (5.0s)
+ * Suscripción reactiva en tiempo real (< 100ms) mediante WebSockets Supabase
  * Permite que los cambios de módulos, chatbot, redes y personalización se reflejen instantáneamente sin recargar la página.
  */
 export function subscribeToSystemChanges(callback) {
@@ -582,7 +582,7 @@ export function subscribeToSystemChanges(callback) {
     }
   };
 
-  // 1. Ejecutar de inmediato
+  // 1. Ejecutar de inmediato al conectar
   fetchAndNotify();
 
   // 2. Canal Supabase Realtime (WebSockets instantáneo con ID único)
@@ -598,8 +598,8 @@ export function subscribeToSystemChanges(callback) {
     )
     .subscribe();
 
-  // 3. Sondeo ligero cada 5s
-  const intervalId = setInterval(fetchAndNotify, 5000);
+  // 3. Heartbeat suave de respaldo (60s)
+  const intervalId = setInterval(fetchAndNotify, 60000);
 
   return () => {
     isSubscribed = false;
@@ -611,7 +611,7 @@ export function subscribeToSystemChanges(callback) {
 }
 
 /**
- * Suscripción reactiva instantánea para el Panel de Administración (Reservas, Fechas Bloqueadas, Cabañas)
+ * Suscripción reactiva instantánea para el Panel de Administración (Reservas y Fechas Bloqueadas)
  */
 export function subscribeToBookingsRealtime(callback) {
   let isSubscribed = true;
@@ -628,13 +628,6 @@ export function subscribeToBookingsRealtime(callback) {
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'blocked_dates' },
-      (payload) => {
-        if (isSubscribed && callback) callback(payload);
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'cabins' },
       (payload) => {
         if (isSubscribed && callback) callback(payload);
       }
@@ -1024,7 +1017,7 @@ export async function deleteAdminUser(userId, adminKey) {
     if (data?.description) {
       let users = JSON.parse(data.description);
       if (Array.isArray(users)) {
-        users = users.filter(u => u.id !== userId);
+        users = users.filter(u => u.id !== userId && u.username?.toLowerCase() !== String(userId).toLowerCase());
         await andicasSb.from('cabins').upsert({
           id: 'system_users',
           name: 'System Users Store',

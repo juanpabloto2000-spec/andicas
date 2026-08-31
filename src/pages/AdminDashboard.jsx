@@ -105,33 +105,42 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   });
   const [remoteSubStatus, setRemoteSubStatus] = useState(() => localStorage.getItem('andicas_subscription_status') || 'active');
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
-        if (data?.description) {
-          const parsed = JSON.parse(data.description);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const defaults = [
-              { username: 'admin_master', name: 'Admin Master', role: 'master_admin' },
-              { username: 'admin', name: 'Administrador', role: 'admin' },
-              { username: 'recepcion', name: 'Recepción', role: 'staff' },
-            ];
-            const combined = [...defaults];
-            parsed.forEach(u => {
-              if (u.username && !combined.some(c => c.username.toLowerCase() === u.username.toLowerCase())) {
-                combined.push({
-                  username: u.username.toLowerCase(),
-                  name: u.name || u.username,
-                  role: u.role === 'admin' ? 'admin' : 'staff'
-                });
-              }
-            });
-            setLoginUsersList(combined);
-          }
+  const syncLoginUsersFromList = (users) => {
+    const defaults = [
+      { username: 'admin_master', name: 'Admin Master', role: 'master_admin' },
+      { username: 'admin', name: 'Administrador', role: 'admin' },
+      { username: 'recepcion', name: 'Recepción', role: 'staff' },
+    ];
+    const userMap = new Map();
+    defaults.forEach(d => userMap.set(d.username.toLowerCase(), d));
+    if (Array.isArray(users)) {
+      users.forEach(u => {
+        if (!u || !u.username) return;
+        const clean = u.username.trim().toLowerCase();
+        userMap.set(clean, {
+          username: clean,
+          name: u.name || u.username,
+          role: u.role === 'admin' ? 'admin' : (clean.includes('master') ? 'master_admin' : 'staff')
+        });
+      });
+    }
+    setLoginUsersList(Array.from(userMap.values()));
+  };
+
+  const syncLoginUsersFromSupabase = async () => {
+    try {
+      const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
+      if (data?.description) {
+        const parsed = JSON.parse(data.description);
+        if (Array.isArray(parsed)) {
+          syncLoginUsersFromList(parsed);
         }
-      } catch (e) {}
-    })();
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    syncLoginUsersFromSupabase();
   }, []);
 
   const getUserRoleTheme = (role, username) => {
@@ -628,8 +637,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     </div>
   );
 
-  const fetchDashboardData = async (key) => {
-    setIsLoading(true);
+  const fetchDashboardData = async (key, { silent = false } = {}) => {
+    if (!silent) setIsLoading(true);
     try {
       const targetKey = key || adminKey;
       const data = await getAdminBookings(targetKey);
@@ -643,13 +652,15 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           setAuditLogs(auditData.logs || []);
         }
 
-        // Configuración de sitio CMS
-        const cmsData = await getSiteCustomConfig();
-        if (cmsData.success && cmsData.config) {
-          setSiteConfig(prev => ({
-            ...prev,
-            ...cmsData.config
-          }));
+        // Configuración de sitio CMS (Solo refrescar en segundo plano si NO estamos editando en Personalización)
+        if (!silent || activeSection !== 'personalizacion') {
+          const cmsData = await getSiteCustomConfig();
+          if (cmsData.success && cmsData.config) {
+            setSiteConfig(prev => ({
+              ...prev,
+              ...cmsData.config
+            }));
+          }
         }
 
         // Módulo de Caja & Cierres Diarios
@@ -698,13 +709,14 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           const usersData = await getAdminUsers(targetKey);
           if (usersData && usersData.success) {
             setSystemUsers(usersData.users || []);
+            syncLoginUsersFromList(usersData.users || []);
           }
         }
       }
     } catch (err) {
       console.error('Error fetching admin data:', err);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -718,28 +730,23 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   useEffect(() => {
     if (!isAuthenticated || !adminKey) return;
 
-    // Realtime Supabase WebSockets para Reservas, Bloqueos y Cabañas
+    // Realtime Supabase WebSockets para Reservas y Bloqueos (Silencioso)
     const unsubscribeBookings = subscribeToBookingsRealtime(() => {
-      fetchDashboardData(adminKey);
+      fetchDashboardData(adminKey, { silent: true });
     });
 
-    // Sincronización multi-pestaña local y de eventos de personalización
+    // Sincronización multi-pestaña local entre pestañas del navegador (no en la misma ventana)
     const handleStorage = (e) => {
-      if (e.key === 'andicas_custom_settings' || e.key === 'andicas_admin_token') {
-        fetchDashboardData(adminKey);
+      if (e.key === 'andicas_admin_token') {
+        fetchDashboardData(adminKey, { silent: true });
       }
-    };
-    const handleCustomEvent = () => {
-      fetchDashboardData(adminKey);
     };
 
     window.addEventListener('storage', handleStorage);
-    window.addEventListener('andicas_settings_updated', handleCustomEvent);
 
     return () => {
       unsubscribeBookings();
       window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('andicas_settings_updated', handleCustomEvent);
     };
   }, [isAuthenticated, adminKey]);
 
@@ -878,8 +885,25 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       const res = await createAdminUser(newUserData, adminKey);
       if (res.success) {
         setCreateUserSuccess(`Usuario "${newUserData.username}" creado exitosamente.`);
+        const createdUser = res.user || {
+          id: `usr-${Date.now()}`,
+          username: newUserData.username.trim().toLowerCase(),
+          name: newUserData.name.trim() || newUserData.username.trim(),
+          role: newUserData.role,
+          password: newUserData.password.trim()
+        };
+        setSystemUsers(prev => [createdUser, ...prev.filter(u => u.username.toLowerCase() !== createdUser.username)]);
+        setLoginUsersList(prev => {
+          const list = [...prev.filter(u => u.username.toLowerCase() !== createdUser.username)];
+          list.push({
+            username: createdUser.username,
+            name: createdUser.name,
+            role: createdUser.role === 'admin' ? 'admin' : 'staff'
+          });
+          return list;
+        });
         setNewUserData({ username: '', password: '', name: '', role: 'staff' });
-        fetchDashboardData(adminKey);
+        fetchDashboardData(adminKey, { silent: true });
         setTimeout(() => setCreateUserSuccess(''), 4000);
       } else {
         setCreateUserError(res.error || 'No se pudo crear el usuario.');
@@ -921,7 +945,16 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
       if (res.success) {
         setUserCardFeedback(prev => ({ ...prev, [user.id]: { success: '¡Usuario y clave guardados!' } }));
-        fetchDashboardData(adminKey);
+        setLoginUsersList(prev => {
+          const list = [...prev.filter(u => u.username.toLowerCase() !== user.username.toLowerCase())];
+          list.push({
+            username: user.username.toLowerCase(),
+            name: user.name || user.username,
+            role: user.role === 'admin' ? 'admin' : 'staff'
+          });
+          return list;
+        });
+        fetchDashboardData(adminKey, { silent: true });
         setTimeout(() => setUserCardFeedback(prev => ({ ...prev, [user.id]: null })), 3500);
       } else {
         setUserCardFeedback(prev => ({ ...prev, [user.id]: { error: res.error || 'Error al guardar.' } }));
@@ -985,8 +1018,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     try {
       const res = await deleteAdminUser(userId, adminKey);
       if (res.success) {
-        setSystemUsers(prev => prev.filter(u => u.id !== userId));
-        fetchDashboardData(adminKey);
+        setSystemUsers(prev => prev.filter(u => u.id !== userId && u.username.toLowerCase() !== String(username).toLowerCase()));
+        setLoginUsersList(prev => prev.filter(u => u.username.toLowerCase() !== String(username).toLowerCase()));
+        fetchDashboardData(adminKey, { silent: true });
       } else {
         alert(res.error || 'No se pudo eliminar el usuario.');
       }
@@ -2122,20 +2156,26 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
             </div>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.1, rotate: 180 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ duration: 0.25 }}
               onClick={() => fetchDashboardData(adminKey)}
               className="p-2 rounded-xl bg-jade-900 hover:bg-jade-800 text-gold-400 border border-white/10 cursor-pointer"
               title="Refrescar datos"
             >
               <RefreshCw className="w-4 h-4" />
-            </button>
+            </motion.button>
           </div>
 
           {/* Section Navigation Buttons */}
-          <nav className="space-y-1.5 font-cartoon text-xs uppercase">
+          <nav className="space-y-2 font-cartoon text-xs uppercase">
             
             {/* 1. Agendamientos & Calendario */}
-            <button
+            <motion.button
+              whileHover={{ x: 4 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.15 }}
               onClick={() => setActiveSection('agendamientos')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                 activeSection === 'agendamientos'
@@ -2152,7 +2192,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 <span>Agendamientos</span>
               </div>
               {isBookingsEnabled ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono font-bold">
                   {bookings.length}
                 </span>
               ) : (
@@ -2161,10 +2201,13 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   <span>Bloqueado</span>
                 </div>
               )}
-            </button>
+            </motion.button>
 
             {/* 2. Recaudos & Caja (Acceso con permisos adaptados) */}
-            <button
+            <motion.button
+              whileHover={{ x: 4 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.15 }}
               onClick={() => setActiveSection('recaudos')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                 activeSection === 'recaudos'
@@ -2186,11 +2229,14 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   <span>Bloqueado</span>
                 </div>
               )}
-            </button>
+            </motion.button>
 
             {/* 3. Personalización / CMS (Solo Admin y Master) */}
             {isAdminOrMaster && (
-              <button
+              <motion.button
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.15 }}
                 onClick={() => setActiveSection('personalizacion')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                   activeSection === 'personalizacion'
@@ -2212,12 +2258,15 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     <span>Bloqueado</span>
                   </div>
                 )}
-              </button>
+              </motion.button>
             )}
 
             {/* 4. Gestión de Usuarios / Empleados (Exclusivo Admin Master) */}
             {isMasterAdmin && (
-              <button
+              <motion.button
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.15 }}
                 onClick={() => setActiveSection('usuarios')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                   activeSection === 'usuarios'
@@ -2234,7 +2283,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   <span>Gestión de Usuarios</span>
                 </div>
                 {isUsersEnabled ? (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono font-bold">
                     {systemUsers.length}
                   </span>
                 ) : (
@@ -2243,7 +2292,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     <span>Bloqueado</span>
                   </div>
                 )}
-              </button>
+              </motion.button>
             )}
           </nav>
         </div>
@@ -2251,31 +2300,37 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         {/* Footer Actions */}
         <div className="pt-6 border-t border-white/10 space-y-2">
           {isMasterAdmin && (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => setPasswordModalOpen(true)}
               className="w-full py-2.5 px-3 rounded-xl bg-gold-500/10 hover:bg-gold-500/20 text-gold-400 border border-gold-500/30 text-xs font-cartoon uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
               <KeyRound className="w-3.5 h-3.5" />
               <span>Clave Master</span>
-            </button>
+            </motion.button>
           )}
 
           <div className="flex items-center gap-2">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => onNavigate('home')}
               className="flex-1 py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-linen-300 text-xs font-cartoon uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <Home className="w-3.5 h-3.5" />
               <span>Web</span>
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={handleLogout}
               className="py-2.5 px-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 text-xs font-cartoon uppercase flex items-center justify-center gap-1 transition-colors cursor-pointer"
               title="Cerrar sesión"
             >
               <LogOut className="w-3.5 h-3.5" />
-            </button>
+            </motion.button>
           </div>
         </div>
       </aside>
@@ -2307,12 +2362,20 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           </div>
         )}
         
+        <AnimatePresence mode="wait">
         {/* ======================================================================= */}
         {/* SECCIÓN 1: AGENDAMIENTOS, CALENDARIO & AUDITORÍA INTEGRADA */}
         {/* ======================================================================= */}
         {activeSection === 'agendamientos' && (
           isBookingsEnabled ? (
-            <div className="space-y-6">
+            <motion.div
+              key="sec-agendamientos"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="space-y-6"
+            >
             
             {/* Header & Sub-tab Switcher (Lista | Calendario | Auditoría) */}
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
@@ -2327,7 +2390,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
               <div className="flex flex-wrap items-center gap-2.5">
                 <div className="flex items-center bg-jade-950 p-1 rounded-2xl border border-white/10 font-cartoon text-xs">
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => setAgendaSubTab('tabla')}
                     className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
                       agendaSubTab === 'tabla'
@@ -2336,8 +2401,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     }`}
                   >
                     Lista de Reservas
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => setAgendaSubTab('calendario')}
                     className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
                       agendaSubTab === 'calendario'
@@ -2346,9 +2413,11 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     }`}
                   >
                     Calendario Visual
-                  </button>
+                  </motion.button>
                   {isAdminOrMaster && (
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => setAgendaSubTab('cancelaciones')}
                       className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
                         agendaSubTab === 'cancelaciones'
@@ -2363,10 +2432,12 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           {pendingCancellationCount}
                         </span>
                       )}
-                    </button>
+                    </motion.button>
                   )}
                   {isAdminOrMaster && (
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => setAgendaSubTab('auditoria')}
                       className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer ${
                         agendaSubTab === 'auditoria'
@@ -2375,23 +2446,33 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       }`}
                     >
                       🛡️ Auditoría
-                    </button>
+                    </motion.button>
                   )}
                 </div>
 
-                  <button
-                    onClick={() => setBlockModalOpen(true)}
-                    className="px-4 py-2.5 rounded-2xl bg-hoja-600 hover:bg-hoja-500 text-white font-cartoon text-xs uppercase font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Bloquear Fechas</span>
-                  </button>
-                </div>
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setBlockModalOpen(true)}
+                  className="px-4 py-2.5 rounded-2xl bg-hoja-600 hover:bg-hoja-500 text-white font-cartoon text-xs uppercase font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Bloquear Fechas</span>
+                </motion.button>
               </div>
+            </div>
 
+            <AnimatePresence mode="wait">
             {/* VISTA 1A: TABLA DE AGENDAS */}
             {agendaSubTab === 'tabla' && (
-              <div className="space-y-4">
+              <motion.div
+                key="subtab-tabla"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-4"
+              >
                 
                 {/* Search & Filters */}
                 <div className="p-4 rounded-3xl glass-dark border border-white/10 flex flex-wrap items-center gap-3">
@@ -2516,12 +2597,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     </table>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {/* VISTA 1B: CALENDARIO VISUAL INTERACTIVO CON CLIC DE DÍA */}
             {agendaSubTab === 'calendario' && (
-              <div className="space-y-4">
+              <motion.div
+                key="subtab-calendario"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-4"
+              >
                 
                 {/* Calendar Navigation Header */}
                 <div className="flex flex-col lg:flex-row items-center justify-between gap-4 p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
@@ -2662,12 +2750,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     })}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {/* VISTA 1C: SOLICITUDES DE CANCELACIÓN INTEGRADA */}
             {agendaSubTab === 'cancelaciones' && isAdminOrMaster && (
-              <div className="space-y-4">
+              <motion.div
+                key="subtab-cancelaciones"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-4"
+              >
                 <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
                   <div>
                     <span className="text-xs font-cartoon text-amber-400 uppercase tracking-wider block">
@@ -2773,17 +2868,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                             <button
                               disabled={resolvingCancelId === req.id}
                               onClick={() => handleResolveCancellation(req.id, req.booking_reference, 'APPROVE')}
-                              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-cartoon text-xs uppercase font-bold transition-all cursor-pointer disabled:opacity-50"
+                              className="px-3.5 py-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 font-cartoon text-xs uppercase font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
                             >
-                              Aprobar & Liberar Fechas
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Aprobar</span>
                             </button>
 
                             <button
                               disabled={resolvingCancelId === req.id}
                               onClick={() => handleResolveCancellation(req.id, req.booking_reference, 'REJECT')}
-                              className="px-3.5 py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 text-red-300 font-cartoon text-xs uppercase font-bold transition-all cursor-pointer disabled:opacity-50"
+                              className="px-3.5 py-2 rounded-xl bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 font-cartoon text-xs uppercase font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
                             >
-                              Rechazar
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Rechazar</span>
                             </button>
                           </div>
                         )}
@@ -2791,12 +2888,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     ))
                   )}
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {/* VISTA 1D: AUDITORÍA DE AGENDAMIENTOS */}
             {agendaSubTab === 'auditoria' && isAdminOrMaster && (
-              <div className="space-y-4">
+              <motion.div
+                key="subtab-auditoria"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-4"
+              >
                 <div className="p-4 rounded-3xl glass-dark border border-white/10 flex items-center justify-between">
                   <div>
                     <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
@@ -2859,8 +2963,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     </table>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
             {/* =================================================================== */}
             {/* BARRA INFERIOR DE SALDOS PENDIENTES POR COBRAR EN RECEPCIÓN */}
@@ -2972,7 +3077,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
             </div>
 
-          </div>
+            </motion.div>
           ) : (
             renderLockedSection('Agendamientos y Calendario', 'La gestión de reservas, calendario interactivo y bloqueo de fechas ha sido deshabilitada temporalmente por la administración central de Dynamind.')
           )
@@ -2983,7 +3088,14 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         {/* ======================================================================= */}
         {activeSection === 'recaudos' && (
           isRecaudosEnabled ? (
-            <div className="space-y-6">
+            <motion.div
+              key="sec-recaudos"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="space-y-6"
+            >
             
             {/* Header & Sub-Tabs Navigation */}
             <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xl">
@@ -3012,16 +3124,20 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               <div className="flex flex-wrap items-center gap-2.5">
                 {/* Botón del Candado de Turno */}
                 {!cashSummary.isLocked && cashSummary.baseInitial === 0 ? (
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.03, y: -1 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => setOpenShiftModal(prev => ({ ...prev, isOpen: true, base_amount: '' }))}
                     className="px-4 py-2.5 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center gap-2 cursor-pointer border border-gold-400"
                   >
                     <Unlock className="w-4 h-4" />
                     <span>Abrir Turno / Base</span>
-                  </button>
+                  </motion.button>
                 ) : (
                   isAdminOrMaster ? (
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                       type="button"
                       onClick={handleOpenEditBaseModal}
                       className="px-3.5 py-2 rounded-2xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 hover:border-gold-400 text-emerald-300 font-mono text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer group"
@@ -3031,7 +3147,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       <span className="font-bold">Base: {formatCOP(cashSummary.baseInitial)}</span>
                       <span className="text-[10px] text-linen-400 font-fredoka">({todayCashSession.opened_by || 'Turno'})</span>
                       <Edit3 className="w-3.5 h-3.5 text-gold-400 opacity-70 group-hover:opacity-100 transition-opacity" />
-                    </button>
+                    </motion.button>
                   ) : (
                     <div className="px-3.5 py-2 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-mono text-xs flex items-center gap-2 shadow-sm">
                       <Lock className="w-3.5 h-3.5 text-emerald-400" />
@@ -3041,29 +3157,35 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   )
                 )}
 
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => setNewPaymentModal(prev => ({ ...prev, isOpen: true }))}
                   className="px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>+ Registrar Cobro</span>
-                </button>
+                </motion.button>
 
                 {isAdminOrMaster && (
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.03, y: -1 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => setIsExpenseModalOpen(true)}
                     className="px-3.5 py-2.5 rounded-2xl bg-red-600/80 hover:bg-red-600 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <TrendingDown className="w-3.5 h-3.5" />
                     <span>+ Gasto</span>
-                  </button>
+                  </motion.button>
                 )}
               </div>
             </div>
 
             {/* Sub-Tabs Selector */}
             <div className="flex flex-wrap items-center gap-1.5 bg-jade-950 p-1.5 rounded-2xl border border-white/10 text-xs font-cartoon max-w-fit">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={() => setRecaudosSubTab('caja_vivo')}
                 className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
@@ -3074,9 +3196,11 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               >
                 <Coins className="w-3.5 h-3.5" />
                 <span>💵 Operación & Caja en Vivo</span>
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={() => setRecaudosSubTab('cierre')}
                 className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
@@ -3092,10 +3216,12 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     {(todayCashSession.expenses || []).length}
                   </span>
                 )}
-              </button>
+              </motion.button>
 
               {isAdminOrMaster && (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   type="button"
                   onClick={() => setRecaudosSubTab('historial_metricas')}
                   className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
@@ -3106,15 +3232,24 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 >
                   <CalendarRange className="w-3.5 h-3.5" />
                   <span>📜 Historial & Métricas Globales</span>
-                </button>
+                </motion.button>
               )}
             </div>
+
+            <AnimatePresence mode="wait">
 
             {/* =================================================================== */}
             {/* SUB-TAB 1: ARQUEO & OPERACIÓN EN VIVO */}
             {/* =================================================================== */}
             {recaudosSubTab === 'caja_vivo' && (
-              <div className="space-y-6">
+              <motion.div
+                key="subtab-caja-vivo"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-6"
+              >
                 
                 {/* 1.1 Live Balance Breakdown Cards */}
                 {isAdminOrMaster ? (
@@ -3359,14 +3494,21 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   )}
                 </div>
 
-              </div>
+              </motion.div>
             )}
 
             {/* =================================================================== */}
             {/* SUB-TAB 2: CIERRE DIARIO & ARQUEO DE CAJA */}
             {/* =================================================================== */}
             {recaudosSubTab === 'cierre' && (
-              <div className={`grid gap-6 items-start ${isAdminOrMaster ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'}`}>
+              <motion.div
+                key="subtab-cierre"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className={`grid gap-6 items-start ${isAdminOrMaster ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'}`}
+              >
                 
                 {/* 2.1 Columna Izquierda: Gastos del Día (Solo visible para Admin y Master) */}
                 {isAdminOrMaster && (
@@ -3672,14 +3814,21 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   </div>
                 )}
 
-              </div>
+              </motion.div>
             )}
 
             {/* =================================================================== */}
             {/* SUB-TAB 3: HISTORIAL DE CIERRES & MÉTRICAS GLOBALES (ADMINS) */}
             {/* =================================================================== */}
             {recaudosSubTab === 'historial_metricas' && isAdminOrMaster && (
-              <div className="space-y-6">
+              <motion.div
+                key="subtab-historial-metricas"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-6"
+              >
                 
                 {/* 3.0 Selector de Período & Calendario para Métricas */}
                 <div className="p-4 sm:p-5 rounded-3xl glass-dark border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
@@ -3977,21 +4126,30 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   )}
                 </div>
 
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
-          </div>
+            </motion.div>
           ) : (
             renderLockedSection('Recaudos y Caja', 'La visualización de métricas financieras, arqueo ciego de caja y registro de gastos ha sido deshabilitada temporalmente por la administración central de Dynamind.')
           )
         )}
 
         {/* ======================================================================= */}
+        {/* ======================================================================= */}
         {/* SECCIÓN 4: PERSONALIZACIÓN DE PÁGINA (CMS LITE - ADMIN Y MASTER) */}
         {/* ======================================================================= */}
         {activeSection === 'personalizacion' && isAdminOrMaster && (
           isPersonalizacionEnabled ? (
-            <div className="space-y-6">
+            <motion.div
+              key="sec-personalizacion"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="space-y-6"
+            >
               {/* Header & Sub-Tabs Navigation Bar */}
               <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
                 {/* Fila 1: Título a la izquierda y Botón Guardar en la Nube al frente a la derecha */}
@@ -4005,19 +4163,23 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     </h1>
                   </div>
 
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.03, y: -1 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={handleSaveSiteCustomization}
                     disabled={isSavingConfig}
                     className="px-5 py-3 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center gap-2.5 cursor-pointer transition-all border border-gold-400 disabled:opacity-50 self-start sm:self-auto flex-shrink-0"
                   >
                     <Save className="w-4 h-4" />
                     <span>{isSavingConfig ? 'Sincronizando...' : 'Guardar en la Nube'}</span>
-                  </button>
+                  </motion.button>
                 </div>
 
                 {/* Fila 2: Sub-Navbar debajo del título con ancho completo y diseño limpio */}
                 <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-black/40 border border-white/10 overflow-x-auto">
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={() => setPersonalizacionSubTab('general')}
                     className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
@@ -4028,9 +4190,11 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   >
                     <Settings className="w-4 h-4" />
                     <span>General & Páginas</span>
-                  </button>
+                  </motion.button>
 
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={() => setPersonalizacionSubTab('cabanas_planes')}
                     className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
@@ -4041,9 +4205,11 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   >
                     <Home className="w-4 h-4" />
                     <span>Cabañas & Planes</span>
-                  </button>
+                  </motion.button>
 
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={() => setPersonalizacionSubTab('animales')}
                     className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
@@ -4054,9 +4220,11 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   >
                     <PawPrint className="w-4 h-4 text-hoja-400" />
                     <span>Santuario Animal</span>
-                  </button>
+                  </motion.button>
 
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={() => setPersonalizacionSubTab('atracciones')}
                     className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
@@ -4067,10 +4235,12 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   >
                     <Compass className="w-4 h-4 text-cyan-400" />
                     <span>Atracciones</span>
-                  </button>
+                  </motion.button>
 
                   {isMasterAdmin && (
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                       type="button"
                       onClick={() => setPersonalizacionSubTab('medios_pago')}
                       className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
@@ -4081,10 +4251,12 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     >
                       <CreditCard className="w-4 h-4" />
                       <span>Medios de Pago</span>
-                    </button>
+                    </motion.button>
                   )}
 
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={() => setPersonalizacionSubTab('ia_redes')}
                     className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
@@ -4095,7 +4267,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   >
                     <Sparkles className="w-4 h-4" />
                     <span>IA & Redes</span>
-                  </button>
+                  </motion.button>
                 </div>
               </div>
 
@@ -4105,11 +4277,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 </div>
               )}
 
+              <AnimatePresence mode="wait">
               {/* ================================================================= */}
               {/* SUB-PESTAÑA 0: GENERAL & CONTROL DE PÁGINAS Y NAVEGACIÓN */}
               {/* ================================================================= */}
               {personalizacionSubTab === 'general' && (
-                <div className="space-y-6">
+                <motion.div
+                  key="subtab-cms-general"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18 }}
+                  className="space-y-6"
+                >
                   {/* 0.1 Identidad de Marca & Logo General */}
                   <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
                     <div className="border-b border-white/10 pb-3">
@@ -4335,14 +4515,21 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       })}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* ================================================================= */}
               {/* SUB-PESTAÑA 1: CABAÑAS Y PLANES DE PASADÍA (CON FOTOS INTEGRADAS) */}
               {/* ================================================================= */}
               {personalizacionSubTab === 'cabanas_planes' && (
-                <div className="space-y-6">
+                <motion.div
+                  key="subtab-cms-cabanas"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18 }}
+                  className="space-y-6"
+                >
                   {/* 1. Gestión de Tarifas & Creación de Cabañas */}
                   <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
@@ -4759,14 +4946,21 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       ))}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* ================================================================= */}
               {/* SUB-PESTAÑA 2: ANIMALES & SANTUARIO (FULL CMS) */}
               {/* ================================================================= */}
               {personalizacionSubTab === 'animales' && (
-                <div className="space-y-6">
+                <motion.div
+                  key="subtab-cms-animales"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18 }}
+                  className="space-y-6"
+                >
                   {/* Encabezado y Textos de Sección */}
                   <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
                     <div className="border-b border-white/10 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -4984,14 +5178,21 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       })}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* ================================================================= */}
               {/* SUB-PESTAÑA 3: ATRACCIONES PRINCIPALES (FULL CMS) */}
               {/* ================================================================= */}
               {personalizacionSubTab === 'atracciones' && (
-                <div className="space-y-6">
+                <motion.div
+                  key="subtab-cms-atracciones"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18 }}
+                  className="space-y-6"
+                >
                   {/* Encabezado y Textos de Sección */}
                   <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
                     <div className="border-b border-white/10 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -5189,14 +5390,21 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       })}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* ================================================================= */}
               {/* SUB-PESTAÑA 2: MEDIOS DE PAGO Y CUENTAS (EXCLUSIVO MASTER ADMIN) */}
               {/* ================================================================= */}
               {personalizacionSubTab === 'medios_pago' && isMasterAdmin && (
-                <div className="space-y-6">
+                <motion.div
+                  key="subtab-cms-medios"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18 }}
+                  className="space-y-6"
+                >
                   {/* 3. Cuentas Bancarias & Medios de Pago */}
                   <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
@@ -5325,14 +5533,21 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       </div>
                     )}
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* ================================================================= */}
               {/* SUB-PESTAÑA 3: IA & REDES SOCIALES */}
               {/* ================================================================= */}
               {personalizacionSubTab === 'ia_redes' && (
-                <div className="space-y-6">
+                <motion.div
+                  key="subtab-cms-ia"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18 }}
+                  className="space-y-6"
+                >
                   {/* 4. Asistente Virtual & Chatbot de IA */}
                   <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
@@ -5475,9 +5690,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       ))}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )}
-            </div>
+              </AnimatePresence>
+            </motion.div>
           ) : (
             renderLockedSection('Personalización (CMS)', 'La modificación de tarifas de pasadías, precios de cabañas y enlaces de contacto ha sido deshabilitada temporalmente por la administración central de Dynamind.')
           )
@@ -5491,7 +5707,14 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             const manageableUsers = systemUsers.filter(u => u.username !== 'admin_master' && !u.username.includes('master'));
 
             return (
-            <div className="space-y-6">
+            <motion.div
+              key="sec-usuarios"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="space-y-6"
+            >
               {/* Header */}
               <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
                 <div>
@@ -5627,8 +5850,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       const uTheme = getUserRoleTheme(u.role, u.username);
 
                       return (
-                        <div
+                        <motion.div
                           key={u.id}
+                          whileHover={{ y: -3 }}
+                          transition={{ duration: 0.18 }}
                           className="p-5 rounded-3xl glass-dark border border-white/10 hover:border-gold-500/40 transition-all shadow-xl flex flex-col justify-between space-y-4 relative overflow-hidden group"
                         >
                           {/* Top Badge & Username */}
@@ -5731,18 +5956,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                               <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
                             </button>
                           </div>
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
             );
           })() : (
             renderLockedSection('Gestión de Usuarios', 'El módulo de gestión de usuarios ha sido deshabilitado temporalmente por la administración central de Dynamind.')
           )
         )}
+        </AnimatePresence>
       </main>
 
       {/* ======================================================================= */}
