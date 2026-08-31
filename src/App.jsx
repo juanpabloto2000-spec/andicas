@@ -46,7 +46,22 @@ export default function App() {
     return !isInitiallyAdmin && !locked;
   });
 
-  const [activeModules, setActiveModules] = useState({ bookings: true, wompi_payments: true });
+  const [activeModules, setActiveModules] = useState({
+    bookings: true,
+    wompi_payments: true,
+    recaudos: true,
+    cancelaciones: true,
+    personalizacion: true,
+    users_management: true,
+    cabanas: true,
+    animales: true,
+    pasadias: true,
+    experiencia: true,
+    normas: true,
+    ubicacion: true,
+    ai_chatbot: true,
+    socials_hub: true
+  });
   const [customConfig, setCustomConfig] = useState(() => {
     const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('andicas_custom_settings') : null;
     if (saved) {
@@ -107,7 +122,7 @@ export default function App() {
     });
 
     const handleConfigUpdate = (e) => {
-      if (e.detail) {
+      if (e.detail && typeof e.detail === 'object') {
         setCustomConfig(prev => ({
           ...prev,
           ...e.detail,
@@ -117,8 +132,28 @@ export default function App() {
       }
     };
 
+    const handleStorage = (e) => {
+      if (e.key === 'andicas_custom_settings' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && typeof parsed === 'object') {
+            setCustomConfig(prev => ({
+              ...prev,
+              ...parsed,
+              enable_ai_chatbot: parsed.enable_ai_chatbot !== false,
+              socials: Array.isArray(parsed.socials) ? parsed.socials : prev.socials
+            }));
+          }
+        } catch (err) {}
+      }
+    };
+
     window.addEventListener('andicas_settings_updated', handleConfigUpdate);
-    return () => window.removeEventListener('andicas_settings_updated', handleConfigUpdate);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('andicas_settings_updated', handleConfigUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   // Suscripción reactiva instantánea a cambios en Supabase Realtime (<100ms) sin necesidad de refrescar
@@ -292,6 +327,7 @@ export default function App() {
                 onShowToast={showToastNotification}
                 activeModules={activeModules}
                 onOpenCancellation={handleOpenCancellation}
+                customConfig={customConfig}
               />
             </motion.div>
           )}

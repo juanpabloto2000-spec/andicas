@@ -666,27 +666,33 @@ export async function requestBookingCancellation(payload) {
  * 14. Obtiene todas las solicitudes de cancelación para el panel de administración
  */
 export async function getAdminCancellationRequests(adminKey) {
-  const res = await fetch(`${API_BASE}/api/bookings/admin/cancellation-requests`, {
-    headers: {
-      'x-admin-key': adminKey,
-    },
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cancellation-requests`, {
+      headers: {
+        'x-admin-key': adminKey,
+      },
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+  return { success: true, requests: [] };
 }
 
 /**
  * 15. Resuelve (aprueba/rechaza) una solicitud de cancelación desde el panel
  */
 export async function resolveCancellationRequestAdmin({ requestId, booking_reference, action, notes, adminKey }) {
-  const res = await fetch(`${API_BASE}/api/bookings/admin/resolve-cancellation`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-key': adminKey,
-    },
-    body: JSON.stringify({ requestId, booking_reference, action, notes }),
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/resolve-cancellation`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+      body: JSON.stringify({ requestId, booking_reference, action, notes }),
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+  return { success: false, error: 'Error al resolver cancelación' };
 }
 
 /**
@@ -987,114 +993,138 @@ export async function deleteAdminUser(userId, adminKey) {
  * 22. Obtiene la sesión de caja del día actual
  */
 export async function getTodayCashSession(adminKey) {
-  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/today`, {
-    headers: { 'x-admin-key': adminKey },
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/today`, {
+      headers: { 'x-admin-key': adminKey },
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+  return { success: true, todaySession: { base_initial: 0, expenses: [], payments_received: [], is_locked: false } };
 }
 
 /**
  * 23. Inicia el turno de caja estableciendo la base inicial de efectivo
  */
 export async function openCashShift({ base_amount, opened_by }, adminKey) {
-  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/open-shift`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-key': adminKey,
-    },
-    body: JSON.stringify({ base_amount, opened_by }),
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/open-shift`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+      body: JSON.stringify({ base_amount, opened_by }),
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+  return { success: false, error: 'Error abriendo turno de caja' };
 }
 
 /**
  * 24. Registra un gasto / salida de dinero de la caja
  */
 export async function addCashExpense({ concept, amount, category, notes, user }, adminKey) {
-  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/add-expense`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-key': adminKey,
-    },
-    body: JSON.stringify({ concept, amount, category, notes, user }),
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/add-expense`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+      body: JSON.stringify({ concept, amount, category, notes, user }),
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+  return { success: false, error: 'Error registrando gasto' };
 }
 
 /**
  * 25. Elimina un gasto del día en curso
  */
 export async function deleteCashExpense(expenseId, adminKey) {
-  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/delete-expense`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-key': adminKey,
-    },
-    body: JSON.stringify({ expenseId }),
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/delete-expense`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+      body: JSON.stringify({ expenseId }),
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+  return { success: false, error: 'Error eliminando gasto' };
 }
 
 /**
  * 26. Registra un cobro recibido en recepción
  */
 export async function registerCashPayment({ booking_reference, client_name, amount, method, notes, user }, adminKey) {
-  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/register-payment`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-key': adminKey,
-    },
-    body: JSON.stringify({ booking_reference, client_name, amount, method, notes, user }),
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/register-payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+      body: JSON.stringify({ booking_reference, client_name, amount, method, notes, user }),
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+  return { success: false, error: 'Error registrando pago' };
 }
 
 /**
  * 27. Realiza el cierre definitivo de caja diario
  */
 export async function closeCashShift({ actual_cash_counted, notes, closed_by }, adminKey) {
-  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/close-shift`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-key': adminKey,
-    },
-    body: JSON.stringify({ actual_cash_counted, notes, closed_by }),
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/close-shift`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+      body: JSON.stringify({ actual_cash_counted, notes, closed_by }),
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+  return { success: false, error: 'Error cerrando turno' };
 }
 
 /**
  * 28. Anula el cierre de caja del día de hoy (Reapertura de turno)
  */
 export async function annulTodayCashClosure({ closureId, reason, annulled_by }, adminKey) {
-  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/annul-closure`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-admin-key': adminKey,
-    },
-    body: JSON.stringify({ closureId, reason, annulled_by }),
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/annul-closure`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+      body: JSON.stringify({ closureId, reason, annulled_by }),
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+  return { success: false, error: 'Error anulando cierre' };
 }
 
 /**
  * 29. Consulta el historial de cierres de caja
  */
 export async function getCashClosuresHistory({ date, month } = {}, adminKey) {
-  const params = new URLSearchParams();
-  if (date) params.append('date', date);
-  if (month) params.append('month', month);
+  try {
+    const params = new URLSearchParams();
+    if (date) params.append('date', date);
+    if (month) params.append('month', month);
 
-  const res = await fetch(`${API_BASE}/api/bookings/admin/cash/history?${params.toString()}`, {
-    headers: { 'x-admin-key': adminKey },
-  });
-  return res.json();
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/history?${params.toString()}`, {
+      headers: { 'x-admin-key': adminKey },
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+  return { success: true, closures: [] };
 }
 
 

@@ -11,10 +11,25 @@ import BookingSuccessModal from '../components/BookingSuccessModal';
 import { contactData } from '../data/banking';
 import { getCabinAvailability, createWompiCheckout, openWompiWidget, simulatePayment } from '../services/api';
 
-export default function CabanasPage({ onNavigate, onShowToast, activeModules, onOpenCancellation }) {
-  const [selectedCabin, setSelectedCabin] = useState(cabinsData[0]);
+export default function CabanasPage({ onNavigate, onShowToast, activeModules, onOpenCancellation, customConfig = {} }) {
+  const effectiveCabinsData = cabinsData.map(c => ({
+    ...c,
+    image: customConfig.cabinImages?.[c.id] || c.image,
+    price: customConfig.cabinPrices?.[c.id] || c.price,
+    status: customConfig.cabinStatus?.[c.id] || c.status
+  }));
+
+  const [selectedCabin, setSelectedCabin] = useState(effectiveCabinsData[0]);
   const [blockedDates, setBlockedDates] = useState([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
+
+  // Sync selected cabin when effectiveCabinsData updates
+  useEffect(() => {
+    setSelectedCabin(prev => {
+      const found = effectiveCabinsData.find(c => c.id === prev.id);
+      return found || effectiveCabinsData[0];
+    });
+  }, [customConfig]);
 
   // Client info form
   const [clientName, setClientName] = useState('');
@@ -286,7 +301,7 @@ export default function CabanasPage({ onNavigate, onShowToast, activeModules, on
           {/* MOBILE ONLY: Horizontal Photo Selector Strip */}
           {/* ========================================================= */}
           <div className="lg:hidden flex items-center gap-2 overflow-x-auto pb-1 px-1 scrollbar-none">
-            {cabinsData.map((cabin) => {
+            {effectiveCabinsData.map((cabin) => {
               const isSelected = selectedCabin.id === cabin.id;
 
               return (
@@ -330,7 +345,7 @@ export default function CabanasPage({ onNavigate, onShowToast, activeModules, on
 
             {/* 10 Cabins Clean Photo Grid */}
             <div className="grid grid-cols-2 gap-2">
-              {cabinsData.map((cabin) => {
+              {effectiveCabinsData.map((cabin) => {
                 const isSelected = selectedCabin.id === cabin.id;
 
                 return (
