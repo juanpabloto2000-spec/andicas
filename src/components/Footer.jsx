@@ -193,7 +193,14 @@ export default function Footer({
             <span>·</span>
             <span>RNT Vigente</span>
             <span>·</span>
-            <span>Colombia</span>
+            <button 
+              onClick={() => onNavigate('dsb')} 
+              className="hover:text-gold-400 text-linen-500 hover:text-linen-300 transition-colors cursor-pointer flex items-center gap-1"
+              title="Panel Administrativo"
+            >
+              <span>🔒</span>
+              <span>Panel Admin</span>
+            </button>
           </div>
         </div>
       </div>

@@ -1809,44 +1809,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     );
   };
 
-  // ----------------------------------------------------
-  // LOCKED PANEL VIEW IF UNPAID (MASTER KILLSWITCH DYNAMIND)
-  // ----------------------------------------------------
-  if (remoteSubStatus === 'unpaid') {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-[#150404] via-[#200707] to-[#0d0202] text-linen-100 flex items-center justify-center p-4 sm:p-6 select-none">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.92, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          className="w-full max-w-lg p-8 sm:p-10 rounded-3xl bg-black/90 border-2 border-red-500 text-center space-y-6 shadow-[0_0_60px_rgba(239,68,68,0.4)]"
-        >
-          <div className="w-20 h-20 rounded-full bg-red-950/90 border-2 border-red-500 flex items-center justify-center mx-auto text-red-400 shadow-[0_0_30px_rgba(239,68,68,0.5)]">
-            <Ban className="w-10 h-10 animate-pulse" />
-          </div>
-
-          <div className="space-y-2">
-            <span className="px-3.5 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-mono font-bold uppercase tracking-widest inline-block">
-              Panel Administrativo Deshabilitado
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-black text-red-400 uppercase tracking-wide font-display">
-              Acceso Suspendido
-            </h2>
-            <p className="text-xs sm:text-sm text-linen-300 leading-relaxed max-w-sm mx-auto font-fredoka">
-              El panel de administración y los servicios de Andicas se encuentran suspendidos por falta de pago. Por favor regularice la suscripción en el panel de Dynamind para reactivar el sistema.
-            </p>
-          </div>
-
-          <button
-            onClick={() => onNavigate('home')}
-            className="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-linen-300 text-xs font-cartoon uppercase tracking-wider transition-colors cursor-pointer"
-          >
-            ← Volver a la página web
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
-
+  // Login Screen
   if (!isAuthenticated) {
     const selectedUserObj = loginUsersList.find(u => u.username.toLowerCase() === usernameInput.toLowerCase()) || {
       username: usernameInput,
