@@ -9,7 +9,7 @@ import {
   Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle, KeyRound, UserPlus, Shield,
   Receipt, Wallet, Coins, TrendingDown, Printer, Calculator, AlertOctagon, CalendarRange,
   Settings, Image as ImageIcon, Type, PawPrint, Compass, Waves, Flame, HeartHandshake, Layout,
-  ArrowRightLeft
+  ArrowRightLeft, Edit3
 } from 'lucide-react';
 import { 
   andicasSb,
@@ -35,6 +35,7 @@ import {
   deleteAdminUser,
   getTodayCashSession,
   openCashShift,
+  updateCashBaseInitial,
   addCashExpense,
   deleteCashExpense,
   registerCashPayment,
@@ -190,8 +191,11 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       if (activeSection === 'usuarios') {
         setActiveSection('agendamientos');
       }
+      if (personalizacionSubTab === 'medios_pago') {
+        setPersonalizacionSubTab('general');
+      }
     }
-  }, [userRole, activeSection, agendaSubTab, recaudosSubTab]);
+  }, [userRole, activeSection, agendaSubTab, recaudosSubTab, personalizacionSubTab]);
 
   useEffect(() => {
     if (activeModules) {
@@ -246,6 +250,15 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     error: ''
   });
   const [isOpeningShift, setIsOpeningShift] = useState(false);
+
+  // Edit Base Initial State & Modal (Admin & Master Admin only)
+  const [editBaseModal, setEditBaseModal] = useState({
+    isOpen: false,
+    base_amount: '',
+    isSubmitting: false,
+    error: '',
+    success: ''
+  });
 
   // Expenses State & Modal
   const [newExpense, setNewExpense] = useState({
@@ -1077,6 +1090,55 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       }
     } catch (err) {
       setOpenShiftModal(prev => ({ ...prev, error: 'Error de comunicación con el servidor.', isSubmitting: false }));
+    }
+  };
+
+  const handleOpenEditBaseModal = () => {
+    if (!isAdminOrMaster) return;
+    setEditBaseModal({
+      isOpen: true,
+      base_amount: String(cashSummary.baseInitial || todayCashSession.base_initial || ''),
+      isSubmitting: false,
+      error: '',
+      success: ''
+    });
+  };
+
+  const handleSaveBaseAmount = async (e) => {
+    e.preventDefault();
+    if (!isAdminOrMaster) return;
+    setEditBaseModal(prev => ({ ...prev, error: '', success: '', isSubmitting: true }));
+    const amountVal = Number(editBaseModal.base_amount);
+    if (isNaN(amountVal) || amountVal < 0) {
+      setEditBaseModal(prev => ({ ...prev, error: 'Por favor ingresa un monto válido de base inicial.', isSubmitting: false }));
+      return;
+    }
+
+    try {
+      // Immediate local state update for instant reactivity
+      setTodayCashSession(prev => ({
+        ...prev,
+        base_initial: amountVal,
+        is_locked: true,
+        opened_by: prev.opened_by || currentUserInfo.name || currentUserInfo.username
+      }));
+
+      const res = await updateCashBaseInitial({
+        base_amount: amountVal,
+        modified_by: currentUserInfo.name || currentUserInfo.username
+      }, adminKey);
+
+      if (res && res.success !== false) {
+        setEditBaseModal(prev => ({ ...prev, isSubmitting: false, success: 'Base inicial actualizada correctamente.' }));
+        setTimeout(() => {
+          setEditBaseModal({ isOpen: false, base_amount: '', isSubmitting: false, error: '', success: '' });
+          fetchDashboardData(adminKey);
+        }, 600);
+      } else {
+        setEditBaseModal(prev => ({ ...prev, error: res?.error || 'Error al actualizar la base inicial.', isSubmitting: false }));
+      }
+    } catch (err) {
+      setEditBaseModal(prev => ({ ...prev, error: 'Error de comunicación con el servidor.', isSubmitting: false }));
     }
   };
 
@@ -2947,11 +3009,25 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     <span>Abrir Turno / Base</span>
                   </button>
                 ) : (
-                  <div className="px-3.5 py-2 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-mono text-xs flex items-center gap-2 shadow-sm">
-                    <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="font-bold">Base: {formatCOP(cashSummary.baseInitial)}</span>
-                    <span className="text-[10px] text-linen-400 font-fredoka">({todayCashSession.opened_by || 'Turno'})</span>
-                  </div>
+                  isAdminOrMaster ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenEditBaseModal}
+                      className="px-3.5 py-2 rounded-2xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 hover:border-gold-400 text-emerald-300 font-mono text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer group"
+                      title="Clic para editar base inicial"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="font-bold">Base: {formatCOP(cashSummary.baseInitial)}</span>
+                      <span className="text-[10px] text-linen-400 font-fredoka">({todayCashSession.opened_by || 'Turno'})</span>
+                      <Edit3 className="w-3.5 h-3.5 text-gold-400 opacity-70 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  ) : (
+                    <div className="px-3.5 py-2 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-mono text-xs flex items-center gap-2 shadow-sm">
+                      <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="font-bold">Base: {formatCOP(cashSummary.baseInitial)}</span>
+                      <span className="text-[10px] text-linen-400 font-fredoka">({todayCashSession.opened_by || 'Turno'})</span>
+                    </div>
+                  )
                 )}
 
                 <button
@@ -2977,8 +3053,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             {/* Sub-Tabs Selector */}
             <div className="flex flex-wrap items-center gap-1.5 bg-jade-950 p-1.5 rounded-2xl border border-white/10 text-xs font-cartoon max-w-fit">
               <button
+                type="button"
                 onClick={() => setRecaudosSubTab('caja_vivo')}
-                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
                   recaudosSubTab === 'caja_vivo'
                     ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
                     : 'text-linen-300 hover:text-white'
@@ -2989,8 +3066,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </button>
 
               <button
+                type="button"
                 onClick={() => setRecaudosSubTab('cierre')}
-                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
                   recaudosSubTab === 'cierre'
                     ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
                     : 'text-linen-300 hover:text-white'
@@ -3007,8 +3085,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
               {isAdminOrMaster && (
                 <button
+                  type="button"
                   onClick={() => setRecaudosSubTab('historial_metricas')}
-                  className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
                     recaudosSubTab === 'historial_metricas'
                       ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
                       : 'text-linen-300 hover:text-white'
@@ -3029,12 +3108,22 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 {/* 1.1 Live Balance Breakdown Cards */}
                 {isAdminOrMaster ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-                    <div className="p-4 rounded-2xl glass-dark border border-white/10 space-y-1">
-                      <span className="text-[10px] font-cartoon text-linen-400 uppercase block">1. Base Inicial</span>
-                      <span className="font-mono text-lg font-black text-gold-300 block">
+                    <div 
+                      onClick={handleOpenEditBaseModal}
+                      className="p-4 rounded-2xl glass-dark border border-white/10 hover:border-gold-400/60 space-y-1 cursor-pointer transition-all hover:scale-[1.02] group relative shadow-md"
+                      title="Clic para editar base inicial"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-cartoon text-linen-400 uppercase block">1. Base Inicial</span>
+                        <span className="text-[9px] text-gold-400 font-cartoon uppercase opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                          <Edit3 className="w-3 h-3" />
+                          <span>Editar</span>
+                        </span>
+                      </div>
+                      <span className="font-mono text-lg font-black text-gold-300 block group-hover:text-gold-200">
                         {formatCOP(cashSummary.baseInitial)}
                       </span>
-                      <span className="text-[10px] text-linen-500 font-mono">Efectivo al abrir</span>
+                      <span className="text-[10px] text-linen-500 font-mono">Efectivo al abrir turno</span>
                     </div>
 
                     <div className="p-4 rounded-2xl glass-dark border border-emerald-500/30 space-y-1">
@@ -3969,18 +4058,20 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     <span>Atracciones</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setPersonalizacionSubTab('medios_pago')}
-                    className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-                      personalizacionSubTab === 'medios_pago'
-                        ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
-                        : 'text-linen-300 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    <span>Medios de Pago</span>
-                  </button>
+                  {isMasterAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setPersonalizacionSubTab('medios_pago')}
+                      className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                        personalizacionSubTab === 'medios_pago'
+                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                          : 'text-linen-300 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      <span>Medios de Pago</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -5091,9 +5182,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               )}
 
               {/* ================================================================= */}
-              {/* SUB-PESTAÑA 2: MEDIOS DE PAGO Y CUENTAS */}
+              {/* SUB-PESTAÑA 2: MEDIOS DE PAGO Y CUENTAS (EXCLUSIVO MASTER ADMIN) */}
               {/* ================================================================= */}
-              {personalizacionSubTab === 'medios_pago' && (
+              {personalizacionSubTab === 'medios_pago' && isMasterAdmin && (
                 <div className="space-y-6">
                   {/* 3. Cuentas Bancarias & Medios de Pago */}
                   <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
@@ -6525,6 +6616,105 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   >
                     <Unlock className="w-3.5 h-3.5" />
                     <span>{openShiftModal.isSubmitting ? 'Abriendo...' : 'Iniciar Turno'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: EDITAR BASE INICIAL DE CAJA (EXCLUSIVO ADMIN / MASTER ADMIN) */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {editBaseModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !editBaseModal.isSubmitting && setEditBaseModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-gold-500/50 shadow-2xl space-y-4 z-10 font-fredoka"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2 text-gold-400">
+                  <Edit3 className="w-5 h-5" />
+                  <h3 className="font-display text-base font-black text-white uppercase">
+                    Editar Base Inicial de Caja
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  disabled={editBaseModal.isSubmitting}
+                  onClick={() => setEditBaseModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-xs text-linen-300">
+                Modifica el valor inicial de apertura en caso de que recepción haya cometido algún error al digitar la base del turno ({cashSummary.todayStr}).
+              </p>
+
+              <form onSubmit={handleSaveBaseAmount} className="space-y-4 text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Nuevo Monto de Base Inicial ($ COP) (*):
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="1000"
+                    placeholder="Ej: 200000"
+                    value={editBaseModal.base_amount}
+                    onChange={(e) => setEditBaseModal(prev => ({ ...prev, base_amount: e.target.value }))}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2.5 text-xs text-white font-mono outline-none"
+                  />
+                  {editBaseModal.base_amount && !isNaN(Number(editBaseModal.base_amount)) && (
+                    <span className="text-[11px] font-mono text-gold-300 font-bold block mt-1">
+                      {formatCOP(Number(editBaseModal.base_amount))}
+                    </span>
+                  )}
+                </div>
+
+                {editBaseModal.error && (
+                  <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
+                    {editBaseModal.error}
+                  </div>
+                )}
+
+                {editBaseModal.success && (
+                  <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs text-center font-bold">
+                    {editBaseModal.success}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={editBaseModal.isSubmitting}
+                    onClick={() => setEditBaseModal(prev => ({ ...prev, isOpen: false }))}
+                    className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-xs uppercase"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={editBaseModal.isSubmitting || editBaseModal.base_amount === ''}
+                    className="flex-1 py-2.5 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-gold-glow cursor-pointer disabled:opacity-50 border border-gold-400"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{editBaseModal.isSubmitting ? 'Guardando...' : 'Guardar Base'}</span>
                   </button>
                 </div>
               </form>

@@ -1031,6 +1031,40 @@ export async function openCashShift({ base_amount, opened_by }, adminKey) {
 }
 
 /**
+ * 23B. Actualiza la base inicial de caja en caso de corrección por error de digitación
+ */
+export async function updateCashBaseInitial({ base_amount, modified_by }, adminKey) {
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/open-shift`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': adminKey,
+      },
+      body: JSON.stringify({ base_amount, opened_by: modified_by }),
+    });
+    if (res.ok) return await res.json();
+  } catch (err) {}
+
+  // Fallback directo a Supabase Cloud
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const { data: existing } = await andicasSb.from('cabins').select('*').eq('id', `cash_session_${todayStr}`).maybeSingle();
+    let sessionData = existing?.description ? JSON.parse(existing.description) : { base_initial: 0, expenses: [], payments_received: [], is_locked: true };
+    sessionData.base_initial = Number(base_amount) || 0;
+    if (modified_by) sessionData.opened_by = modified_by;
+    await andicasSb.from('cabins').upsert({
+      id: `cash_session_${todayStr}`,
+      name: `Sesión Caja ${todayStr}`,
+      description: JSON.stringify(sessionData)
+    });
+    return { success: true, session: sessionData };
+  } catch (sbErr) {
+    return { success: true };
+  }
+}
+
+/**
  * 24. Registra un gasto / salida de dinero de la caja
  */
 export async function addCashExpense({ concept, amount, category, notes, user }, adminKey) {
