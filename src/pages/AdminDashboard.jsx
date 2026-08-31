@@ -24,6 +24,7 @@ import {
   updateAdminPasswordAdmin,
   getSubscriptionStatus,
   subscribeToSystemChanges,
+  subscribeToBookingsRealtime,
   getAdminCancellationRequests,
   resolveCancellationRequestAdmin,
   getSiteCustomConfig,
@@ -713,24 +714,34 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     }
   }, [isAuthenticated, adminKey]);
 
-  // Suscripción reactiva instantánea a cambios en tiempo real (<100ms) sin recargar la página
+  // Suscripción reactiva instantánea a cambios en tiempo real en la base de datos (<100ms) sin recargar la página
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !adminKey) return;
 
-    const unsubscribe = subscribeToSystemChanges((sub) => {
-      if (sub) {
-        if (sub.status) {
-          setRemoteSubStatus(sub.status);
-        }
-        if (sub.adminPassword && adminKey && sub.adminPassword !== adminKey && userRole === 'master_admin' && !['AndicasAdmin2026@', 'PanelPassword1966@', 'KarolN2026@'].includes(adminKey)) {
-          // La contraseña de admin fue cambiada remotamente desde el panel Owner
-          setShowSessionClosedModal(true);
-        }
-      }
+    // Realtime Supabase WebSockets para Reservas, Bloqueos y Cabañas
+    const unsubscribeBookings = subscribeToBookingsRealtime(() => {
+      fetchDashboardData(adminKey);
     });
 
-    return () => unsubscribe();
-  }, [isAuthenticated, adminKey, userRole]);
+    // Sincronización multi-pestaña local y de eventos de personalización
+    const handleStorage = (e) => {
+      if (e.key === 'andicas_custom_settings' || e.key === 'andicas_admin_token') {
+        fetchDashboardData(adminKey);
+      }
+    };
+    const handleCustomEvent = () => {
+      fetchDashboardData(adminKey);
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('andicas_settings_updated', handleCustomEvent);
+
+    return () => {
+      unsubscribeBookings();
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('andicas_settings_updated', handleCustomEvent);
+    };
+  }, [isAuthenticated, adminKey]);
 
   const handleSaveMasterPassword = async (e) => {
     e.preventDefault();

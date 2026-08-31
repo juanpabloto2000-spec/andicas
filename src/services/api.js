@@ -253,14 +253,18 @@ export async function adminLogin(password, username = 'admin_master') {
  */
 export async function getAdminBookings(adminKey) {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
     const res = await fetch(`${API_BASE}/api/bookings/admin/bookings`, {
       headers: { 'x-admin-key': adminKey },
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     if (res.ok) {
       return await res.json();
     }
   } catch (err) {
-    console.warn('Backend getAdminBookings fallo temporal:', err);
+    console.warn('Backend getAdminBookings fallo o demorado, usando Supabase Cloud directo:', err);
   }
 
   // Fallback directo a Supabase Cloud
@@ -360,13 +364,15 @@ export async function cancelBookingAdmin(bookingReference, reasonOrAdminKey, opt
  */
 export async function getAdminAuditLogs(adminKey) {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
     const res = await fetch(`${API_BASE}/api/bookings/admin/audit-logs`, {
       headers: { 'x-admin-key': adminKey },
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     if (res.ok) return await res.json();
-  } catch (err) {
-    console.warn('Backend getAdminAuditLogs fallo:', err);
-  }
+  } catch (err) {}
   return { success: true, logs: [] };
 }
 
@@ -551,7 +557,7 @@ export async function getSubscriptionStatus() {
 }
 
 /**
- * Suscripción reactiva en tiempo real (< 100ms) mediante WebSockets + Sondeo de respaldo (1.0s)
+ * Suscripción reactiva en tiempo real (< 100ms) mediante WebSockets + Sondeo suave de respaldo (5.0s)
  * Permite que los cambios de módulos, chatbot, redes y personalización se reflejen instantáneamente sin recargar la página.
  */
 export function subscribeToSystemChanges(callback) {
@@ -579,9 +585,10 @@ export function subscribeToSystemChanges(callback) {
   // 1. Ejecutar de inmediato
   fetchAndNotify();
 
-  // 2. Canal Supabase Realtime (WebSockets instantáneo)
+  // 2. Canal Supabase Realtime (WebSockets instantáneo con ID único)
+  const channelId = `realtime-sys-${Math.random().toString(36).substring(2, 9)}`;
   const channel = andicasSb
-    .channel('realtime-system-changes')
+    .channel(channelId)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'cabins' },
@@ -591,13 +598,54 @@ export function subscribeToSystemChanges(callback) {
     )
     .subscribe();
 
-  // 3. Sondeo continuo (1.5s) como respaldo infalible
-  const intervalId = setInterval(fetchAndNotify, 1500);
+  // 3. Sondeo ligero cada 5s
+  const intervalId = setInterval(fetchAndNotify, 5000);
 
   return () => {
     isSubscribed = false;
     clearInterval(intervalId);
-    andicasSb.removeChannel(channel);
+    try {
+      andicasSb.removeChannel(channel);
+    } catch (e) {}
+  };
+}
+
+/**
+ * Suscripción reactiva instantánea para el Panel de Administración (Reservas, Fechas Bloqueadas, Cabañas)
+ */
+export function subscribeToBookingsRealtime(callback) {
+  let isSubscribed = true;
+  const channelId = `realtime-bookings-${Math.random().toString(36).substring(2, 9)}`;
+  const channel = andicasSb
+    .channel(channelId)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'bookings' },
+      (payload) => {
+        if (isSubscribed && callback) callback(payload);
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'blocked_dates' },
+      (payload) => {
+        if (isSubscribed && callback) callback(payload);
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'cabins' },
+      (payload) => {
+        if (isSubscribed && callback) callback(payload);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    isSubscribed = false;
+    try {
+      andicasSb.removeChannel(channel);
+    } catch (e) {}
   };
 }
 
@@ -677,11 +725,15 @@ export async function requestBookingCancellation(payload) {
  */
 export async function getAdminCancellationRequests(adminKey) {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
     const res = await fetch(`${API_BASE}/api/bookings/admin/cancellation-requests`, {
       headers: {
         'x-admin-key': adminKey,
       },
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     if (res.ok) return await res.json();
   } catch (err) {}
   return { success: true, requests: [] };
@@ -1004,11 +1056,37 @@ export async function deleteAdminUser(userId, adminKey) {
  */
 export async function getTodayCashSession(adminKey) {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
     const res = await fetch(`${API_BASE}/api/bookings/admin/cash/today`, {
       headers: { 'x-admin-key': adminKey },
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     if (res.ok) return await res.json();
   } catch (err) {}
+
+  // Fallback directo a Supabase Cloud
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const { data } = await andicasSb.from('cabins').select('*').eq('id', `cash_session_${todayStr}`).maybeSingle();
+    if (data?.description) {
+      const session = JSON.parse(data.description);
+      return {
+        success: true,
+        todaySession: session,
+        summary: {
+          todayStr,
+          baseInitial: session.base_initial || 0,
+          totalExpenses: (session.expenses || []).reduce((acc, e) => acc + (Number(e.amount) || 0), 0),
+          totalCashIn: (session.payments_received || []).filter(p => p.method === 'EFECTIVO').reduce((acc, p) => acc + (Number(p.amount) || 0), 0),
+          totalElectronicIn: (session.payments_received || []).filter(p => p.method !== 'EFECTIVO').reduce((acc, p) => acc + (Number(p.amount) || 0), 0),
+          isLocked: !!session.is_locked
+        }
+      };
+    }
+  } catch (sbErr) {}
+
   return { success: true, todaySession: { base_initial: 0, expenses: [], payments_received: [], is_locked: false } };
 }
 
@@ -1159,13 +1237,17 @@ export async function annulTodayCashClosure({ closureId, reason, annulled_by }, 
  */
 export async function getCashClosuresHistory({ date, month } = {}, adminKey) {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
     const params = new URLSearchParams();
     if (date) params.append('date', date);
     if (month) params.append('month', month);
 
     const res = await fetch(`${API_BASE}/api/bookings/admin/cash/history?${params.toString()}`, {
       headers: { 'x-admin-key': adminKey },
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     if (res.ok) return await res.json();
   } catch (err) {}
   return { success: true, closures: [] };
