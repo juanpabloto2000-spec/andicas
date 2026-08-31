@@ -701,14 +701,33 @@ export async function getSiteCustomConfig() {
       .maybeSingle();
 
     if (data?.description) {
-      return { success: true, config: JSON.parse(data.description) };
+      const parsed = JSON.parse(data.description);
+      if (typeof window !== 'undefined' && parsed && Object.keys(parsed).length > 0) {
+        localStorage.setItem('andicas_custom_settings', JSON.stringify(parsed));
+      }
+      return { success: true, config: parsed };
     }
   } catch (err) {}
 
   try {
     const res = await fetch(`${API_BASE}/api/bookings/site-config`);
-    if (res.ok) return await res.json();
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && data.config) {
+        if (typeof window !== 'undefined' && Object.keys(data.config).length > 0) {
+          localStorage.setItem('andicas_custom_settings', JSON.stringify(data.config));
+        }
+        return data;
+      }
+    }
   } catch (err) {}
+
+  try {
+    const local = typeof localStorage !== 'undefined' ? localStorage.getItem('andicas_custom_settings') : null;
+    if (local) {
+      return { success: true, config: JSON.parse(local) };
+    }
+  } catch (e) {}
 
   return { success: true, config: {} };
 }
@@ -717,7 +736,15 @@ export async function getSiteCustomConfig() {
  * 17. Actualiza la configuración dinámica de precios, cabañas y planes en la nube
  */
 export async function updateSiteCustomConfigAdmin(config, adminKey) {
-  // 1. Guardar directo en Supabase
+  // 0. Sincronización reactiva local inmediata
+  try {
+    if (typeof window !== 'undefined' && config) {
+      localStorage.setItem('andicas_custom_settings', JSON.stringify(config));
+      window.dispatchEvent(new CustomEvent('andicas_settings_updated', { detail: config }));
+    }
+  } catch (e) {}
+
+  // 1. Guardar directo en Supabase (<150ms)
   try {
     await andicasSb.from('cabins').upsert({
       id: 'custom_site_config',

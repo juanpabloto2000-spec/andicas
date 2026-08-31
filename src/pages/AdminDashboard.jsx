@@ -413,6 +413,16 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [configSaveSuccess, setConfigSaveSuccess] = useState('');
 
+  // Auto-broadcast real-time changes instantly to other components and public pages
+  useEffect(() => {
+    if (siteConfig && Object.keys(siteConfig).length > 0) {
+      try {
+        localStorage.setItem('andicas_custom_settings', JSON.stringify(siteConfig));
+        window.dispatchEvent(new CustomEvent('andicas_settings_updated', { detail: siteConfig }));
+      } catch (e) {}
+    }
+  }, [siteConfig]);
+
   // Search & Filter state
   const [selectedCabinFilter, setSelectedCabinFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -2023,52 +2033,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </button>
             )}
 
-            {/* 3.1 Santuario Animal (Acceso Rápido CMS) */}
-            {isAdminOrMaster && isPersonalizacionEnabled && (
-              <button
-                onClick={() => {
-                  setActiveSection('personalizacion');
-                  setPersonalizacionSubTab('animales');
-                }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl transition-all cursor-pointer pl-6 ${
-                  activeSection === 'personalizacion' && personalizacionSubTab === 'animales'
-                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                    : 'bg-jade-900/40 hover:bg-jade-900 text-linen-200 border border-white/5'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <PawPrint className="w-3.5 h-3.5 text-hoja-400" />
-                  <span>🐾 Animales & Santuario</span>
-                </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
-                  {(siteConfig.animals || []).length}
-                </span>
-              </button>
-            )}
-
-            {/* 3.2 Atracciones del Bioparque (Acceso Rápido CMS) */}
-            {isAdminOrMaster && isPersonalizacionEnabled && (
-              <button
-                onClick={() => {
-                  setActiveSection('personalizacion');
-                  setPersonalizacionSubTab('atracciones');
-                }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl transition-all cursor-pointer pl-6 ${
-                  activeSection === 'personalizacion' && personalizacionSubTab === 'atracciones'
-                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                    : 'bg-jade-900/40 hover:bg-jade-900 text-linen-200 border border-white/5'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Compass className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>🎡 Atracciones Parque</span>
-                </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
-                  {(siteConfig.attractions || []).length}
-                </span>
-              </button>
-            )}
-
             {/* 4. Gestión de Usuarios / Empleados (Exclusivo Admin Master) */}
             {isMasterAdmin && (
               <button
@@ -3632,105 +3596,106 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           isPersonalizacionEnabled ? (
             <div className="space-y-6">
               {/* Header & Sub-Tabs Navigation Bar */}
-              <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
-                <div>
-                  <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-                    Control en Vivo de Tarifas, Planes, Pagos, IA & Redes
-                  </span>
-                  <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
-                    Personalización de Página
-                  </h1>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-                  {/* Sub-Tabs Selector */}
-                  <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/10 overflow-x-auto">
-                    <button
-                      type="button"
-                      onClick={() => setPersonalizacionSubTab('general')}
-                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                        personalizacionSubTab === 'general'
-                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
-                          : 'text-linen-300 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                      <span>General & Páginas</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPersonalizacionSubTab('cabanas_planes')}
-                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                        personalizacionSubTab === 'cabanas_planes'
-                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
-                          : 'text-linen-300 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <Home className="w-3.5 h-3.5" />
-                      <span>Cabañas & Planes</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPersonalizacionSubTab('animales')}
-                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                        personalizacionSubTab === 'animales'
-                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
-                          : 'text-linen-300 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <PawPrint className="w-3.5 h-3.5 text-hoja-400" />
-                      <span>Santuario Animal</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPersonalizacionSubTab('atracciones')}
-                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                        personalizacionSubTab === 'atracciones'
-                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
-                          : 'text-linen-300 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <Compass className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Atracciones</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPersonalizacionSubTab('medios_pago')}
-                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                        personalizacionSubTab === 'medios_pago'
-                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
-                          : 'text-linen-300 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <CreditCard className="w-3.5 h-3.5" />
-                      <span>Medios de Pago</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPersonalizacionSubTab('ia_redes')}
-                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                        personalizacionSubTab === 'ia_redes'
-                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
-                          : 'text-linen-300 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>IA & Redes</span>
-                    </button>
+              <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                {/* Fila 1: Título a la izquierda y Botón Guardar en la Nube al frente a la derecha */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                  <div>
+                    <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block mb-1">
+                      Control en Vivo de Tarifas, Planes, Pagos, IA & Redes
+                    </span>
+                    <h1 className="font-display text-2xl sm:text-3xl font-black text-linen-100 uppercase tracking-wide">
+                      Personalización de Página
+                    </h1>
                   </div>
 
                   <button
                     onClick={handleSaveSiteCustomization}
                     disabled={isSavingConfig}
-                    className="px-4 py-2.5 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center gap-2 cursor-pointer transition-all border border-gold-400 disabled:opacity-50"
+                    className="px-5 py-3 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg flex items-center gap-2.5 cursor-pointer transition-all border border-gold-400 disabled:opacity-50 self-start sm:self-auto flex-shrink-0"
                   >
                     <Save className="w-4 h-4" />
                     <span>{isSavingConfig ? 'Sincronizando...' : 'Guardar en la Nube'}</span>
+                  </button>
+                </div>
+
+                {/* Fila 2: Sub-Navbar debajo del título con ancho completo y diseño limpio */}
+                <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-black/40 border border-white/10 overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => setPersonalizacionSubTab('general')}
+                    className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      personalizacionSubTab === 'general'
+                        ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                        : 'text-linen-300 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Settings className="w-4 h-4" />
+                    <span>General & Páginas</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPersonalizacionSubTab('cabanas_planes')}
+                    className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      personalizacionSubTab === 'cabanas_planes'
+                        ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                        : 'text-linen-300 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Home className="w-4 h-4" />
+                    <span>Cabañas & Planes</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPersonalizacionSubTab('animales')}
+                    className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      personalizacionSubTab === 'animales'
+                        ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                        : 'text-linen-300 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <PawPrint className="w-4 h-4 text-hoja-400" />
+                    <span>Santuario Animal</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPersonalizacionSubTab('atracciones')}
+                    className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      personalizacionSubTab === 'atracciones'
+                        ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                        : 'text-linen-300 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Compass className="w-4 h-4 text-cyan-400" />
+                    <span>Atracciones</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPersonalizacionSubTab('medios_pago')}
+                    className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      personalizacionSubTab === 'medios_pago'
+                        ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                        : 'text-linen-300 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>Medios de Pago</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPersonalizacionSubTab('ia_redes')}
+                    className={`px-4 py-2.5 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                      personalizacionSubTab === 'ia_redes'
+                        ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                        : 'text-linen-300 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>IA & Redes</span>
                   </button>
                 </div>
               </div>
