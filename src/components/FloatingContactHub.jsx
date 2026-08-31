@@ -7,8 +7,35 @@ import {
 } from './Icons';
 import { contactData } from '../data/banking';
 
-export default function FloatingContactHub({ onOpenWhatsAppMenu }) {
+export default function FloatingContactHub({ onOpenWhatsAppMenu, socials }) {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Dynamic social media list
+  const activeSocials = Array.isArray(socials) 
+    ? socials.filter(s => s.enabled !== false) 
+    : [
+        { id: 'instagram', name: 'Instagram', url: 'https://instagram.com/andicasbioparque', icon: 'instagram', tooltip: '@andicasbioparque' },
+        { id: 'facebook', name: 'Facebook', url: 'https://facebook.com/andicasbioparque', icon: 'facebook', tooltip: 'Facebook Oficial' },
+        { id: 'tiktok', name: 'TikTok', url: 'https://tiktok.com/@andicasbioparque', icon: 'tiktok', tooltip: 'TikTok Andicas' },
+      ];
+
+  const getSocialIcon = (id, iconType) => {
+    const key = (iconType || id || '').toLowerCase();
+    if (key.includes('insta')) return InstagramIcon;
+    if (key.includes('tik')) return TikTokIcon;
+    if (key.includes('face')) return FacebookIcon;
+    if (key.includes('what')) return WhatsAppIcon;
+    return PhoneCallIcon;
+  };
+
+  const getSocialColor = (id, iconType) => {
+    const key = (iconType || id || '').toLowerCase();
+    if (key.includes('insta')) return 'text-[#E1306C] hover:drop-shadow-[0_0_12px_rgba(225,48,108,0.8)]';
+    if (key.includes('tik')) return 'text-[#FFFFFF] hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.8)]';
+    if (key.includes('face')) return 'text-[#1877F2] hover:drop-shadow-[0_0_12px_rgba(24,119,242,0.8)]';
+    if (key.includes('what')) return 'text-[#25D366] hover:drop-shadow-[0_0_12px_rgba(37,211,102,0.8)]';
+    return 'text-[#D8A232] hover:drop-shadow-[0_0_12px_rgba(216,162,50,0.8)]';
+  };
 
   const contactItems = [
     {
@@ -35,30 +62,18 @@ export default function FloatingContactHub({ onOpenWhatsAppMenu }) {
       iconColor: 'text-[#D8A232] hover:drop-shadow-[0_0_12px_rgba(216,162,50,0.8)]',
       tooltip: 'Línea Directa'
     },
-    {
-      id: 'instagram',
-      name: 'Instagram',
-      icon: InstagramIcon,
-      action: () => {},
-      iconColor: 'text-[#E1306C] hover:drop-shadow-[0_0_12px_rgba(225,48,108,0.8)]',
-      tooltip: '@andicasbioparque'
-    },
-    {
-      id: 'facebook',
-      name: 'Facebook',
-      icon: FacebookIcon,
-      action: () => {},
-      iconColor: 'text-[#1877F2] hover:drop-shadow-[0_0_12px_rgba(24,119,242,0.8)]',
-      tooltip: 'Facebook Oficial'
-    },
-    {
-      id: 'tiktok',
-      name: 'TikTok',
-      icon: TikTokIcon,
-      action: () => {},
-      iconColor: 'text-[#FFFFFF] hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.8)]',
-      tooltip: 'TikTok Andicas'
-    }
+    ...activeSocials.filter(s => s.id !== 'whatsapp').map(soc => ({
+      id: soc.id || soc.name,
+      name: soc.name,
+      icon: getSocialIcon(soc.id, soc.icon),
+      action: () => {
+        if (soc.url && soc.url !== '#') {
+          window.open(soc.url, '_blank', 'noopener,noreferrer');
+        }
+      },
+      iconColor: getSocialColor(soc.id, soc.icon),
+      tooltip: soc.tooltip || soc.name
+    }))
   ];
 
   return (

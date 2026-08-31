@@ -9,7 +9,8 @@ export default function Footer({
   onOpenBooking, 
   onOpenRules, 
   onNavigate,
-  onOpenCancellation
+  onOpenCancellation,
+  socials
 }) {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -34,6 +35,23 @@ export default function Footer({
   const scheduleText = contactData.schedules?.general || "Martes a Domingo: 9:00 AM – 5:00 PM";
   const phoneText = contactData.phones?.pasadia?.display || "+57 300 000 0001";
   const addressText = contactData.address || "Km 4 Vía Valle del Sol, Reserva Natural Los Andicas, Colombia";
+
+  // Listado de redes sociales activas
+  const activeSocials = Array.isArray(socials) 
+    ? socials.filter(s => s.enabled !== false) 
+    : [
+        { id: 'instagram', name: 'Instagram', url: 'https://instagram.com/andicasbioparque', icon: 'instagram' },
+        { id: 'tiktok', name: 'TikTok', url: 'https://tiktok.com/@andicasbioparque', icon: 'tiktok' },
+        { id: 'facebook', name: 'Facebook', url: 'https://facebook.com/andicasbioparque', icon: 'facebook' },
+      ];
+
+  const getSocialIcon = (id, iconType) => {
+    const key = (iconType || id || '').toLowerCase();
+    if (key.includes('insta')) return <InstagramIcon className="w-4 h-4 text-pink-400" />;
+    if (key.includes('tik')) return <TikTokIcon className="w-4 h-4 text-cyan-400" />;
+    if (key.includes('face')) return <FacebookIcon className="w-4 h-4 text-blue-400" />;
+    return <InstagramIcon className="w-4 h-4 text-gold-400" />;
+  };
 
   return (
     <footer className="relative bg-[#041617] text-linen-100 pt-20 pb-12 border-t border-gold-500/30 overflow-hidden">
@@ -139,39 +157,28 @@ export default function Footer({
             </div>
           </div>
 
-          {/* Column 4: Socials (2 cols - inert/no-op as requested) */}
+          {/* Column 4: Socials (Canales Oficiales Personalizados) */}
           <div className="lg:col-span-2 space-y-4">
             <h4 className="font-cartoon text-sm font-bold text-gold-400 uppercase tracking-widest">
               Comunidad
             </h4>
-            <div className="flex flex-col gap-2 text-xs font-fredoka text-linen-200">
-              <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
-                className="flex items-center gap-2 text-pink-400 hover:text-pink-300 transition-colors cursor-pointer"
-                title="Canal Oficial Instagram"
-              >
-                <InstagramIcon className="w-4 h-4" />
-                <span>Instagram</span>
-              </a>
-              <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
-                className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer"
-                title="Canal Oficial TikTok"
-              >
-                <TikTokIcon className="w-4 h-4" />
-                <span>TikTok</span>
-              </a>
-              <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
-                className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
-                title="Canal Oficial Facebook"
-              >
-                <FacebookIcon className="w-4 h-4" />
-                <span>Facebook</span>
-              </a>
+            <div className="flex flex-col gap-2.5 text-xs font-fredoka text-linen-200">
+              {activeSocials.map((soc) => (
+                <a
+                  key={soc.id || soc.name}
+                  href={soc.url || '#'}
+                  target={soc.url && soc.url !== '#' ? "_blank" : undefined}
+                  rel={soc.url && soc.url !== '#' ? "noopener noreferrer" : undefined}
+                  onClick={(e) => {
+                    if (!soc.url || soc.url === '#') e.preventDefault();
+                  }}
+                  className="flex items-center gap-2 text-linen-200 hover:text-gold-300 transition-colors cursor-pointer"
+                  title={`Canal Oficial ${soc.name}`}
+                >
+                  {getSocialIcon(soc.id, soc.icon)}
+                  <span>{soc.name}</span>
+                </a>
+              ))}
             </div>
           </div>
         </div>

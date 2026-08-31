@@ -16,15 +16,41 @@ import CancellationRequestModal from './components/CancellationRequestModal';
 import Preloader from './components/Preloader';
 import Toast from './components/Toast';
 import PublicLockoutScreen from './components/PublicLockoutScreen';
-import { getSubscriptionStatus, subscribeToSystemChanges } from './services/api';
+import { getSubscriptionStatus, subscribeToSystemChanges, getSiteCustomConfig } from './services/api';
+
+const DEFAULT_SOCIAL_LINKS = [
+  { id: 'instagram', name: 'Instagram', url: 'https://instagram.com/andicasbioparque', enabled: true, icon: 'instagram', tooltip: '@andicasbioparque' },
+  { id: 'facebook', name: 'Facebook', url: 'https://facebook.com/andicasbioparque', enabled: true, icon: 'facebook', tooltip: 'Facebook Oficial' },
+  { id: 'tiktok', name: 'TikTok', url: 'https://tiktok.com/@andicasbioparque', enabled: true, icon: 'tiktok', tooltip: 'TikTok Andicas' },
+  { id: 'whatsapp', name: 'WhatsApp Reservas', url: 'https://wa.me/573000000001', enabled: true, icon: 'whatsapp', tooltip: 'WhatsApp Reservas' },
+  { id: 'youtube', name: 'YouTube Oficial', url: '', enabled: false, icon: 'youtube', tooltip: 'Canal de YouTube' },
+];
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSiteLocked, setIsSiteLocked] = useState(false);
   const [activeModules, setActiveModules] = useState({ bookings: true, wompi_payments: true });
+  const [customConfig, setCustomConfig] = useState(() => {
+    const saved = localStorage.getItem('andicas_custom_settings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          enable_ai_chatbot: parsed.enable_ai_chatbot !== false,
+          socials: Array.isArray(parsed.socials) ? parsed.socials : DEFAULT_SOCIAL_LINKS,
+          ...parsed
+        };
+      } catch (e) {}
+    }
+    return {
+      enable_ai_chatbot: true,
+      socials: DEFAULT_SOCIAL_LINKS
+    };
+  });
+
   const [currentPage, setCurrentPage] = useState(() => {
     const hash = window.location.hash.replace('#/', '').replace('#', '');
-    if (hash === 'cabanas' || hash === 'animales' || hash === 'admin') return hash;
+    if (hash === 'cabanas' || hash === 'animales' || hash === 'admin' || hash === 'dsb') return hash === 'admin' ? 'dsb' : hash;
     return 'home';
   });
 
@@ -47,6 +73,34 @@ export default function App() {
     setCancellationModalOpen(true);
   };
 
+  // Cargar configuración de personalización (Chatbot y Redes Sociales) en vivo
+  useEffect(() => {
+    getSiteCustomConfig().then(res => {
+      if (res.success && res.config) {
+        setCustomConfig(prev => ({
+          ...prev,
+          ...res.config,
+          enable_ai_chatbot: res.config.enable_ai_chatbot !== false,
+          socials: Array.isArray(res.config.socials) ? res.config.socials : prev.socials
+        }));
+      }
+    });
+
+    const handleConfigUpdate = (e) => {
+      if (e.detail) {
+        setCustomConfig(prev => ({
+          ...prev,
+          ...e.detail,
+          enable_ai_chatbot: e.detail.enable_ai_chatbot !== false,
+          socials: Array.isArray(e.detail.socials) ? e.detail.socials : prev.socials
+        }));
+      }
+    };
+
+    window.addEventListener('andicas_settings_updated', handleConfigUpdate);
+    return () => window.removeEventListener('andicas_settings_updated', handleConfigUpdate);
+  }, []);
+
   // Suscripción reactiva instantánea a cambios en Supabase Realtime (<100ms) sin necesidad de refrescar
   useEffect(() => {
     const unsubscribe = subscribeToSystemChanges((res) => {
@@ -54,9 +108,14 @@ export default function App() {
         setIsSiteLocked(res.status === 'unpaid');
         if (res.modules && typeof res.modules === 'object') {
           setActiveModules({
+            ...(res.modules || {}),
             bookings: res.modules.bookings !== false,
             wompi_payments: res.modules.wompi_payments !== false && res.modules.payments !== false,
-            ...(res.modules || {})
+            recaudos: res.modules.recaudos !== false,
+            cancelaciones: res.modules.cancelaciones !== false,
+            personalizacion: res.modules.personalizacion !== false,
+            users_management: res.modules.users_management !== false,
+            ai_chatbot: res.modules.ai_chatbot !== false && res.modules.whatsapp_agent !== false
           });
         }
       }
@@ -93,6 +152,14 @@ export default function App() {
   };
 
   const isAdminView = currentPage === 'dsb' || currentPage === 'admin';
+  const isAiChatEnabled = activeModules.ai_chatbot !== false && customConfig.enable_ai_chatbot !== false;
+
+  // PANTALLA DE BLOQUEO POR FALTA DE PAGO (PÚBLICA - RETORNO LIMPIO INMEDIATO COMO EN KAL)
+  if (isSiteLocked && !isAdminView) {
+    return (
+      <PublicLockoutScreen onGoToAdmin={() => navigateTo('dsb')} />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#062627] via-[#072E2F] to-[#041B1C] text-linen-100 flex flex-col justify-between selection:bg-gold-600 selection:text-jade-950 relative overflow-x-hidden">
@@ -102,11 +169,6 @@ export default function App() {
           <Preloader key="app-preloader" onComplete={() => setIsLoading(false)} />
         )}
       </AnimatePresence>
-
-      {/* PANTALLA DE BLOQUEO POR FALTA DE PAGO (PÚBLICA) */}
-      {isSiteLocked && !isAdminView && (
-        <PublicLockoutScreen onGoToAdmin={() => navigateTo('dsb')} />
-      )}
 
       {/* 
         FIXED WATERMARK BACKGROUND LAYER 
@@ -203,13 +265,14 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* Footer (Hidden on Admin page /dsb) */}
+      {/* Footer (Oculto en panel admin /dsb) */}
       {!isAdminView && (
         <Footer
           onOpenBooking={handleOpenBooking}
           onOpenRules={() => setRulesModalOpen(true)}
           onNavigate={navigateTo}
           onOpenCancellation={handleOpenCancellation}
+          socials={customConfig.socials}
         />
       )}
 
@@ -217,22 +280,25 @@ export default function App() {
       {!isAdminView && (
         <FloatingContactHub
           onOpenWhatsAppMenu={() => handleOpenBooking('cabana')}
+          socials={customConfig.socials}
         />
       )}
 
       {/* Floating AI Assistant Button with Robot Icon (Izquierda, Oculto en panel admin /dsb) */}
-      {!isAdminView && (
+      {!isAdminView && isAiChatEnabled && (
         <FloatingAiButton
           onOpenAiChat={() => setAiChatModalOpen(true)}
         />
       )}
 
       {/* AI Assistant Chat Modal */}
-      <AiAssistantModal
-        isOpen={aiChatModalOpen}
-        onClose={() => setAiChatModalOpen(false)}
-        onOpenBooking={handleOpenBooking}
-      />
+      {isAiChatEnabled && (
+        <AiAssistantModal
+          isOpen={aiChatModalOpen}
+          onClose={() => setAiChatModalOpen(false)}
+          onOpenBooking={handleOpenBooking}
+        />
+      )}
 
       {/* Modals */}
       <BookingModal

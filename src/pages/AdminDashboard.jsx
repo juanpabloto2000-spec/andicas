@@ -213,19 +213,33 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     dayBlocks: []
   });
 
+  const DEFAULT_SOCIALS = [
+    { id: 'instagram', name: 'Instagram', url: 'https://instagram.com/andicasbioparque', enabled: true, icon: 'instagram', tooltip: '@andicasbioparque' },
+    { id: 'facebook', name: 'Facebook', url: 'https://facebook.com/andicasbioparque', enabled: true, icon: 'facebook', tooltip: 'Facebook Oficial' },
+    { id: 'tiktok', name: 'TikTok', url: 'https://tiktok.com/@andicasbioparque', enabled: true, icon: 'tiktok', tooltip: 'TikTok Andicas' },
+    { id: 'whatsapp', name: 'WhatsApp Reservas', url: 'https://wa.me/573000000001', enabled: true, icon: 'whatsapp', tooltip: 'WhatsApp Reservas' },
+    { id: 'youtube', name: 'YouTube Oficial', url: '', enabled: false, icon: 'youtube', tooltip: 'Canal de YouTube' },
+  ];
+
   // Customization CMS Lite State (Admin / Master only)
-  const [siteConfig, setSiteConfig] = useState({
-    cabinPrices: {},
-    extraPersonPrices: {},
-    cabinStatus: {},
-    passPlans: {
-      aventurero: { enabled: true, price: 65000, name: 'Pasadía Bio-Aventurero' },
-      bronce: { enabled: true, price: 95000, name: 'Pasadía Gourmet & Selva' },
-      nocturna: { enabled: true, price: 70000, name: 'Pasanoche de Luces' },
-      plata: { enabled: true, price: 90000, name: 'Pasanoche Velada Astral' },
-      pet_aventurero: { enabled: true, price: 45000, name: 'Pase Mascota Aventurera' },
-    },
-    bankAccounts: contactData.banks || []
+  const [siteConfig, setSiteConfig] = useState(() => {
+    const saved = localStorage.getItem('andicas_custom_settings');
+    const parsed = saved ? JSON.parse(saved) : {};
+    return {
+      cabinPrices: parsed.cabinPrices || {},
+      extraPersonPrices: parsed.extraPersonPrices || {},
+      cabinStatus: parsed.cabinStatus || {},
+      passPlans: parsed.passPlans || {
+        aventurero: { enabled: true, price: 65000, name: 'Pasadía Bio-Aventurero' },
+        bronce: { enabled: true, price: 95000, name: 'Pasadía Gourmet & Selva' },
+        nocturna: { enabled: true, price: 70000, name: 'Pasanoche de Luces' },
+        plata: { enabled: true, price: 90000, name: 'Pasanoche Velada Astral' },
+        pet_aventurero: { enabled: true, price: 45000, name: 'Pase Mascota Aventurera' },
+      },
+      bankAccounts: parsed.bankAccounts || contactData.banks || [],
+      enable_ai_chatbot: parsed.enable_ai_chatbot !== false,
+      socials: Array.isArray(parsed.socials) ? parsed.socials : DEFAULT_SOCIALS
+    };
   });
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [configSaveSuccess, setConfigSaveSuccess] = useState('');
@@ -263,8 +277,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     return 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400';
   };
 
-  const isMasterAdmin = userRole === 'master_admin';
-  const isAdminOrMaster = userRole === 'master_admin' || userRole === 'admin';
+  const isMasterAdmin = userRole === 'master_admin' || userRole === 'MASTER';
+  const isAdminOrMaster = isMasterAdmin || userRole === 'admin' || userRole === 'ADMIN';
 
   const fetchDashboardData = async (key) => {
     setIsLoading(true);
@@ -273,17 +287,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       const data = await getAdminBookings(targetKey);
       if (data.success) {
         setBookings(data.bookings || []);
-        setBlockedDates(data.blocked_dates || []);
+        if (data.blockedDates) setBlockedDates(data.blockedDates);
         if (data.role) setUserRole(data.role);
-      }
-
-      // Solicitudes de cancelación (Admin y Master)
-      if (isAdminOrMaster || data.role === 'admin' || data.role === 'master_admin') {
-        const cancelData = await getAdminCancellationRequests(targetKey);
-        if (cancelData.success) {
-          setCancellationRequests(cancelData.requests || []);
-        }
-
         // Historial de auditoría
         const auditData = await getAdminAuditLogs(targetKey);
         if (auditData.success) {
@@ -826,14 +831,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   };
 
   const handleSaveSiteCustomization = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setIsSavingConfig(true);
     setConfigSaveSuccess('');
 
     try {
+      localStorage.setItem('andicas_custom_settings', JSON.stringify(siteConfig));
+      window.dispatchEvent(new CustomEvent('andicas_settings_updated', { detail: siteConfig }));
+
       const res = await updateSiteCustomConfigAdmin(siteConfig, adminKey);
       if (res.success) {
-        setConfigSaveSuccess('¡Configuración de página guardada y sincronizada en la nube con éxito!');
+        setConfigSaveSuccess('¡Configuración de página, Chatbot IA y Redes Sociales guardadas y sincronizadas en la nube con éxito!');
         setTimeout(() => setConfigSaveSuccess(''), 4000);
       }
     } catch (err) {
@@ -3116,6 +3124,148 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-linen-100 outline-none"
                         />
                       </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 4. Asistente Virtual & Chatbot de IA */}
+            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                <div>
+                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                    <span>🤖</span>
+                    <span>4. Asistente Virtual Inteligente (Chatbot de IA):</span>
+                  </h3>
+                  <p className="text-xs font-fredoka text-linen-300 mt-0.5">
+                    Controla si el botón flotante del Asistente IA aparece en la página pública para responder dudas de los visitantes.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiteConfig(prev => ({
+                        ...prev,
+                        enable_ai_chatbot: !prev.enable_ai_chatbot
+                      }));
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold font-cartoon uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 border ${
+                      siteConfig.enable_ai_chatbot !== false
+                        ? 'bg-emerald-600/30 border-emerald-500/60 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                        : 'bg-red-950/40 border-red-500/40 text-red-400'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${siteConfig.enable_ai_chatbot !== false ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}`} />
+                    <span>{siteConfig.enable_ai_chatbot !== false ? 'CHATBOT ACTIVADO' : 'CHATBOT DESACTIVADO'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-jade-900/40 border border-white/5 text-xs font-fredoka text-linen-300 flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <span className="text-base">{siteConfig.enable_ai_chatbot !== false ? '✨' : '💤'}</span>
+                  <span>
+                    {siteConfig.enable_ai_chatbot !== false
+                      ? 'El chatbot responderá automáticamente con información de cabañas, precios, pasadías y normas.'
+                      : 'El chatbot está oculto. Los usuarios se contactarán únicamente por WhatsApp y llamadas directas.'}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            {/* 5. Redes Sociales & Canales de la Comunidad */}
+            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                <div>
+                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                    <span>🌐</span>
+                    <span>5. Redes Sociales & Canales de Contacto:</span>
+                  </h3>
+                  <p className="text-xs font-fredoka text-linen-300 mt-0.5">
+                    Modifica los enlaces directos, activa/desactiva o agrega nuevas redes sociales mostradas en el pie de página y botones flotantes.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newSoc = {
+                      id: 'custom-' + Date.now(),
+                      name: 'Nueva Red Social',
+                      url: 'https://',
+                      enabled: true,
+                      icon: 'globe',
+                      tooltip: 'Enlace Oficial'
+                    };
+                    setSiteConfig(prev => ({
+                      ...prev,
+                      socials: [...(prev.socials || DEFAULT_SOCIALS), newSoc]
+                    }));
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-linen-100 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Añadir Red Social</span>
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {(siteConfig.socials || DEFAULT_SOCIALS).map((soc, sIdx) => (
+                  <div key={soc.id || sIdx} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={soc.enabled !== false}
+                        onChange={(e) => {
+                          const updated = [...(siteConfig.socials || DEFAULT_SOCIALS)];
+                          updated[sIdx] = { ...updated[sIdx], enabled: e.target.checked };
+                          setSiteConfig(prev => ({ ...prev, socials: updated }));
+                        }}
+                        className="rounded accent-gold-500 cursor-pointer w-4 h-4"
+                        title="Activar / Desactivar"
+                      />
+                      <input
+                        type="text"
+                        value={soc.name}
+                        onChange={(e) => {
+                          const updated = [...(siteConfig.socials || DEFAULT_SOCIALS)];
+                          updated[sIdx] = { ...updated[sIdx], name: e.target.value };
+                          setSiteConfig(prev => ({ ...prev, socials: updated }));
+                        }}
+                        placeholder="Nombre (ej: Instagram)"
+                        className="bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-1.5 text-xs font-bold text-linen-100 outline-none w-36"
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={soc.url}
+                        onChange={(e) => {
+                          const updated = [...(siteConfig.socials || DEFAULT_SOCIALS)];
+                          updated[sIdx] = { ...updated[sIdx], url: e.target.value };
+                          setSiteConfig(prev => ({ ...prev, socials: updated }));
+                        }}
+                        placeholder="https://tu-perfil-o-enlace.com"
+                        className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-1.5 text-xs font-mono text-linen-200 outline-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = (siteConfig.socials || DEFAULT_SOCIALS).filter((_, idx) => idx !== sIdx);
+                          setSiteConfig(prev => ({ ...prev, socials: updated }));
+                        }}
+                        className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition-colors cursor-pointer"
+                        title="Eliminar red social"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 ))}
