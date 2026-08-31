@@ -62,10 +62,103 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     };
   });
 
-  const [usernameInput, setUsernameInput] = useState('');
+  const [usernameInput, setUsernameInput] = useState('admin_master');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const [loginUsersList, setLoginUsersList] = useState([
+    { username: 'admin_master', name: 'Admin Master', role: 'master_admin' },
+    { username: 'admin', name: 'Administrador', role: 'admin' },
+    { username: 'recepcion', name: 'Recepción', role: 'staff' },
+  ]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
+        if (data?.description) {
+          const parsed = JSON.parse(data.description);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const defaults = [
+              { username: 'admin_master', name: 'Admin Master', role: 'master_admin' },
+              { username: 'admin', name: 'Administrador', role: 'admin' },
+              { username: 'recepcion', name: 'Recepción', role: 'staff' },
+            ];
+            const combined = [...defaults];
+            parsed.forEach(u => {
+              if (u.username && !combined.some(c => c.username.toLowerCase() === u.username.toLowerCase())) {
+                combined.push({
+                  username: u.username.toLowerCase(),
+                  name: u.name || u.username,
+                  role: u.role === 'admin' ? 'admin' : 'staff'
+                });
+              }
+            });
+            setLoginUsersList(combined);
+          }
+        }
+      } catch (e) {}
+    })();
+  }, []);
+
+  const getUserRoleTheme = (role, username) => {
+    const r = String(role || '').toLowerCase();
+    const u = String(username || '').toLowerCase();
+    
+    // 1. Admin Master -> Verde Militar
+    if (r === 'master_admin' || r === 'master' || u.includes('master') || u === 'admin_master') {
+      return {
+        role: 'master_admin',
+        label: 'Admin Master',
+        icon: '👑',
+        badgeBg: 'bg-[#2b3518]',
+        badgeBorder: 'border-[#55692e]',
+        badgeText: 'text-[#cae47a]',
+        cardBg: 'bg-[#1a2310] border-[#445524]',
+        colorCode: '#4b5320'
+      };
+    }
+    
+    // 2. Admin -> Amarillo
+    if (r === 'admin' || u === 'admin' || u.includes('admin')) {
+      return {
+        role: 'admin',
+        label: 'Administrador',
+        icon: '🛡️',
+        badgeBg: 'bg-amber-500/20',
+        badgeBorder: 'border-amber-400',
+        badgeText: 'text-amber-300',
+        cardBg: 'bg-[#241f0a] border-amber-500/40',
+        colorCode: '#eab308'
+      };
+    }
+    
+    // 3. Usuarios Comunes (Staff / Recepción) -> Morado
+    return {
+      role: 'staff',
+      label: 'Usuario Común',
+      icon: '👤',
+      badgeBg: 'bg-purple-900/40',
+      badgeBorder: 'border-purple-500/60',
+      badgeText: 'text-purple-300',
+      cardBg: 'bg-[#1f102e] border-purple-500/40',
+      colorCode: '#a855f7'
+    };
+  };
+
+  // Guard activeSection based on userRole
+  useEffect(() => {
+    if (userRole === 'staff' || userRole === 'recepcion') {
+      if (activeSection !== 'agendamientos') {
+        setActiveSection('agendamientos');
+      }
+    } else if (userRole === 'admin') {
+      if (activeSection === 'usuarios') {
+        setActiveSection('agendamientos');
+      }
+    }
+  }, [userRole, activeSection]);
 
   // Live Module State & Remote Subscription Status (Identical to KAL Engine)
   const [localActiveModules, setLocalActiveModules] = useState(() => activeModules || {
@@ -1754,123 +1847,76 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   }
 
   if (!isAuthenticated) {
+    const selectedUserObj = loginUsersList.find(u => u.username.toLowerCase() === usernameInput.toLowerCase()) || {
+      username: usernameInput,
+      role: usernameInput.includes('master') ? 'master_admin' : usernameInput === 'admin' ? 'admin' : 'staff'
+    };
+    const currentTheme = getUserRoleTheme(selectedUserObj.role, selectedUserObj.username);
+
     return (
       <div className="min-h-screen bg-jade-950 text-linen-100 flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          className="w-full max-w-md p-6 sm:p-8 rounded-3xl glass-dark border border-gold-500/40 shadow-2xl space-y-6 text-center"
+          className="w-full max-w-sm p-6 sm:p-8 rounded-3xl glass-dark border border-white/10 shadow-2xl space-y-6 text-center z-10"
         >
-          <div className="w-16 h-16 rounded-2xl bg-gold-500/15 border border-gold-500/30 flex items-center justify-center mx-auto text-gold-400">
-            <Lock className="w-8 h-8" />
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto shadow-lg transition-all border ${currentTheme.badgeBg} ${currentTheme.badgeBorder} ${currentTheme.badgeText}`}>
+            <span className="text-2xl">{currentTheme.icon}</span>
           </div>
 
           <div>
-            <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-widest block">
-              Acceso Restringido
+            <span className={`text-[10px] font-cartoon uppercase tracking-widest px-2.5 py-0.5 rounded-full border inline-block mb-1.5 font-bold ${currentTheme.badgeBg} ${currentTheme.badgeBorder} ${currentTheme.badgeText}`}>
+              {currentTheme.label}
             </span>
             <h1 className="font-display text-2xl font-black text-white uppercase tracking-wide">
               Panel Administrativo
             </h1>
-            <p className="text-xs font-fredoka text-linen-300 mt-1">
-              Selecciona tu cuenta o ingresa tu usuario y contraseña.
-            </p>
-          </div>
-
-          {/* Quick Account Selector Vertical List */}
-          <div className="space-y-2 text-left">
-            <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
-              Cuentas de Acceso Rápido:
-            </label>
-            <div className="space-y-2">
-              {[
-                {
-                  id: 'admin_master',
-                  name: 'Admin Master',
-                  roleLabel: 'Superusuario Master',
-                  desc: 'Control total de licencias, módulos y contraseñas',
-                  icon: '👑',
-                  color: 'border-gold-400/80 bg-gold-500/10 text-gold-300'
-                },
-                {
-                  id: 'admin',
-                  name: 'Administrador',
-                  roleLabel: 'Administrador General',
-                  desc: 'Caja, Cierres, Gastos, Personalización y CMS',
-                  icon: '🛡️',
-                  color: 'border-gold-400/50 bg-gold-500/5 text-gold-300'
-                },
-                {
-                  id: 'recepcion',
-                  name: 'Recepción',
-                  roleLabel: 'Recepción & Reservas',
-                  desc: 'Agendamientos, Calendario y Registro de Cobros',
-                  icon: '👤',
-                  color: 'border-cyan-400/50 bg-cyan-500/10 text-cyan-300'
-                }
-              ].map((acc) => {
-                const isSelected = usernameInput.toLowerCase() === acc.id;
-                return (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    onClick={() => {
-                      setUsernameInput(acc.id);
-                      setPasswordInput('');
-                    }}
-                    className={`w-full p-2.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                      isSelected
-                        ? 'bg-jade-900 border-gold-400 ring-2 ring-gold-400/50 shadow-gold-glow'
-                        : 'bg-jade-900/50 border-white/10 hover:border-white/20 hover:bg-jade-900/80'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${acc.color}`}>
-                        {acc.icon}
-                      </div>
-                      <div>
-                        <div className="font-cartoon text-xs font-bold text-linen-100 flex items-center gap-1.5">
-                          <span>@{acc.id}</span>
-                          <span className="text-[10px] text-gold-400 font-mono font-normal">({acc.roleLabel})</span>
-                        </div>
-                        <p className="text-[10px] text-linen-400 font-fredoka line-clamp-1">
-                          {acc.desc}
-                        </p>
-                      </div>
-                    </div>
-                    <div className={`px-2 py-0.5 rounded-lg text-[9px] font-cartoon font-bold uppercase ${
-                      isSelected ? 'bg-gold-500 text-jade-950 shadow-gold-glow' : 'bg-white/5 text-linen-400'
-                    }`}>
-                      {isSelected ? '✓ Activo' : 'Elegir'}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4 font-fredoka text-xs text-left">
+            {/* Lista Desplegable de Usuarios */}
             <div>
-              <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Usuario:</label>
-              <input
-                type="text"
-                required
-                placeholder="Ej. admin_master, admin, recepcion..."
-                value={usernameInput}
-                onChange={(e) => setUsernameInput(e.target.value)}
-                className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none font-mono"
-              />
+              <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                Usuario:
+              </label>
+              <div className="relative">
+                <select
+                  value={usernameInput}
+                  onChange={(e) => {
+                    setUsernameInput(e.target.value);
+                    setPasswordInput('');
+                    setLoginError('');
+                  }}
+                  className={`w-full bg-jade-950 border rounded-xl px-3.5 py-3 text-xs text-linen-100 outline-none font-bold cursor-pointer transition-colors appearance-none pr-9 ${currentTheme.badgeBorder}`}
+                >
+                  {loginUsersList.map((acc) => (
+                    <option
+                      key={acc.username}
+                      value={acc.username}
+                      className="bg-jade-950 text-linen-100 py-1"
+                    >
+                      {acc.username}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-linen-400">
+                  <ChevronDown className="w-4 h-4" />
+                </div>
+              </div>
             </div>
 
+            {/* Campo Contraseña */}
             <div>
-              <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Contraseña:</label>
+              <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                Contraseña:
+              </label>
               <input
                 type="password"
                 required
                 placeholder="••••••••"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
-                className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none"
+                className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-3 text-xs text-linen-100 outline-none font-mono"
               />
             </div>
 
@@ -1911,20 +1957,20 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       <aside className="w-full lg:w-72 bg-jade-950/95 border-b lg:border-b-0 lg:border-r border-white/10 p-4 sm:p-5 flex flex-col justify-between shrink-0 shadow-2xl z-30">
         <div className="space-y-6">
           
-          {/* Brand & Corona Header */}
+          {/* Brand & Role Header */}
           <div className="flex items-center justify-between pb-4 border-b border-white/10">
             <div className="flex items-center gap-3">
               {isMasterAdmin ? (
-                <div className="w-10 h-10 rounded-2xl bg-gold-gradient flex items-center justify-center text-jade-950 shadow-gold-glow">
-                  <Crown className="w-5 h-5 text-jade-950 fill-jade-950" />
+                <div className="w-10 h-10 rounded-2xl bg-[#2b3518] border border-[#55692e] flex items-center justify-center text-[#cae47a] shadow-md shadow-[#2b3518]/50 flex-shrink-0">
+                  <Crown className="w-5 h-5" />
                 </div>
-              ) : isAdminOrMaster ? (
-                <div className="w-10 h-10 rounded-2xl bg-gold-gradient/80 border border-gold-400 flex items-center justify-center text-jade-950">
-                  <Shield className="w-5 h-5 text-jade-950" />
+              ) : userRole === 'admin' ? (
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400 flex items-center justify-center text-amber-300 shadow-md flex-shrink-0">
+                  <Shield className="w-5 h-5 text-amber-400" />
                 </div>
               ) : (
-                <div className="w-10 h-10 rounded-2xl bg-jade-900 border border-white/10 flex items-center justify-center text-gold-400">
-                  <User className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-2xl bg-purple-900/40 border border-purple-500 flex items-center justify-center text-purple-300 shadow-md flex-shrink-0">
+                  <User className="w-5 h-5 text-purple-300" />
                 </div>
               )}
 
@@ -1932,8 +1978,14 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 <h2 className="font-display text-base font-black text-linen-100 uppercase tracking-wide leading-none">
                   Andicas Panel
                 </h2>
-                <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block mt-0.5">
-                  {isMasterAdmin ? '👑 Admin Master' : userRole === 'admin' ? '🛡️ Administrador' : '👤 Empleado / Recepción'}
+                <span className={`text-[9px] font-cartoon uppercase tracking-wider inline-block mt-1 px-2 py-0.5 rounded-md border font-bold ${
+                  isMasterAdmin
+                    ? 'bg-[#2b3518] border-[#55692e] text-[#cae47a]'
+                    : userRole === 'admin'
+                      ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                      : 'bg-purple-900/40 border-purple-500 text-purple-300'
+                }`}>
+                  {isMasterAdmin ? '👑 Admin Master' : userRole === 'admin' ? '🛡️ Administrador' : '👤 Usuario Común'}
                 </span>
               </div>
             </div>
@@ -2197,15 +2249,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   )}
                 </div>
 
-                <button
-                  onClick={() => setBlockModalOpen(true)}
-                  className="px-4 py-2.5 rounded-2xl bg-hoja-600 hover:bg-hoja-500 text-white font-cartoon text-xs uppercase font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Bloquear Fechas</span>
-                </button>
+                  {isAdminOrMaster && (
+                    <button
+                      onClick={() => setBlockModalOpen(true)}
+                      className="px-4 py-2.5 rounded-2xl bg-hoja-600 hover:bg-hoja-500 text-white font-cartoon text-xs uppercase font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Bloquear Fechas</span>
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
 
             {/* VISTA 1A: TABLA DE AGENDAS */}
             {agendaSubTab === 'tabla' && (
@@ -5109,9 +5163,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
 
               {/* Master Admin Info Card */}
-              <div className="p-5 rounded-3xl bg-gradient-to-r from-gold-950/40 via-jade-950/80 to-gold-950/40 border border-gold-500/40 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="p-5 rounded-3xl bg-gradient-to-r from-[#2b3518]/80 via-jade-950/80 to-[#2b3518]/80 border border-[#55692e] shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-gold-500/20 border border-gold-400 flex items-center justify-center text-gold-400 shadow-gold-glow flex-shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-[#3b4b20] border border-[#6b853a] flex items-center justify-center text-[#cae47a] shadow-lg flex-shrink-0">
                     <Crown className="w-6 h-6" />
                   </div>
                   <div>
@@ -5119,8 +5173,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       <h3 className="font-display text-sm font-black text-white uppercase">
                         Cuenta Principal: Master Admin
                       </h3>
-                      <span className="px-2 py-0.5 rounded-full bg-gold-500 text-jade-950 font-cartoon font-bold text-[10px] uppercase">
-                        Super Usuario
+                      <span className="px-2 py-0.5 rounded-full bg-[#3d4c20] text-[#cae47a] border border-[#55692e] font-cartoon font-bold text-[10px] uppercase">
+                        👑 Verde Militar • Super Usuario
                       </span>
                     </div>
                     <p className="text-xs text-linen-300 font-fredoka mt-0.5">
@@ -5132,7 +5186,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 <button
                   type="button"
                   onClick={() => setIsPassModalOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-gold-500/20 hover:bg-gold-500/30 text-gold-300 border border-gold-500/40 font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shadow-sm"
+                  className="px-4 py-2 rounded-xl bg-[#3b4b20] hover:bg-[#4a5f27] text-[#cae47a] border border-[#6b853a] font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shadow-sm"
                 >
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>Cambiar Clave Master</span>
@@ -5140,7 +5194,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
 
               {/* Form to create a new user */}
-              <div className="p-6 rounded-3xl glass-dark border border-gold-500/30 space-y-4 shadow-xl">
+              <div className="p-6 rounded-3xl glass-dark border border-white/15 space-y-4 shadow-xl">
                 <div className="flex items-center gap-2 text-gold-400">
                   <UserPlus className="w-5 h-5" />
                   <h3 className="font-cartoon text-sm uppercase tracking-wider">
@@ -5203,8 +5257,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                         onChange={(e) => setNewUserData(prev => ({ ...prev, role: e.target.value }))}
                         className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none cursor-pointer"
                       >
-                        <option value="staff">👤 Usuario / Empleado (Solo Agendamientos & Cobros)</option>
-                        <option value="admin">👑 Administrador (Acceso a Caja, Cancelaciones y CMS)</option>
+                        <option value="staff">👤 Usuario Común / Recepción (Morado - Solo Agendamientos)</option>
+                        <option value="admin">🛡️ Administrador (Amarillo - Acceso a Caja, Planes y CMS)</option>
                       </select>
                     </div>
 
@@ -5253,6 +5307,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       const isSaving = savingUserIds[u.id];
                       const feedback = userCardFeedback[u.id];
                       const isRevealed = revealedPasswords[u.id];
+                      const uTheme = getUserRoleTheme(u.role, u.username);
 
                       return (
                         <div
@@ -5262,15 +5317,11 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           {/* Top Badge & Username */}
                           <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
                             <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm shadow-md flex-shrink-0 ${
-                                u.role === 'admin'
-                                  ? 'bg-gold-500/20 text-gold-300 border border-gold-500/40'
-                                  : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                              }`}>
-                                {u.role === 'admin' ? <Shield className="w-5 h-5 text-gold-400" /> : <User className="w-5 h-5 text-cyan-400" />}
+                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm shadow-md flex-shrink-0 border ${uTheme.badgeBg} ${uTheme.badgeBorder} ${uTheme.badgeText}`}>
+                                {u.role === 'admin' ? <Shield className="w-5 h-5 text-amber-400" /> : <User className="w-5 h-5 text-purple-400" />}
                               </div>
                               <div>
-                                <span className="font-mono font-black text-sm text-gold-300 block">
+                                <span className={`font-mono font-black text-sm block ${uTheme.badgeText}`}>
                                   @{u.username}
                                 </span>
                                 <span className="text-[10px] text-linen-400 font-mono">
