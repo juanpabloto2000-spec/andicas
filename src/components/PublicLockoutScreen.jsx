@@ -4,7 +4,7 @@ import { Lock, ShieldAlert, AlertTriangle } from 'lucide-react';
 
 export default function PublicLockoutScreen({ onGoToAdmin }) {
   return (
-    <div className="fixed inset-0 z-50 min-h-screen bg-gradient-to-b from-[#150404] via-[#200707] to-[#0d0202] text-linen-100 flex items-center justify-center p-4 sm:p-6 select-none backdrop-blur-2xl">
+    <div className="fixed inset-0 z-[99999] min-h-screen bg-gradient-to-b from-[#150404] via-[#200707] to-[#0d0202] text-linen-100 flex items-center justify-center p-4 sm:p-6 select-none backdrop-blur-2xl">
       {/* Fondo con resplandor rojo */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-600/10 rounded-full blur-3xl pointer-events-none" />

@@ -1265,6 +1265,28 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       {/* ========================================================================= */}
       <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
         
+        {/* BANNER DE BLOQUEO POR FALTA DE PAGO (CONTROL REMOTO DYNAMIND) */}
+        {(userRole === 'unpaid' || localStorage.getItem('andicas_subscription_status') === 'unpaid') && (
+          <div className="p-4 rounded-2xl bg-red-950/80 border-2 border-red-500/70 text-red-300 shadow-[0_0_30px_rgba(239,68,68,0.3)] flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-red-900/60 border border-red-500 flex items-center justify-center shrink-0">
+                <Lock className="w-5 h-5 text-red-400 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="font-cartoon text-xs uppercase font-bold text-red-200">
+                  🚫 Sitio Web Público Bloqueado por Falta de Pago
+                </h4>
+                <p className="text-xs font-fredoka text-linen-300">
+                  El interruptor de corte remoto está ACTIVO desde Dynamind. Los visitantes ven la pantalla de servicio deshabilitado.
+                </p>
+              </div>
+            </div>
+            <span className="px-3 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold shrink-0">
+              MODO SUSPENDIDO
+            </span>
+          </div>
+        )}
+        
         {/* ======================================================================= */}
         {/* SECCIÓN 1: AGENDAMIENTOS, CALENDARIO & AUDITORÍA INTEGRADA */}
         {/* ======================================================================= */}

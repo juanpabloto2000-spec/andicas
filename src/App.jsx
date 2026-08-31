@@ -28,7 +28,13 @@ const DEFAULT_SOCIAL_LINKS = [
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const [isSiteLocked, setIsSiteLocked] = useState(false);
+  const [isSiteLocked, setIsSiteLocked] = useState(() => {
+    try {
+      return localStorage.getItem('andicas_subscription_status') === 'unpaid';
+    } catch {
+      return false;
+    }
+  });
   const [activeModules, setActiveModules] = useState({ bookings: true, wompi_payments: true });
   const [customConfig, setCustomConfig] = useState(() => {
     const saved = localStorage.getItem('andicas_custom_settings');
@@ -105,7 +111,14 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = subscribeToSystemChanges((res) => {
       if (res) {
-        setIsSiteLocked(res.status === 'unpaid');
+        const locked = res.status === 'unpaid';
+        setIsSiteLocked(locked);
+        try {
+          localStorage.setItem('andicas_subscription_status', res.status || 'active');
+        } catch {}
+        if (locked) {
+          setIsLoading(false);
+        }
         if (res.modules && typeof res.modules === 'object') {
           setActiveModules({
             ...(res.modules || {}),
