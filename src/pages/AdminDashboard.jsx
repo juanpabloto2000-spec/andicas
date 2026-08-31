@@ -127,12 +127,16 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   });
   const [isLoadingCash, setIsLoadingCash] = useState(false);
 
-  // Shift Opening State
-  const [openBaseInput, setOpenBaseInput] = useState('');
+  // Shift Opening State & Modal (Packed in lock button)
+  const [openShiftModal, setOpenShiftModal] = useState({
+    isOpen: false,
+    base_amount: '',
+    isSubmitting: false,
+    error: ''
+  });
   const [isOpeningShift, setIsOpeningShift] = useState(false);
-  const [openShiftError, setOpenShiftError] = useState('');
 
-  // Expenses State
+  // Expenses State & Modal
   const [newExpense, setNewExpense] = useState({
     concept: '',
     amount: '',
@@ -142,6 +146,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [expenseError, setExpenseError] = useState('');
   const [expenseSuccess, setExpenseSuccess] = useState('');
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
 
   // Reception Payment Registration State
   const [newPaymentModal, setNewPaymentModal] = useState({
@@ -155,12 +160,22 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     error: ''
   });
 
-  // Shift Closure State
+  // Shift Closure State & Confirmation Modal
   const [countedCashInput, setCountedCashInput] = useState('');
   const [closureNotesInput, setClosureNotesInput] = useState('');
   const [isClosingShift, setIsClosingShift] = useState(false);
   const [closeShiftError, setCloseShiftError] = useState('');
   const [closeShiftSuccess, setCloseShiftSuccess] = useState('');
+
+  const [confirmCloseModal, setConfirmCloseModal] = useState({
+    isOpen: false,
+    counted_cash: 0,
+    expected_cash: 0,
+    difference: 0,
+    notes: '',
+    isSubmitting: false,
+    error: ''
+  });
 
   // Annul Closure Modal State (Only today's closure)
   const [annulModal, setAnnulModal] = useState({
@@ -224,6 +239,53 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   // Inmutable Session Closed Modal State
   const [showSessionClosedModal, setShowSessionClosedModal] = useState(false);
 
+  // Custom Cabins Management Modal State
+  const [newCabinModal, setNewCabinModal] = useState({
+    isOpen: false,
+    isEditing: false,
+    id: '',
+    name: '',
+    type: 'Cabaña Panorámica',
+    category: 'luxury',
+    price: '',
+    extraPersonPrice: '',
+    maxGuests: 3,
+    image: '',
+    tagline: '',
+    description: '',
+    featuresText: 'Jacuzzi privado climatizado\nDesayuno campesino gourmet incluido\nBaño privado de autor\nWi-Fi satelital de alta velocidad\nParqueadero privado vigilado',
+    isSubmitting: false
+  });
+
+  // Custom Plans / Pasadías Modal State
+  const [newPlanModal, setNewPlanModal] = useState({
+    isOpen: false,
+    isEditing: false,
+    planKey: '',
+    name: '',
+    tagline: '',
+    price: '',
+    category: 'pasadia',
+    schedule: '9:00 AM a 5:00 PM',
+    desc: '',
+    featuresText: 'Acceso a piscinas naturales\nSenderos ecológicos guiados\nShow equino y destrezas\nSantuario animal',
+    isSubmitting: false
+  });
+
+  // Custom Payment Methods Modal State
+  const [newPaymentMethodModal, setNewPaymentMethodModal] = useState({
+    isOpen: false,
+    isEditing: false,
+    id: '',
+    name: '',
+    type: 'Billetera Digital',
+    accountNumber: '',
+    holder: '',
+    badge: 'Transferencia Rápida',
+    instructions: 'Envía el comprobante con tu número de reserva por WhatsApp.',
+    enabled: true
+  });
+
   // Data states
   const [bookings, setBookings] = useState([]);
   const [blockedDates, setBlockedDates] = useState([]);
@@ -257,17 +319,23 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     const saved = localStorage.getItem('andicas_custom_settings');
     const parsed = saved ? JSON.parse(saved) : {};
     return {
+      customCabins: Array.isArray(parsed.customCabins) ? parsed.customCabins : [],
       cabinPrices: parsed.cabinPrices || {},
       extraPersonPrices: parsed.extraPersonPrices || {},
       cabinStatus: parsed.cabinStatus || {},
       passPlans: parsed.passPlans || {
-        aventurero: { enabled: true, price: 65000, name: 'Pasadía Bio-Aventurero' },
-        bronce: { enabled: true, price: 95000, name: 'Pasadía Gourmet & Selva' },
-        nocturna: { enabled: true, price: 70000, name: 'Pasanoche de Luces' },
-        plata: { enabled: true, price: 90000, name: 'Pasanoche Velada Astral' },
-        pet_aventurero: { enabled: true, price: 45000, name: 'Pase Mascota Aventurera' },
+        aventurero: { enabled: true, price: 65000, name: 'Pase Andicas Bio-Aventura', tagline: 'Acceso Total al Bioparque', schedule: '9:00 AM a 5:00 PM', desc: 'Acceso completo a piscinas de roca natural con caverna, tobogán acuático, show equino y senderos ecológicos.' },
+        bronce: { enabled: true, price: 95000, name: 'Pase Andicas Gourmet & Selva', tagline: 'Aventura + Almuerzo Típico', schedule: '9:00 AM a 5:00 PM', desc: 'Todo lo del Pase Bio-Aventura + almuerzo campesino tradicional servido a la carta con bebida natural.' },
+        nocturna: { enabled: true, price: 70000, name: 'Noche de Luces & Manantiales', tagline: 'Noche Mágica & Chillout', schedule: '6:00 PM a 10:00 PM', desc: 'Piscina natural climatizada bajo las estrellas con senderos iluminados por antorchas y coctelería.' },
+        plata: { enabled: true, price: 90000, name: 'Velada Astral, Fogata & Cine', tagline: 'Cine Bajo Estrellas & Fogata', schedule: '6:00 PM a 10:00 PM', desc: 'Piscina climatizada nocturna + función de cine en pantalla gigante al aire libre + fogata con masmelos.' },
+        pet_caminante: { enabled: true, price: 30000, name: 'Pase Mascota Caminante', tagline: 'Senderismo & Aventura Canina', schedule: 'Ingreso Todo el Día', desc: 'Acceso a senderos ecológicos, miradores y kit de hidratación canina con bebederos en ruta.' },
+        pet_aventurero: { enabled: true, price: 45000, name: 'Pase Mascota Aventurera', tagline: 'Senderos + Piscina Canina', schedule: 'Ingreso Todo el Día', desc: 'Acceso a senderos + uso de piscina natural exclusiva para mascotas y zona de juegos al aire libre.' },
       },
       bankAccounts: parsed.bankAccounts || contactData.banks || [],
+      customPaymentMethods: Array.isArray(parsed.customPaymentMethods) ? parsed.customPaymentMethods : [
+        { id: 'nequi-dav', name: 'Nequi / Daviplata', type: 'Billetera Digital', accountNumber: '300 000 0001', holder: 'Andicas Bioparque Oficial', badge: 'Transferencia Rápida', instructions: 'Envía el comprobante con tu número de reserva por WhatsApp.', enabled: true },
+        { id: 'datafono', name: 'Datáfono / Tarjetas en Recepción', type: 'Físico / Recepción', accountNumber: 'Tarjetas Débito y Crédito (Visa, Mastercard, AMEX)', holder: 'Recepción Andicas', badge: 'Datáfono Presencial', instructions: 'Aceptamos todas las tarjetas en la taquilla y recepción.', enabled: true }
+      ],
       enable_ai_chatbot: parsed.enable_ai_chatbot !== false,
       socials: Array.isArray(parsed.socials) ? parsed.socials : DEFAULT_SOCIALS
     };
@@ -377,15 +445,26 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             setClosuresHistory(cashHistoryRes.value.closures || []);
           }
         } catch (cashErr) {
-          console.warn('Error cargando datos de caja:', cashErr);
+          console.warn('Error cargando módulo de caja:', cashErr);
         }
-      }
 
-      // Usuarios del sistema (Solo Master Admin)
-      if (isMasterAdmin || data?.role === 'master_admin') {
-        const usersData = await getAdminUsers(targetKey);
-        if (usersData && usersData.success) {
-          setSystemUsers(usersData.users || []);
+        if (isAdminOrMaster || isCancelacionesEnabled) {
+          try {
+            const cancelData = await getAdminCancellationRequests(targetKey);
+            if (cancelData && cancelData.success) {
+              setCancellationRequests(cancelData.requests || []);
+            }
+          } catch (cancelErr) {
+            console.warn('Error cargando solicitudes de cancelación:', cancelErr);
+          }
+        }
+
+        // Usuarios del sistema (Solo Master Admin)
+        if (isMasterAdmin || data?.role === 'master_admin') {
+          const usersData = await getAdminUsers(targetKey);
+          if (usersData && usersData.success) {
+            setSystemUsers(usersData.users || []);
+          }
         }
       }
     } catch (err) {
@@ -693,30 +772,28 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
   const handleOpenCashShift = async (e) => {
     e.preventDefault();
-    setOpenShiftError('');
-    if (!openBaseInput || isNaN(Number(openBaseInput)) || Number(openBaseInput) < 0) {
-      setOpenShiftError('Por favor ingresa un monto válido de base inicial.');
+    setOpenShiftModal(prev => ({ ...prev, error: '', isSubmitting: true }));
+    const amountVal = Number(openShiftModal.base_amount);
+    if (isNaN(amountVal) || amountVal < 0) {
+      setOpenShiftModal(prev => ({ ...prev, error: 'Por favor ingresa un monto válido de base inicial.', isSubmitting: false }));
       return;
     }
 
-    setIsOpeningShift(true);
     try {
       const res = await openCashShift({
-        base_amount: Number(openBaseInput),
+        base_amount: amountVal,
         opened_by: currentUserInfo.name || currentUserInfo.username
       }, adminKey);
 
       if (res.success) {
         setTodayCashSession(res.session);
-        setOpenBaseInput('');
+        setOpenShiftModal({ isOpen: false, base_amount: '', isSubmitting: false, error: '' });
         fetchDashboardData(adminKey);
       } else {
-        setOpenShiftError(res.error || 'Error al iniciar el turno.');
+        setOpenShiftModal(prev => ({ ...prev, error: res.error || 'Error al iniciar el turno.', isSubmitting: false }));
       }
     } catch (err) {
-      setOpenShiftError('Error de comunicación con el servidor.');
-    } finally {
-      setIsOpeningShift(false);
+      setOpenShiftModal(prev => ({ ...prev, error: 'Error de comunicación con el servidor.', isSubmitting: false }));
     }
   };
 
@@ -743,6 +820,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       if (res.success) {
         setExpenseSuccess('¡Gasto registrado con éxito!');
         setNewExpense({ concept: '', amount: '', category: 'Insumos', notes: '' });
+        setIsExpenseModalOpen(false);
         fetchDashboardData(adminKey);
         setTimeout(() => setExpenseSuccess(''), 2500);
       } else {
@@ -808,7 +886,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     }
   };
 
-  const handleCloseCashShift = async (e) => {
+  // Step 1: Validate physical count and trigger confirmation modal
+  const handleInitiateCloseCashShift = (e) => {
     e.preventDefault();
     setCloseShiftError('');
     setCloseShiftSuccess('');
@@ -818,32 +897,301 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       return;
     }
 
-    if (!window.confirm('¿Confirmas que deseas realizar el CIERRE DEFINITIVO DE CAJA de hoy? Se generará el informe contable inmutable.')) {
+    const countedVal = Number(countedCashInput);
+    const expectedVal = Number(cashSummary.expectedCash || 0);
+    const diff = countedVal - expectedVal;
+
+    if (Math.abs(diff) > 0) {
+      setCloseShiftError(`🚫 DESCUADRE DE CAJA: El efectivo contado (${formatCOP(countedVal)}) no coincide con el total esperado (${formatCOP(expectedVal)}). Diferencia: ${formatCOP(diff)}. Cuadra la caja antes de cerrar.`);
       return;
     }
 
-    setIsClosingShift(true);
+    // Open rich confirmation modal
+    setConfirmCloseModal({
+      isOpen: true,
+      counted_cash: countedVal,
+      expected_cash: expectedVal,
+      difference: diff,
+      notes: closureNotesInput.trim(),
+      isSubmitting: false,
+      error: ''
+    });
+  };
+
+  // Step 2: Perform immutable closing
+  const handleConfirmFinalCloseCashShift = async () => {
+    setConfirmCloseModal(prev => ({ ...prev, isSubmitting: true, error: '' }));
+
     try {
       const res = await closeCashShift({
-        actual_cash_counted: Number(countedCashInput),
-        notes: closureNotesInput.trim(),
+        actual_cash_counted: confirmCloseModal.counted_cash,
+        notes: confirmCloseModal.notes,
         closed_by: currentUserInfo.name || currentUserInfo.username
       }, adminKey);
 
       if (res.success) {
-        setCloseShiftSuccess('¡Cierre de caja completado con éxito!');
+        setCloseShiftSuccess('¡Cierre de caja completado y certificado con éxito!');
         setTodayClosure(res.closure);
         setCountedCashInput('');
         setClosureNotesInput('');
+        setConfirmCloseModal({ isOpen: false, counted_cash: 0, expected_cash: 0, difference: 0, notes: '', isSubmitting: false, error: '' });
         fetchDashboardData(adminKey);
       } else {
-        setCloseShiftError(res.error || 'Error al procesar el cierre de caja.');
+        setConfirmCloseModal(prev => ({ ...prev, error: res.error || 'Error al procesar el cierre de caja.', isSubmitting: false }));
       }
     } catch (err) {
-      setCloseShiftError('Error de comunicación con el servidor.');
-    } finally {
-      setIsClosingShift(false);
+      setConfirmCloseModal(prev => ({ ...prev, error: 'Error de comunicación con el servidor.', isSubmitting: false }));
     }
+  };
+
+  // =========================================================================
+  // CUSTOM CMS HANDLERS: CABINS, PASADIAS, PAYMENT METHODS
+  // =========================================================================
+
+  const handleOpenNewCabinModal = (cabinToEdit = null) => {
+    if (cabinToEdit) {
+      const featuresStr = (cabinToEdit.features || []).map(f => typeof f === 'string' ? f : f.text || '').join('\n');
+      setNewCabinModal({
+        isOpen: true,
+        isEditing: true,
+        id: cabinToEdit.id,
+        name: cabinToEdit.name || '',
+        type: cabinToEdit.type || 'Cabaña Panorámica',
+        category: cabinToEdit.category || 'luxury',
+        price: cabinToEdit.price || '',
+        extraPersonPrice: cabinToEdit.extraPersonPrice || '',
+        maxGuests: cabinToEdit.maxGuests || 3,
+        image: cabinToEdit.image || '',
+        tagline: cabinToEdit.tagline || '',
+        description: cabinToEdit.description || '',
+        featuresText: featuresStr,
+        isSubmitting: false
+      });
+    } else {
+      setNewCabinModal({
+        isOpen: true,
+        isEditing: false,
+        id: 'cabana-custom-' + Date.now(),
+        name: '',
+        type: 'Cabaña Panorámica',
+        category: 'luxury',
+        price: '',
+        extraPersonPrice: '',
+        maxGuests: 3,
+        image: 'https://images.unsplash.com/photo-1587061949409-02df41d5e562?auto=format&fit=crop&w=1200&q=80',
+        tagline: '',
+        description: '',
+        featuresText: 'Jacuzzi privado climatizado\nDesayuno campesino gourmet incluido\nBaño privado de autor\nWi-Fi satelital de alta velocidad\nParqueadero privado vigilado',
+        isSubmitting: false
+      });
+    }
+  };
+
+  const handleSaveCustomCabin = (e) => {
+    e.preventDefault();
+    if (!newCabinModal.name.trim() || !newCabinModal.price) {
+      alert('Ingresa al menos el nombre y el precio por noche de la cabaña.');
+      return;
+    }
+
+    const feats = newCabinModal.featuresText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(text => ({ emoji: '✨', text }));
+
+    const cabinObj = {
+      id: newCabinModal.id || ('cabana-custom-' + Date.now()),
+      name: newCabinModal.name.trim(),
+      type: newCabinModal.type.trim() || 'Cabaña Panorámica',
+      category: newCabinModal.category || 'luxury',
+      price: Number(newCabinModal.price),
+      priceFormatted: `$${Number(newCabinModal.price).toLocaleString('es-CO')} COP`,
+      period: 'por noche (base 2 pers.)',
+      pricingModel: 'por-pareja',
+      capacity: `Hasta ${newCabinModal.maxGuests || 3} personas`,
+      maxGuests: Number(newCabinModal.maxGuests || 3),
+      extraPersonPrice: Number(newCabinModal.extraPersonPrice || 0),
+      badge: newCabinModal.type || 'Cabaña Exclusiva',
+      rating: '5.0',
+      jacuzzi: 'Privado Climatizado',
+      hasCatamaran: true,
+      image: newCabinModal.image.trim() || 'https://images.unsplash.com/photo-1587061949409-02df41d5e562?auto=format&fit=crop&w=1200&q=80',
+      gallery: [
+        newCabinModal.image.trim() || 'https://images.unsplash.com/photo-1587061949409-02df41d5e562?auto=format&fit=crop&w=1200&q=80'
+      ],
+      tagline: newCabinModal.tagline.trim() || newCabinModal.name.trim(),
+      description: newCabinModal.description.trim() || `Hermosa cabaña ${newCabinModal.name} equipada con todo el confort en medio de la naturaleza.`,
+      features: feats.length > 0 ? feats : [{ emoji: '✨', text: 'Jacuzzi y amenidades de lujo' }],
+      isCustom: true
+    };
+
+    setSiteConfig(prev => {
+      const existing = prev.customCabins || [];
+      const updated = newCabinModal.isEditing
+        ? existing.map(c => c.id === cabinObj.id ? cabinObj : c)
+        : [...existing, cabinObj];
+      return {
+        ...prev,
+        customCabins: updated,
+        cabinPrices: { ...(prev.cabinPrices || {}), [cabinObj.id]: cabinObj.price },
+        extraPersonPrices: { ...(prev.extraPersonPrices || {}), [cabinObj.id]: cabinObj.extraPersonPrice },
+        cabinStatus: { ...(prev.cabinStatus || {}), [cabinObj.id]: true }
+      };
+    });
+
+    setNewCabinModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleDeleteCustomCabin = (cabinId) => {
+    if (!window.confirm('¿Estás seguro de eliminar esta cabaña personalizada?')) return;
+    setSiteConfig(prev => ({
+      ...prev,
+      customCabins: (prev.customCabins || []).filter(c => c.id !== cabinId)
+    }));
+  };
+
+  const handleOpenNewPlanModal = (planKey = null, planData = null) => {
+    if (planKey && planData) {
+      setNewPlanModal({
+        isOpen: true,
+        isEditing: true,
+        planKey,
+        name: planData.name || '',
+        tagline: planData.tagline || '',
+        price: planData.price || '',
+        category: planData.category || 'pasadia',
+        schedule: planData.schedule || '9:00 AM a 5:00 PM',
+        desc: planData.desc || '',
+        featuresText: Array.isArray(planData.features) ? planData.features.join('\n') : '',
+        isSubmitting: false
+      });
+    } else {
+      setNewPlanModal({
+        isOpen: true,
+        isEditing: false,
+        planKey: 'plan_' + Date.now(),
+        name: '',
+        tagline: '',
+        price: '',
+        category: 'pasadia',
+        schedule: '9:00 AM a 5:00 PM',
+        desc: '',
+        featuresText: 'Acceso a piscinas naturales\nSenderos ecológicos guiados\nShow equino y destrezas\nSantuario animal',
+        isSubmitting: false
+      });
+    }
+  };
+
+  const handleSaveCustomPlan = (e) => {
+    e.preventDefault();
+    if (!newPlanModal.name.trim() || !newPlanModal.price) {
+      alert('Ingresa el nombre y el precio del plan.');
+      return;
+    }
+
+    const key = newPlanModal.planKey || ('plan_' + Date.now());
+    const feats = newPlanModal.featuresText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    const planObj = {
+      name: newPlanModal.name.trim(),
+      tagline: newPlanModal.tagline.trim() || newPlanModal.name.trim(),
+      price: Number(newPlanModal.price),
+      category: newPlanModal.category,
+      schedule: newPlanModal.schedule.trim() || '9:00 AM a 5:00 PM',
+      desc: newPlanModal.desc.trim(),
+      features: feats,
+      enabled: true
+    };
+
+    setSiteConfig(prev => ({
+      ...prev,
+      passPlans: {
+        ...(prev.passPlans || {}),
+        [key]: planObj
+      }
+    }));
+
+    setNewPlanModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleDeleteCustomPlan = (planKey) => {
+    if (!window.confirm('¿Estás seguro de eliminar este plan de pasadía?')) return;
+    setSiteConfig(prev => {
+      const updated = { ...(prev.passPlans || {}) };
+      delete updated[planKey];
+      return { ...prev, passPlans: updated };
+    });
+  };
+
+  const handleOpenNewPaymentMethodModal = (methodToEdit = null) => {
+    if (methodToEdit) {
+      setNewPaymentMethodModal({
+        isOpen: true,
+        isEditing: true,
+        id: methodToEdit.id,
+        name: methodToEdit.name || '',
+        type: methodToEdit.type || 'Billetera Digital',
+        accountNumber: methodToEdit.accountNumber || '',
+        holder: methodToEdit.holder || '',
+        badge: methodToEdit.badge || 'Oficial',
+        instructions: methodToEdit.instructions || '',
+        enabled: methodToEdit.enabled !== false
+      });
+    } else {
+      setNewPaymentMethodModal({
+        isOpen: true,
+        isEditing: false,
+        id: 'payment_' + Date.now(),
+        name: '',
+        type: 'Billetera Digital',
+        accountNumber: '',
+        holder: 'Andicas Bioparque S.A.S.',
+        badge: 'Transferencia Directa',
+        instructions: 'Envía tu comprobante con el número de reserva.',
+        enabled: true
+      });
+    }
+  };
+
+  const handleSaveCustomPaymentMethod = (e) => {
+    e.preventDefault();
+    if (!newPaymentMethodModal.name.trim() || !newPaymentMethodModal.accountNumber.trim()) {
+      alert('Ingresa el nombre del medio y el número de cuenta/teléfono.');
+      return;
+    }
+
+    const methodObj = {
+      id: newPaymentMethodModal.id || ('payment_' + Date.now()),
+      name: newPaymentMethodModal.name.trim(),
+      type: newPaymentMethodModal.type,
+      accountNumber: newPaymentMethodModal.accountNumber.trim(),
+      holder: newPaymentMethodModal.holder.trim() || 'Andicas Bioparque S.A.S.',
+      badge: newPaymentMethodModal.badge.trim() || 'Oficial',
+      instructions: newPaymentMethodModal.instructions.trim(),
+      enabled: newPaymentMethodModal.enabled !== false
+    };
+
+    setSiteConfig(prev => {
+      const existing = prev.customPaymentMethods || [];
+      const updated = newPaymentMethodModal.isEditing
+        ? existing.map(m => m.id === methodObj.id ? methodObj : m)
+        : [...existing, methodObj];
+      return { ...prev, customPaymentMethods: updated };
+    });
+
+    setNewPaymentMethodModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleDeleteCustomPaymentMethod = (methodId) => {
+    if (!window.confirm('¿Estás seguro de eliminar este medio de pago?')) return;
+    setSiteConfig(prev => ({
+      ...prev,
+      customPaymentMethods: (prev.customPaymentMethods || []).filter(m => m.id !== methodId)
+    }));
   };
 
   const handleOpenAnnulModal = (closure) => {
@@ -1327,40 +1675,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </button>
             )}
 
-            {/* 3. Cancelaciones (Solo Admin y Master) */}
-            {isAdminOrMaster && (
-              <button
-                onClick={() => setActiveSection('cancelaciones')}
-                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
-                  activeSection === 'cancelaciones'
-                    ? isCancelacionesEnabled
-                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                      : 'bg-red-950/80 border border-red-500/50 text-red-300 font-bold shadow-lg shadow-red-950/40'
-                    : isCancelacionesEnabled
-                      ? 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
-                      : 'bg-red-950/20 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 border border-red-500/20'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  <span>Cancelaciones</span>
-                </div>
-                {isCancelacionesEnabled ? (
-                  pendingCancellationCount > 0 && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500 text-white font-mono font-bold animate-pulse">
-                      {pendingCancellationCount}
-                    </span>
-                  )
-                ) : (
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold">
-                    <Lock className="w-3 h-3 text-red-400" />
-                    <span>Bloqueado</span>
-                  </div>
-                )}
-              </button>
-            )}
-
-            {/* 4. Personalización / CMS Lite (Solo Admin y Master) */}
+            {/* 3. Personalización / CMS (Solo Admin y Master) */}
             {isAdminOrMaster && (
               <button
                 onClick={() => setActiveSection('personalizacion')}
@@ -1387,7 +1702,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </button>
             )}
 
-            {/* 5. Gestión de Usuarios / Empleados (Exclusivo Admin Master) */}
+            {/* 4. Gestión de Usuarios / Empleados (Exclusivo Admin Master) */}
             {isMasterAdmin && (
               <button
                 onClick={() => setActiveSection('usuarios')}
@@ -1519,6 +1834,24 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   >
                     Calendario Visual
                   </button>
+                  {isAdminOrMaster && (
+                    <button
+                      onClick={() => setAgendaSubTab('cancelaciones')}
+                      className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                        agendaSubTab === 'cancelaciones'
+                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                          : 'text-linen-300 hover:text-white'
+                      }`}
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Cancelaciones</span>
+                      {pendingCancellationCount > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-red-500 text-white font-mono font-bold animate-pulse">
+                          {pendingCancellationCount}
+                        </span>
+                      )}
+                    </button>
+                  )}
                   {isAdminOrMaster && (
                     <button
                       onClick={() => setAgendaSubTab('auditoria')}
@@ -1810,7 +2143,136 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
             )}
 
-            {/* VISTA 1C: AUDITORÍA DE AGENDAMIENTOS */}
+            {/* VISTA 1C: SOLICITUDES DE CANCELACIÓN INTEGRADA */}
+            {agendaSubTab === 'cancelaciones' && isAdminOrMaster && (
+              <div className="space-y-4">
+                <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+                  <div>
+                    <span className="text-xs font-cartoon text-amber-400 uppercase tracking-wider block">
+                      Gestión de Cancelaciones & Políticas
+                    </span>
+                    <h2 className="font-display text-xl font-black text-linen-100 uppercase tracking-wide">
+                      Solicitudes de Cancelación
+                    </h2>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="flex items-center gap-1.5 bg-jade-950 p-1 rounded-2xl border border-white/10 text-xs font-cartoon">
+                    {['ALL', 'PENDIENTE', 'APROBADA', 'RECHAZADA'].map((filter) => (
+                      <button
+                        key={filter}
+                        onClick={() => setCancellationFilter(filter)}
+                        className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                          cancellationFilter === filter
+                            ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                            : 'text-linen-300 hover:text-white'
+                        }`}
+                      >
+                        {filter === 'ALL' ? 'Todas' : filter}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* List of Cancellation Requests */}
+                <div className="space-y-3">
+                  {filteredCancellations.length === 0 ? (
+                    <div className="p-12 text-center rounded-3xl glass-dark border border-white/10 text-linen-400 italic">
+                      No hay solicitudes de cancelación registradas.
+                    </div>
+                  ) : (
+                    filteredCancellations.map((req) => (
+                      <div
+                        key={req.id}
+                        className="p-5 rounded-3xl glass-dark border border-white/10 space-y-3 shadow-xl text-xs"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-sm text-gold-300">{req.booking_reference}</span>
+                              <span className={`px-2.5 py-0.5 rounded-full font-cartoon font-bold text-[10px] uppercase border ${
+                                req.status === 'APROBADA'
+                                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                                  : req.status === 'RECHAZADA'
+                                  ? 'bg-red-500/15 border-red-500/30 text-red-400'
+                                  : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                              }`}>
+                                {req.status}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-linen-400">Titular: <strong>{req.client_name}</strong> · Tel: {req.client_phone}</span>
+                          </div>
+
+                          <div className="text-right">
+                            <span className={`px-2.5 py-1 rounded-xl font-mono font-bold text-[11px] inline-block ${
+                              req.penalty_percentage > 0
+                                ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            }`}>
+                              {req.penalty_percentage > 0 ? '⚠️ Penalidad del 40% (< 3 días)' : '✅ Solicitud Oportuna (>= 3 días)'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-linen-300">
+                          <div>
+                            <span className="text-[10px] text-linen-500 block uppercase font-cartoon">Cabaña & Fechas:</span>
+                            <span className="font-bold text-linen-100">{req.cabin_name}</span>
+                            <span className="block font-mono text-[11px]">{req.check_in_date} al {req.check_out_date}</span>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] text-linen-500 block uppercase font-cartoon">Monto / Anticipo Abonado:</span>
+                            <span className="font-mono text-linen-100 font-bold block">{formatCOP(req.total_amount_cop)}</span>
+                            <span className="font-mono text-hoja-400 text-[11px]">Abono: {formatCOP(req.deposit_amount_cop)}</span>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] text-linen-500 block uppercase font-cartoon">Motivo Manifestado:</span>
+                            <p className="italic text-linen-200 text-[11px] bg-black/30 p-2 rounded-xl border border-white/5">
+                              "{req.reason}"
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        {req.status === 'PENDIENTE' && (
+                          <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-end gap-2">
+                            <a
+                              href={`https://wa.me/${(req.client_phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(`¡Hola ${req.client_name}! Te saludamos de Andicas Bioparque sobre tu solicitud de cancelación para la reserva ${req.booking_reference}.`)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-cartoon text-xs uppercase font-bold flex items-center gap-1.5 transition-colors"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>Contactar WhatsApp</span>
+                            </a>
+
+                            <button
+                              disabled={resolvingCancelId === req.id}
+                              onClick={() => handleResolveCancellation(req.id, req.booking_reference, 'APPROVE')}
+                              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-cartoon text-xs uppercase font-bold transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              Aprobar & Liberar Fechas
+                            </button>
+
+                            <button
+                              disabled={resolvingCancelId === req.id}
+                              onClick={() => handleResolveCancellation(req.id, req.booking_reference, 'REJECT')}
+                              className="px-3.5 py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 text-red-300 font-cartoon text-xs uppercase font-bold transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              Rechazar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* VISTA 1D: AUDITORÍA DE AGENDAMIENTOS */}
             {agendaSubTab === 'auditoria' && isAdminOrMaster && (
               <div className="space-y-4">
                 <div className="p-4 rounded-3xl glass-dark border border-white/10 flex items-center justify-between">
@@ -1995,7 +2457,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         )}
 
         {/* ======================================================================= */}
-        {/* SECCIÓN 2: RECAUDOS, CAJA & MÉTRICAS (SOLO ADMIN Y MASTER) */}
+        {/* SECCIÓN 2: RECAUDOS & CAJA (OPERACIÓN, CIERRE ESTRICTO & HISTORIAL) */}
         {/* ======================================================================= */}
         {activeSection === 'recaudos' && isAdminOrMaster && (
           isRecaudosEnabled ? (
@@ -2003,181 +2465,115 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             
             {/* Header & Sub-Tabs Navigation */}
             <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xl">
-              <div>
-                <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
-                  Control Financiero & Arqueo Contable Diario
-                </span>
-                <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide flex items-center gap-2.5">
-                  <Wallet className="w-6 h-6 text-gold-400" />
-                  <span>Recaudos & Caja Diaria</span>
-                  {cashSummary.isClosedToday && (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-cartoon font-bold bg-red-500/20 text-red-300 border border-red-500/40 uppercase">
-                      Cierre Realizado
-                    </span>
-                  )}
-                </h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gold-gradient flex items-center justify-center text-jade-950 shadow-gold-glow">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
+                      Recaudos & Caja
+                    </h1>
+                    {cashSummary.isClosedToday && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-cartoon font-bold bg-red-500/20 text-red-300 border border-red-500/40 uppercase">
+                        Cierre Realizado
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-cartoon text-gold-400 uppercase tracking-wider block mt-0.5">
+                    Control Financiero & Arqueo Contable Diario ({cashSummary.todayStr})
+                  </span>
+                </div>
               </div>
 
-              {/* Sub-Tabs Selector */}
-              <div className="flex flex-wrap items-center gap-1.5 bg-jade-950 p-1.5 rounded-2xl border border-white/10 text-xs font-cartoon">
+              {/* Action Buttons & Candado de Apertura */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Botón del Candado de Turno */}
+                {!cashSummary.isLocked && cashSummary.baseInitial === 0 ? (
+                  <button
+                    onClick={() => setOpenShiftModal(prev => ({ ...prev, isOpen: true, base_amount: '' }))}
+                    className="px-4 py-2.5 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center gap-2 cursor-pointer border border-gold-400"
+                  >
+                    <Unlock className="w-4 h-4" />
+                    <span>Abrir Turno / Base</span>
+                  </button>
+                ) : (
+                  <div className="px-3.5 py-2 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-mono text-xs flex items-center gap-2 shadow-sm">
+                    <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="font-bold">Base: {formatCOP(cashSummary.baseInitial)}</span>
+                    <span className="text-[10px] text-linen-400 font-fredoka">({todayCashSession.opened_by || 'Turno'})</span>
+                  </div>
+                )}
+
                 <button
-                  onClick={() => setRecaudosSubTab('caja_vivo')}
-                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
-                    recaudosSubTab === 'caja_vivo'
-                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                      : 'text-linen-300 hover:text-white'
-                  }`}
+                  onClick={() => setNewPaymentModal(prev => ({ ...prev, isOpen: true }))}
+                  className="px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Coins className="w-3.5 h-3.5" />
-                  <span>Arqueo en Vivo</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Registrar Cobro</span>
                 </button>
 
                 <button
-                  onClick={() => setRecaudosSubTab('gastos')}
-                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
-                    recaudosSubTab === 'gastos'
-                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                      : 'text-linen-300 hover:text-white'
-                  }`}
+                  onClick={() => setIsExpenseModalOpen(true)}
+                  className="px-3.5 py-2.5 rounded-2xl bg-red-600/80 hover:bg-red-600 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <TrendingDown className="w-3.5 h-3.5" />
-                  <span>Gastos del Día</span>
-                  {(todayCashSession.expenses || []).length > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-red-500/30 text-red-300 font-mono text-[10px]">
-                      {(todayCashSession.expenses || []).length}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setRecaudosSubTab('cierre')}
-                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
-                    recaudosSubTab === 'cierre'
-                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                      : 'text-linen-300 hover:text-white'
-                  }`}
-                >
-                  <Receipt className="w-3.5 h-3.5" />
-                  <span>Cierre & Informe</span>
-                </button>
-
-                <button
-                  onClick={() => setRecaudosSubTab('historial')}
-                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
-                    recaudosSubTab === 'historial'
-                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                      : 'text-linen-300 hover:text-white'
-                  }`}
-                >
-                  <CalendarRange className="w-3.5 h-3.5" />
-                  <span>Historial & Calendario</span>
-                </button>
-
-                <button
-                  onClick={() => setRecaudosSubTab('metricas')}
-                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
-                    recaudosSubTab === 'metricas'
-                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                      : 'text-linen-300 hover:text-white'
-                  }`}
-                >
-                  <DollarSign className="w-3.5 h-3.5" />
-                  <span>Métricas Globales</span>
+                  <span>+ Gasto</span>
                 </button>
               </div>
             </div>
 
+            {/* Sub-Tabs Selector Comprimido a 3 Vistas */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-jade-950 p-1.5 rounded-2xl border border-white/10 text-xs font-cartoon max-w-fit">
+              <button
+                onClick={() => setRecaudosSubTab('caja_vivo')}
+                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                  recaudosSubTab === 'caja_vivo'
+                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                    : 'text-linen-300 hover:text-white'
+                }`}
+              >
+                <Coins className="w-3.5 h-3.5" />
+                <span>💵 Operación & Caja en Vivo</span>
+              </button>
+
+              <button
+                onClick={() => setRecaudosSubTab('cierre')}
+                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                  recaudosSubTab === 'cierre'
+                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                    : 'text-linen-300 hover:text-white'
+                }`}
+              >
+                <Receipt className="w-3.5 h-3.5" />
+                <span>📊 Cierre Diario & Gastos</span>
+                {(todayCashSession.expenses || []).length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-red-500/30 text-red-300 font-mono text-[10px]">
+                    {(todayCashSession.expenses || []).length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setRecaudosSubTab('historial_metricas')}
+                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                  recaudosSubTab === 'historial_metricas'
+                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                    : 'text-linen-300 hover:text-white'
+                }`}
+              >
+                <CalendarRange className="w-3.5 h-3.5" />
+                <span>📜 Historial & Métricas Globales</span>
+              </button>
+            </div>
+
             {/* =================================================================== */}
-            {/* SUB-TAB 1: ARQUEO & CAJA EN VIVO (HOY) */}
+            {/* SUB-TAB 1: ARQUEO & OPERACIÓN EN VIVO */}
             {/* =================================================================== */}
             {recaudosSubTab === 'caja_vivo' && (
               <div className="space-y-6">
                 
-                {/* 1.1 Apertura de Turno (Base Inicial) Card */}
-                <div className="p-6 rounded-3xl glass-dark border border-gold-500/30 space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-gold-500/20 border border-gold-400/40 flex items-center justify-center text-gold-400">
-                        {cashSummary.isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-                      </div>
-                      <div>
-                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                          Apertura de Turno · Base Inicial de Efectivo
-                        </h3>
-                        <span className="text-[11px] text-linen-400 font-fredoka">
-                          {cashSummary.isLocked 
-                            ? 'Turno abierto y base bloqueada para el resto del día por control de auditoría.' 
-                            : 'Ingresa el efectivo inicial con el que abres caja para el cuadre contable.'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <span className="font-mono text-xs text-gold-300 bg-gold-500/10 px-3 py-1 rounded-xl border border-gold-500/20">
-                      Fecha: {cashSummary.todayStr}
-                    </span>
-                  </div>
-
-                  {!cashSummary.isLocked && cashSummary.baseInitial === 0 ? (
-                    <form onSubmit={handleOpenCashShift} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                      <div className="sm:col-span-8">
-                        <label className="text-xs text-linen-300 font-cartoon uppercase block mb-1.5">
-                          Monto en Efectivo de Base Inicial ($ COP):
-                        </label>
-                        <input
-                          type="number"
-                          required
-                          min="0"
-                          step="1000"
-                          placeholder="Ej: 200000"
-                          value={openBaseInput}
-                          onChange={(e) => setOpenBaseInput(e.target.value)}
-                          className="w-full bg-jade-900 border border-white/20 focus:border-gold-400 rounded-2xl px-4 py-3 text-sm text-white font-mono placeholder:text-linen-500 outline-none"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-4">
-                        <button
-                          type="submit"
-                          disabled={isOpeningShift || !openBaseInput}
-                          className="w-full py-3.5 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-gold-400 disabled:opacity-50"
-                        >
-                          <Unlock className={`w-4 h-4 ${isOpeningShift ? 'animate-spin' : ''}`} />
-                          <span>{isOpeningShift ? 'Iniciando...' : 'Iniciar Turno de Caja'}</span>
-                        </button>
-                      </div>
-
-                      {openShiftError && (
-                        <div className="sm:col-span-12 p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs font-fredoka">
-                          {openShiftError}
-                        </div>
-                      )}
-                    </form>
-                  ) : (
-                    <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-fredoka">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-cartoon text-emerald-400 uppercase font-bold text-[11px]">
-                            Base Inicial Registrada:
-                          </span>
-                          <span className="font-mono font-black text-sm text-white">
-                            {formatCOP(cashSummary.baseInitial)}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-linen-300">
-                          Iniciado por: <strong className="text-white">{todayCashSession.opened_by || 'Operador'}</strong>
-                          {todayCashSession.opened_at && ` a las ${new Date(todayCashSession.opened_at).toLocaleTimeString('es-CO')}`}.
-                        </p>
-                      </div>
-
-                      <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] flex items-center gap-1.5 self-start sm:self-auto">
-                        <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Base Bloqueada por Movimiento Físico</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 1.2 Live Balance Breakdown Cards */}
+                {/* 1.1 Live Balance Breakdown Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
                   <div className="p-4 rounded-2xl glass-dark border border-white/10 space-y-1">
                     <span className="text-[10px] font-cartoon text-linen-400 uppercase block">1. Base Inicial</span>
@@ -2220,7 +2616,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   </div>
                 </div>
 
-                {/* 1.3 Quick Action: Registrar Cobro en Sitio & Listado de Cobros */}
+                {/* 1.2 Quick Action: Registrar Cobro en Sitio & Listado de Cobros */}
                 <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
                     <div>
@@ -2234,7 +2630,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
                     <button
                       onClick={() => setNewPaymentModal(prev => ({ ...prev, isOpen: true }))}
-                      className="px-4 py-2.5 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center gap-1.5 cursor-pointer border border-gold-400 self-start sm:self-auto"
+                      className="px-4 py-2 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center gap-1.5 cursor-pointer border border-gold-400 self-start sm:self-auto"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Registrar Cobro en Sitio</span>
@@ -2298,128 +2694,35 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             )}
 
             {/* =================================================================== */}
-            {/* SUB-TAB 2: REGISTRO DE GASTOS DEL DÍA (CAJA MENOR) */}
+            {/* SUB-TAB 2: CIERRE DIARIO & GASTOS INTEGRADOS */}
             {/* =================================================================== */}
-            {recaudosSubTab === 'gastos' && (
+            {recaudosSubTab === 'cierre' && (
               <div className="space-y-6">
                 
-                {/* Formulario de Registro de Gasto */}
+                {/* 2.1 Gastos del Día Integrados */}
                 <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
-                  <div className="border-b border-white/10 pb-3">
-                    <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
-                      <TrendingDown className="w-4 h-4 text-red-400" />
-                      <span>Registrar Nuevo Gasto / Salida de Caja</span>
-                    </h3>
-                    <span className="text-xs text-linen-400 font-fredoka">
-                      Ingresa compras de insumos, servicios, pagos de mantenimiento o viáticos del día.
-                    </span>
-                  </div>
-
-                  <form onSubmit={handleAddExpense} className="space-y-4 text-xs font-fredoka">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="sm:col-span-2">
-                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1">
-                          Concepto / Motivo del Gasto (*):
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Ej: Compra de cloro e insumos de aseo"
-                          value={newExpense.concept}
-                          onChange={(e) => setNewExpense({ ...newExpense, concept: e.target.value })}
-                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-linen-500 outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1">
-                          Categoría:
-                        </label>
-                        <select
-                          value={newExpense.category}
-                          onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}
-                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2.5 text-xs text-white outline-none"
-                        >
-                          <option value="Insumos">Insumos & Aseo</option>
-                          <option value="Alimentos">Alimentos & Bebidas</option>
-                          <option value="Mantenimiento">Mantenimiento & Reparaciones</option>
-                          <option value="Servicios">Servicios Públicos / Gas</option>
-                          <option value="Nómina">Nómina / Viáticos / Jornales</option>
-                          <option value="Varios">Varios / Otros</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1">
-                          Valor del Gasto ($ COP) (*):
-                        </label>
-                        <input
-                          type="number"
-                          required
-                          min="500"
-                          step="500"
-                          placeholder="Ej: 45000"
-                          value={newExpense.amount}
-                          onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
-                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono placeholder:text-linen-500 outline-none"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2">
-                        <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1">
-                          Notas / Comprobante (Opcional):
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Ej: Factura #1234 ferretería central"
-                          value={newExpense.notes}
-                          onChange={(e) => setNewExpense({ ...newExpense, notes: e.target.value })}
-                          className="w-full bg-jade-900 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-linen-500 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    {expenseError && (
-                      <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
-                        {expenseError}
-                      </div>
-                    )}
-                    {expenseSuccess && (
-                      <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs">
-                        {expenseSuccess}
-                      </div>
-                    )}
-
-                    <div className="flex justify-end pt-1">
-                      <button
-                        type="submit"
-                        disabled={isAddingExpense || !newExpense.concept || !newExpense.amount}
-                        className="px-6 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-cartoon font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>{isAddingExpense ? 'Guardando...' : 'Registrar Salida de Dinero'}</span>
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                {/* Listado de Gastos del Día */}
-                <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
                     <div>
-                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                        Gastos Registrados Hoy ({cashSummary.todayStr})
+                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                        <TrendingDown className="w-4 h-4 text-red-400" />
+                        <span>Gastos del Día (Salidas de Caja)</span>
                       </h3>
                       <span className="text-xs text-linen-400 font-fredoka">
                         Total acumulado de salidas: <strong className="text-red-400 font-mono">{formatCOP(cashSummary.totalExpenses)}</strong>
                       </span>
                     </div>
+
+                    <button
+                      onClick={() => setIsExpenseModalOpen(true)}
+                      className="px-4 py-2 rounded-2xl bg-red-600/80 hover:bg-red-600 text-white font-cartoon font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ Añadir Gasto</span>
+                    </button>
                   </div>
 
                   {(todayCashSession.expenses || []).length === 0 ? (
-                    <div className="p-8 text-center text-xs text-linen-400 italic rounded-2xl bg-jade-900/40 border border-white/5">
+                    <div className="p-6 text-center text-xs text-linen-400 italic rounded-2xl bg-jade-900/40 border border-white/5">
                       No hay gastos registrados en la caja de hoy.
                     </div>
                   ) : (
@@ -2476,16 +2779,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   )}
                 </div>
 
-              </div>
-            )}
-
-            {/* =================================================================== */}
-            {/* SUB-TAB 3: CIERRE DE CAJA & INFORME OFICIAL */}
-            {/* =================================================================== */}
-            {recaudosSubTab === 'cierre' && (
-              <div className="space-y-6">
-                
-                {/* SI EL CIERRE YA SE REALIZÓ HOY: MOSTRAR INFORME COMPLETO */}
+                {/* 2.2 SI EL CIERRE YA SE REALIZÓ HOY: MOSTRAR INFORME COMPLETO */}
                 {todayClosure ? (
                   <div className="p-6 sm:p-8 rounded-3xl glass-dark border-2 border-gold-500/40 shadow-2xl space-y-6">
                     
@@ -2568,26 +2862,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       </div>
                     </div>
 
-                    {/* Desglose de Gastos */}
-                    {(todayClosure.expenses_detail || []).length > 0 && (
-                      <div className="space-y-2 font-fredoka text-xs">
-                        <h4 className="font-cartoon text-xs uppercase text-gold-400 tracking-wider">
-                          📉 Detalle de Gastos Incluidos en el Cierre:
-                        </h4>
-                        <div className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-2">
-                          {todayClosure.expenses_detail.map((exp, idx) => (
-                            <div key={idx} className="flex justify-between items-center py-1 border-b border-white/5 last:border-0">
-                              <div>
-                                <span className="font-bold text-linen-100">{exp.concept}</span>
-                                <span className="text-linen-400 text-[10px] block font-mono">Por: {exp.user} · {exp.category}</span>
-                              </div>
-                              <span className="font-mono font-bold text-red-400">-{formatCOP(exp.amount)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
                     {/* Observaciones */}
                     {todayClosure.notes && (
                       <div className="p-4 rounded-2xl bg-black/30 border border-white/10 space-y-1 text-xs font-fredoka">
@@ -2620,7 +2894,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
                   </div>
                 ) : (
-                  /* SI AÚN NO SE HA CERRADO HOY: ASISTENTE DE ARQUEO Y CIERRE */
+                  /* SI AÚN NO SE HA CERRADO HOY: ASISTENTE DE ARQUEO ESTRICTO */
                   <div className="p-6 sm:p-8 rounded-3xl glass-dark border border-white/10 space-y-6 shadow-xl">
                     <div className="border-b border-white/10 pb-4">
                       <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
@@ -2630,7 +2904,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                         Realizar Cierre de Caja Diario & Arqueo
                       </h2>
                       <p className="text-xs text-linen-300 font-fredoka mt-1">
-                        Realiza el conteo de billetes y monedas en el cajón físico y genera el informe contable consolidado.
+                        Cuenta los billetes y monedas en el cajón físico. El sistema exige cuadre exacto para procesar el cierre.
                       </p>
                     </div>
 
@@ -2659,7 +2933,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     </div>
 
                     {/* Closing Form */}
-                    <form onSubmit={handleCloseCashShift} className="space-y-4 text-xs font-fredoka">
+                    <form onSubmit={handleInitiateCloseCashShift} className="space-y-4 text-xs font-fredoka">
                       <div>
                         <label className="text-linen-300 font-cartoon uppercase text-[11px] block mb-1.5 font-bold">
                           Efectivo Físico Total Contado en Caja ($ COP) (*):
@@ -2669,7 +2943,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           required
                           min="0"
                           step="100"
-                          placeholder="Digita el dinero real que tienes físicamente..."
+                          placeholder="Digita el dinero real contado físicamente en caja..."
                           value={countedCashInput}
                           onChange={(e) => setCountedCashInput(e.target.value)}
                           className="w-full bg-jade-900 border border-white/20 focus:border-gold-400 rounded-2xl px-4 py-3.5 text-base text-white font-mono placeholder:text-linen-500 outline-none"
@@ -2684,19 +2958,24 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           className={`p-4 rounded-2xl border text-xs font-fredoka space-y-1 ${
                             Number(countedCashInput) - cashSummary.expectedCash === 0
                               ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-200'
-                              : Number(countedCashInput) - cashSummary.expectedCash > 0
-                              ? 'bg-cyan-950/70 border-cyan-500/50 text-cyan-200'
                               : 'bg-red-950/70 border-red-500/50 text-red-200'
                           }`}
                         >
                           <div className="flex items-center justify-between font-cartoon font-bold uppercase text-xs">
-                            <span>Resultado del Arqueo:</span>
+                            <span>Estado de Cuadre:</span>
                             <span className="font-mono text-sm">
-                              {Number(countedCashInput) - cashSummary.expectedCash === 0 && '✅ Cuadre Exacto ($0)'}
-                              {Number(countedCashInput) - cashSummary.expectedCash > 0 && `🔵 Sobrante: +${formatCOP(Number(countedCashInput) - cashSummary.expectedCash)}`}
-                              {Number(countedCashInput) - cashSummary.expectedCash < 0 && `🔴 Faltante: ${formatCOP(Number(countedCashInput) - cashSummary.expectedCash)}`}
+                              {Number(countedCashInput) - cashSummary.expectedCash === 0
+                                ? '✅ Cuadre Perfecto ($0 COP de diferencia)'
+                                : Number(countedCashInput) - cashSummary.expectedCash > 0
+                                ? `⚠️ DESCUADRE: Sobrante de +${formatCOP(Number(countedCashInput) - cashSummary.expectedCash)}`
+                                : `⚠️ DESCUADRE: Faltante de ${formatCOP(Number(countedCashInput) - cashSummary.expectedCash)}`}
                             </span>
                           </div>
+                          {Number(countedCashInput) - cashSummary.expectedCash !== 0 && (
+                            <p className="text-[11px] text-red-300 font-fredoka">
+                              El valor contado debe coincidir exactamente con el esperado ({formatCOP(cashSummary.expectedCash)}) para poder emitir el cierre.
+                            </p>
+                          )}
                         </motion.div>
                       )}
 
@@ -2725,14 +3004,25 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       )}
 
                       <div className="pt-2">
-                        <button
-                          type="submit"
-                          disabled={isClosingShift || countedCashInput === ''}
-                          className="w-full py-4 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-sm uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-gold-400 disabled:opacity-50"
-                        >
-                          <Lock className={`w-4 h-4 ${isClosingShift ? 'animate-spin' : ''}`} />
-                          <span>{isClosingShift ? 'Generando Cierre...' : '🔒 Realizar Cierre Definitivo de Caja'}</span>
-                        </button>
+                        {countedCashInput !== '' && Number(countedCashInput) === cashSummary.expectedCash ? (
+                          <button
+                            type="submit"
+                            disabled={isClosingShift}
+                            className="w-full py-4 rounded-2xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-sm uppercase tracking-wider shadow-gold-glow hover:shadow-gold-glow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-gold-400"
+                          >
+                            <Lock className="w-4 h-4" />
+                            <span>📋 Proceder al Cierre de Caja</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            className="w-full py-4 rounded-2xl bg-zinc-800/80 text-zinc-500 font-cartoon font-bold text-xs uppercase tracking-wider border border-white/10 cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            <Lock className="w-4 h-4" />
+                            <span>🚫 Cierre Bloqueado (Se requiere cuadre exacto)</span>
+                          </button>
+                        )}
                       </div>
                     </form>
                   </div>
@@ -2742,21 +3032,91 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             )}
 
             {/* =================================================================== */}
-            {/* SUB-TAB 4: HISTORIAL DE CIERRES & CALENDARIO ESTÉTICO */}
+            {/* SUB-TAB 3: HISTORIAL DE CIERRES & MÉTRICAS GLOBALES */}
             {/* =================================================================== */}
-            {recaudosSubTab === 'historial' && (
+            {recaudosSubTab === 'historial_metricas' && (
               <div className="space-y-6">
                 
-                {/* Selector / Calendario Estético */}
+                {/* 3.1 KPI Cards Globales */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-5 rounded-3xl glass-dark border border-emerald-500/30 space-y-1 shadow-lg">
+                    <span className="text-[10px] font-cartoon text-emerald-400 uppercase tracking-wider block">
+                      Anticipos Recaudados (50%)
+                    </span>
+                    <span className="font-mono text-xl sm:text-2xl font-black text-white block">
+                      {formatCOP(totalDepositsCollected)}
+                    </span>
+                    <span className="text-[11px] text-linen-400 block">Pagos confirmados por Wompi y banco</span>
+                  </div>
+
+                  <div className="p-5 rounded-3xl glass-dark border border-gold-500/30 space-y-1 shadow-lg">
+                    <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
+                      Ventas Totales Proyectadas
+                    </span>
+                    <span className="font-mono text-xl sm:text-2xl font-black text-gold-300 block">
+                      {formatCOP(totalRevenue)}
+                    </span>
+                    <span className="text-[11px] text-linen-400 block">Monto total de estadías activas</span>
+                  </div>
+
+                  <div className="p-5 rounded-3xl glass-dark border border-amber-500/30 space-y-1 shadow-lg">
+                    <span className="text-[10px] font-cartoon text-amber-400 uppercase tracking-wider block">
+                      Saldos Pendientes en Recepción
+                    </span>
+                    <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 block">
+                      {formatCOP(totalRemainingPendingGlobal)}
+                    </span>
+                    <span className="text-[11px] text-linen-400 block">Por cobrar al check-in en efectivo/datafono</span>
+                  </div>
+
+                  <div className="p-5 rounded-3xl glass-dark border border-cyan-500/30 space-y-1 shadow-lg">
+                    <span className="text-[10px] font-cartoon text-cyan-400 uppercase tracking-wider block">
+                      Total Reservas Agendadas
+                    </span>
+                    <span className="font-mono text-xl sm:text-2xl font-black text-cyan-300 block">
+                      {activeScheduledBookings.length}
+                    </span>
+                    <span className="text-[11px] text-linen-400 block">Estadías activas en el sistema</span>
+                  </div>
+                </div>
+
+                {/* 3.2 Ocupación por Cabaña */}
+                <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
+                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                    Desglose de Ocupación por Cabaña:
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {cabinsData.map((cabin) => {
+                      const cabinBookings = activeScheduledBookings.filter(b => b.cabin_id === cabin.id);
+                      const cabinRevenue = cabinBookings.reduce((sum, b) => sum + (b.total_amount_cop || 0), 0);
+
+                      return (
+                        <div key={cabin.id} className="p-4 rounded-2xl bg-jade-900/60 border border-white/5 space-y-2">
+                          <h4 className="font-bold text-xs text-linen-100 truncate">{cabin.name}</h4>
+                          <div className="flex justify-between text-xs text-linen-300">
+                            <span>Reservas:</span>
+                            <span className="font-bold font-mono text-gold-400">{cabinBookings.length}</span>
+                          </div>
+                          <div className="flex justify-between text-xs text-linen-300">
+                            <span>Ingreso Total:</span>
+                            <span className="font-bold font-mono text-emerald-400">{formatCOP(cabinRevenue)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3.3 Filtro & Calendario de Cierres de Caja */}
                 <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
                     <div>
                       <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
                         <CalendarRange className="w-4 h-4 text-gold-400" />
-                        <span>Filtro & Calendario de Cierres de Caja</span>
+                        <span>Historial de Cierres de Caja</span>
                       </h3>
                       <span className="text-xs text-linen-400 font-fredoka">
-                        Consulta y audita los informes de cierre de cualquier fecha registrada.
+                        Consulta y audita los informes de cierre emitidos en cualquier fecha.
                       </span>
                     </div>
 
@@ -2803,7 +3163,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   </div>
                 </div>
 
-                {/* Listado de Cierres Históricos */}
+                {/* 3.4 Listado de Cierres Históricos */}
                 <div className="space-y-3">
                   {closuresHistory
                     .filter(c => {
@@ -2921,223 +3281,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
             )}
 
-            {/* =================================================================== */}
-            {/* SUB-TAB 5: MÉTRICAS GLOBALES & OCUPACIÓN */}
-            {/* =================================================================== */}
-            {recaudosSubTab === 'metricas' && (
-              <div className="space-y-6">
-                
-                {/* KPI Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="p-5 rounded-3xl glass-dark border border-emerald-500/30 space-y-1 shadow-lg">
-                    <span className="text-[10px] font-cartoon text-emerald-400 uppercase tracking-wider block">
-                      Anticipos Recaudados (50%)
-                    </span>
-                    <span className="font-mono text-xl sm:text-2xl font-black text-white block">
-                      {formatCOP(totalDepositsCollected)}
-                    </span>
-                    <span className="text-[11px] text-linen-400 block">Pagos confirmados por Wompi y banco</span>
-                  </div>
-
-                  <div className="p-5 rounded-3xl glass-dark border border-gold-500/30 space-y-1 shadow-lg">
-                    <span className="text-[10px] font-cartoon text-gold-400 uppercase tracking-wider block">
-                      Ventas Totales Proyectadas
-                    </span>
-                    <span className="font-mono text-xl sm:text-2xl font-black text-gold-300 block">
-                      {formatCOP(totalRevenue)}
-                    </span>
-                    <span className="text-[11px] text-linen-400 block">Monto total de estadías activas</span>
-                  </div>
-
-                  <div className="p-5 rounded-3xl glass-dark border border-amber-500/30 space-y-1 shadow-lg">
-                    <span className="text-[10px] font-cartoon text-amber-400 uppercase tracking-wider block">
-                      Saldos Pendientes en Recepción
-                    </span>
-                    <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 block">
-                      {formatCOP(totalRemainingPendingGlobal)}
-                    </span>
-                    <span className="text-[11px] text-linen-400 block">Por cobrar al check-in en efectivo/datafono</span>
-                  </div>
-
-                  <div className="p-5 rounded-3xl glass-dark border border-cyan-500/30 space-y-1 shadow-lg">
-                    <span className="text-[10px] font-cartoon text-cyan-400 uppercase tracking-wider block">
-                      Total Reservas Agendadas
-                    </span>
-                    <span className="font-mono text-xl sm:text-2xl font-black text-cyan-300 block">
-                      {activeScheduledBookings.length}
-                    </span>
-                    <span className="text-[11px] text-linen-400 block">Estadías activas en el sistema</span>
-                  </div>
-                </div>
-
-                {/* Ocupación por Cabaña */}
-                <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
-                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                    Desglose de Ocupación por Cabaña:
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {cabinsData.map((cabin) => {
-                      const cabinBookings = activeScheduledBookings.filter(b => b.cabin_id === cabin.id);
-                      const cabinRevenue = cabinBookings.reduce((sum, b) => sum + (b.total_amount_cop || 0), 0);
-
-                      return (
-                        <div key={cabin.id} className="p-4 rounded-2xl bg-jade-900/60 border border-white/5 space-y-2">
-                          <h4 className="font-bold text-xs text-linen-100 truncate">{cabin.name}</h4>
-                          <div className="flex justify-between text-xs text-linen-300">
-                            <span>Reservas:</span>
-                            <span className="font-bold font-mono text-gold-400">{cabinBookings.length}</span>
-                          </div>
-                          <div className="flex justify-between text-xs text-linen-300">
-                            <span>Ingreso Total:</span>
-                            <span className="font-bold font-mono text-emerald-400">{formatCOP(cabinRevenue)}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-              </div>
-            )}
-
           </div>
           ) : (
             renderLockedSection('Recaudos y Caja', 'La visualización de métricas financieras, arqueo ciego de caja y registro de gastos ha sido deshabilitada temporalmente por la administración central de Dynamind.')
-          )
-        )}
-
-        {/* ======================================================================= */}
-        {/* SECCIÓN 3: SOLICITUDES DE CANCELACIÓN (SOLO ADMIN Y MASTER) */}
-        {/* ======================================================================= */}
-        {activeSection === 'cancelaciones' && isAdminOrMaster && (
-          isCancelacionesEnabled ? (
-            <div className="space-y-6">
-            <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
-              <div>
-                <span className="text-xs font-cartoon text-amber-400 uppercase tracking-wider block">
-                  Gestión de Cancelaciones & Políticas
-                </span>
-                <h1 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
-                  Solicitudes de Cancelación
-                </h1>
-              </div>
-
-              {/* Status Filter */}
-              <div className="flex items-center gap-1.5 bg-jade-950 p-1 rounded-2xl border border-white/10 text-xs font-cartoon">
-                {['ALL', 'PENDIENTE', 'APROBADA', 'RECHAZADA'].map((filter) => (
-                  <button
-                    key={filter}
-                    onClick={() => setCancellationFilter(filter)}
-                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                      cancellationFilter === filter
-                        ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                        : 'text-linen-300 hover:text-white'
-                    }`}
-                  >
-                    {filter === 'ALL' ? 'Todas' : filter}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* List of Cancellation Requests */}
-            <div className="space-y-3">
-              {filteredCancellations.length === 0 ? (
-                <div className="p-12 text-center rounded-3xl glass-dark border border-white/10 text-linen-400 italic">
-                  No hay solicitudes de cancelación registradas.
-                </div>
-              ) : (
-                filteredCancellations.map((req) => (
-                  <div
-                    key={req.id}
-                    className="p-5 rounded-3xl glass-dark border border-white/10 space-y-3 shadow-xl text-xs"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-sm text-gold-300">{req.booking_reference}</span>
-                          <span className={`px-2.5 py-0.5 rounded-full font-cartoon font-bold text-[10px] uppercase border ${
-                            req.status === 'APROBADA'
-                              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                              : req.status === 'RECHAZADA'
-                              ? 'bg-red-500/15 border-red-500/30 text-red-400'
-                              : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                          }`}>
-                            {req.status}
-                          </span>
-                        </div>
-                        <span className="text-[11px] text-linen-400">Titular: <strong>{req.client_name}</strong> · Tel: {req.client_phone}</span>
-                      </div>
-
-                      <div className="text-right">
-                        <span className={`px-2.5 py-1 rounded-xl font-mono font-bold text-[11px] inline-block ${
-                          req.penalty_percentage > 0
-                            ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        }`}>
-                          {req.penalty_percentage > 0 ? '⚠️ Penalidad del 40% (< 3 días)' : '✅ Solicitud Oportuna (>= 3 días)'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-linen-300">
-                      <div>
-                        <span className="text-[10px] text-linen-500 block uppercase font-cartoon">Cabaña & Fechas:</span>
-                        <span className="font-bold text-linen-100">{req.cabin_name}</span>
-                        <span className="block font-mono text-[11px]">{req.check_in_date} al {req.check_out_date}</span>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] text-linen-500 block uppercase font-cartoon">Monto / Anticipo Abonado:</span>
-                        <span className="font-mono text-linen-100 font-bold block">{formatCOP(req.total_amount_cop)}</span>
-                        <span className="font-mono text-hoja-400 text-[11px]">Abono: {formatCOP(req.deposit_amount_cop)}</span>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] text-linen-500 block uppercase font-cartoon">Motivo Manifestado:</span>
-                        <p className="italic text-linen-200 text-[11px] bg-black/30 p-2 rounded-xl border border-white/5">
-                          "{req.reason}"
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    {req.status === 'PENDIENTE' && (
-                      <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-end gap-2">
-                        <a
-                          href={`https://wa.me/${(req.client_phone || '').replace(/\D/g, '')}?text=${encodeURIComponent(`¡Hola ${req.client_name}! Te saludamos de Andicas Bioparque sobre tu solicitud de cancelación para la reserva ${req.booking_reference}.`)}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-cartoon text-xs uppercase font-bold flex items-center gap-1.5 transition-colors"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          <span>Contactar WhatsApp</span>
-                        </a>
-
-                        <button
-                          disabled={resolvingCancelId === req.id}
-                          onClick={() => handleResolveCancellation(req.id, req.booking_reference, 'APPROVE')}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-cartoon text-xs uppercase font-bold transition-all cursor-pointer disabled:opacity-50"
-                        >
-                          Aprobar & Liberar Fechas
-                        </button>
-
-                        <button
-                          disabled={resolvingCancelId === req.id}
-                          onClick={() => handleResolveCancellation(req.id, req.booking_reference, 'REJECT')}
-                          className="px-3.5 py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 text-red-300 font-cartoon text-xs uppercase font-bold transition-all cursor-pointer disabled:opacity-50"
-                        >
-                          Rechazar
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-          ) : (
-            renderLockedSection('Cancelaciones', 'El trámite y resolución de solicitudes de cancelación de reservas ha sido deshabilitado temporalmente por la administración central de Dynamind.')
           )
         )}
 
@@ -3173,12 +3319,29 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
             )}
 
-            {/* 1. Gestión de Tarifas de Cabañas */}
-            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
-              <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                1. Tarifas y Precios de Cabañas Luxury:
-              </h3>
+            {/* 1. Gestión de Tarifas & Creación de Cabañas */}
+            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                <div>
+                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                    1. Cabañas Luxury & Hospedaje:
+                  </h3>
+                  <span className="text-xs text-linen-400 font-fredoka">
+                    Gestiona tarifas nocturnas, disponibilidad para reservas y añade nuevas cabañas al bioparque.
+                  </span>
+                </div>
 
+                <button
+                  type="button"
+                  onClick={() => setNewCabinModal(prev => ({ ...prev, isOpen: true }))}
+                  className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Añadir Cabaña</span>
+                </button>
+              </div>
+
+              {/* Standard Cabins Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {cabinsData.map((cabin) => {
                   const currentPrice = siteConfig.cabinPrices?.[cabin.id] || cabin.price;
@@ -3188,7 +3351,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   return (
                     <div key={cabin.id} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-bold text-xs text-linen-100">{cabin.name}</h4>
+                        <div>
+                          <h4 className="font-bold text-xs text-linen-100">{cabin.name}</h4>
+                          <span className="text-[10px] text-gold-400/80 font-mono uppercase">{cabin.category || cabin.type} · Max {cabin.maxGuests} pers.</span>
+                        </div>
                         <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-linen-300">
                           <input
                             type="checkbox"
@@ -3204,7 +3370,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                             }}
                             className="rounded accent-gold-500 cursor-pointer"
                           />
-                          <span>Activa para Reservas</span>
+                          <span className={isEnabled ? 'text-emerald-400 font-bold' : 'text-linen-400'}>
+                            {isEnabled ? 'Activa' : 'Desactivada'}
+                          </span>
                         </label>
                       </div>
 
@@ -3251,23 +3419,123 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   );
                 })}
               </div>
+
+              {/* Custom Cabins Grid */}
+              {(siteConfig.customCabins || []).length > 0 && (
+                <div className="pt-3 border-t border-white/10 space-y-3">
+                  <span className="text-[11px] font-cartoon text-gold-300 uppercase tracking-wider block">
+                    Cabañas Personalizadas Añadidas:
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(siteConfig.customCabins || []).map((cabin) => (
+                      <div key={cabin.id} className="p-4 rounded-2xl bg-gold-950/20 border border-gold-500/30 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-bold text-xs text-gold-200">{cabin.name}</span>
+                            <span className="text-[10px] text-linen-400 block font-mono">
+                              {cabin.category} · Capacidad: {cabin.maxGuests} personas
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomCabin(cabin.id)}
+                            className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-colors cursor-pointer"
+                            title="Eliminar cabaña"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                          <div className="p-2 rounded-xl bg-black/40">
+                            <span className="text-[10px] text-linen-400 block font-fredoka">Tarifa por Noche:</span>
+                            <span className="text-emerald-300 font-bold">{formatCOP(cabin.price)}</span>
+                          </div>
+                          <div className="p-2 rounded-xl bg-black/40">
+                            <span className="text-[10px] text-linen-400 block font-fredoka">Persona Extra:</span>
+                            <span className="text-gold-300 font-bold">{formatCOP(cabin.extraPersonPrice || 0)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 2. Planes Pasadía & Pasanoche */}
-            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
-              <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                2. Planes de Pasadía & Pasanoche (Habilitar / Deshabilitar):
-              </h3>
+            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                <div>
+                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                    2. Planes de Pasadía & Experiencias:
+                  </h3>
+                  <span className="text-xs text-linen-400 font-fredoka">
+                    Modifica los nombres de los pasadías, sus tarifas, horarios o añade nuevos planes.
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setNewPlanModal(prev => ({ ...prev, isOpen: true }))}
+                  className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Añadir Plan</span>
+                </button>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Object.entries(siteConfig.passPlans || {}).map(([planKey, planData]) => (
                   <div key={planKey} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-xs text-linen-100">{planData.name || planKey}</h4>
-                      <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-linen-300">
+                      <span className="text-[10px] font-mono text-gold-400 uppercase bg-gold-500/10 px-2 py-0.5 rounded border border-gold-500/20">
+                        {planData.category || 'Plan'}
+                      </span>
+                      
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-linen-300">
+                          <input
+                            type="checkbox"
+                            checked={planData.enabled !== false}
+                            onChange={(e) => {
+                              setSiteConfig(prev => ({
+                                ...prev,
+                                passPlans: {
+                                  ...(prev.passPlans || {}),
+                                  [planKey]: {
+                                    ...planData,
+                                    enabled: e.target.checked
+                                  }
+                                }
+                              }));
+                            }}
+                            className="rounded accent-gold-500 cursor-pointer"
+                          />
+                          <span className={planData.enabled !== false ? 'text-emerald-400 font-bold' : 'text-linen-400'}>
+                            {planData.enabled !== false ? 'Activo' : 'Pausado'}
+                          </span>
+                        </label>
+
+                        {planData.isCustom && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomPlan(planKey)}
+                            className="p-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer"
+                            title="Eliminar plan personalizado"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[10px] text-linen-400 uppercase block mb-1">Nombre del Plan:</label>
                         <input
-                          type="checkbox"
-                          checked={planData.enabled !== false}
+                          type="text"
+                          value={planData.name || planKey}
                           onChange={(e) => {
                             setSiteConfig(prev => ({
                               ...prev,
@@ -3275,55 +3543,98 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                                 ...(prev.passPlans || {}),
                                 [planKey]: {
                                   ...planData,
-                                  enabled: e.target.checked
+                                  name: e.target.value
                                 }
                               }
                             }));
                           }}
-                          className="rounded accent-gold-500 cursor-pointer"
+                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-bold text-linen-100 outline-none"
                         />
-                        <span className={planData.enabled !== false ? 'text-emerald-400 font-bold' : 'text-linen-400'}>
-                          {planData.enabled !== false ? 'Disponible' : 'Pausado'}
-                        </span>
-                      </label>
-                    </div>
+                      </div>
 
-                    <div>
-                      <label className="text-[10px] text-linen-400 uppercase block mb-1">Precio por Persona (COP):</label>
-                      <input
-                        type="number"
-                        value={planData.price}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setSiteConfig(prev => ({
-                            ...prev,
-                            passPlans: {
-                              ...(prev.passPlans || {}),
-                              [planKey]: {
-                                ...planData,
-                                price: val
-                              }
-                            }
-                          }));
-                        }}
-                        className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
-                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-linen-400 uppercase block mb-1">Precio (COP):</label>
+                          <input
+                            type="number"
+                            value={planData.price}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setSiteConfig(prev => ({
+                                ...prev,
+                                passPlans: {
+                                  ...(prev.passPlans || {}),
+                                  [planKey]: {
+                                    ...planData,
+                                    price: val
+                                  }
+                                }
+                              }));
+                            }}
+                            className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-linen-100 outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-linen-400 uppercase block mb-1">Horario:</label>
+                          <input
+                            type="text"
+                            value={planData.schedule || ''}
+                            onChange={(e) => {
+                              setSiteConfig(prev => ({
+                                ...prev,
+                                passPlans: {
+                                  ...(prev.passPlans || {}),
+                                  [planKey]: {
+                                    ...planData,
+                                    schedule: e.target.value
+                                  }
+                                }
+                              }));
+                            }}
+                            placeholder="Ej: 9:00 AM - 5:00 PM"
+                            className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-[11px] text-linen-200 outline-none"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* 3. Cuentas Bancarias Institucionales */}
-            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-4 shadow-xl">
-              <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
-                3. Cuentas Bancarias Oficiales para Abonos:
-              </h3>
+            {/* 3. Cuentas Bancarias & Medios de Pago */}
+            <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                <div>
+                  <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                    3. Medios de Pago & Cuentas Bancarias Oficiales:
+                  </h3>
+                  <span className="text-xs text-linen-400 font-fredoka">
+                    Configura las cuentas para abonos y agrega nuevos métodos (Nequi, Daviplata, Datáfono, Efectivo, etc.).
+                  </span>
+                </div>
 
+                <button
+                  type="button"
+                  onClick={() => setNewPaymentMethodModal(prev => ({ ...prev, isOpen: true }))}
+                  className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Añadir Medio de Pago</span>
+                </button>
+              </div>
+
+              {/* Official Banks */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {(siteConfig.bankAccounts || contactData.banks).map((bank, bIdx) => (
                   <div key={bIdx} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3">
-                    <h4 className="font-bold text-xs text-gold-300">{bank.bank}</h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-xs text-gold-300">{bank.bank}</h4>
+                      <span className="px-2 py-0.5 rounded-full bg-gold-500/10 text-gold-400 text-[10px] font-mono border border-gold-500/20">
+                        {bank.accountType || 'Cuenta Oficial'}
+                      </span>
+                    </div>
                     <div className="space-y-2 text-xs">
                       <div>
                         <label className="text-[10px] text-linen-400 uppercase block mb-1">Número de Cuenta:</label>
@@ -3355,6 +3666,70 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                   </div>
                 ))}
               </div>
+
+              {/* Custom Payment Methods */}
+              {(siteConfig.customPaymentMethods || []).length > 0 && (
+                <div className="pt-3 border-t border-white/10 space-y-3">
+                  <span className="text-[11px] font-cartoon text-gold-300 uppercase tracking-wider block">
+                    Otros Medios de Pago Personalizados:
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(siteConfig.customPaymentMethods || []).map((method) => (
+                      <div key={method.id} className="p-4 rounded-2xl bg-cyan-950/20 border border-cyan-500/30 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-bold text-xs text-cyan-200">{method.name}</span>
+                            <span className="text-[10px] text-linen-400 block font-mono">{method.type}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-1 cursor-pointer text-[10px]">
+                              <input
+                                type="checkbox"
+                                checked={method.enabled !== false}
+                                onChange={(e) => {
+                                  const updated = (siteConfig.customPaymentMethods || []).map(m =>
+                                    m.id === method.id ? { ...m, enabled: e.target.checked } : m
+                                  );
+                                  setSiteConfig(prev => ({ ...prev, customPaymentMethods: updated }));
+                                }}
+                                className="rounded accent-cyan-500 cursor-pointer"
+                              />
+                              <span className={method.enabled !== false ? 'text-emerald-400' : 'text-linen-400'}>
+                                {method.enabled !== false ? 'Activo' : 'Pausado'}
+                              </span>
+                            </label>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCustomPaymentMethod(method.id)}
+                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-colors cursor-pointer"
+                              title="Eliminar método"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 text-xs font-mono">
+                          {method.accountNumber && (
+                            <div className="p-2 rounded-xl bg-black/40">
+                              <span className="text-[10px] text-linen-400 block font-fredoka">Número / Cuenta:</span>
+                              <span className="text-white font-bold">{method.accountNumber}</span>
+                            </div>
+                          )}
+                          {method.holder && (
+                            <div className="p-2 rounded-xl bg-black/40">
+                              <span className="text-[10px] text-linen-400 block font-fredoka">Titular / Indicaciones:</span>
+                              <span className="text-linen-200 text-[11px] font-fredoka">{method.holder}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 4. Asistente Virtual & Chatbot de IA */}
@@ -4485,6 +4860,625 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     <span>{annulModal.isAnnulling ? 'Anulando...' : 'Confirmar Anulación'}</span>
                   </button>
                 </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* ======================================================================= */}
+      {/* MODAL: APERTURA DE TURNO DE CAJA (BASE INICIAL) */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {openShiftModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setOpenShiftModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-gold-500/50 shadow-2xl space-y-4 z-10 font-fredoka"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2 text-gold-400">
+                  <Unlock className="w-5 h-5" />
+                  <h3 className="font-display text-base font-black text-white uppercase">
+                    Apertura de Turno de Caja
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setOpenShiftModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-xs text-linen-300">
+                Ingresa el monto de efectivo base con el que se inicia el cajón de hoy ({cashSummary.todayStr}).
+              </p>
+
+              <form onSubmit={handleOpenCashShift} className="space-y-4 text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Base Inicial en Efectivo ($ COP) (*):
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="1000"
+                    placeholder="Ej: 200000"
+                    value={openShiftModal.base_amount}
+                    onChange={(e) => setOpenShiftModal(prev => ({ ...prev, base_amount: e.target.value }))}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder:text-linen-500 outline-none"
+                  />
+                </div>
+
+                {openShiftModal.error && (
+                  <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
+                    {openShiftModal.error}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setOpenShiftModal(prev => ({ ...prev, isOpen: false }))}
+                    className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-xs uppercase"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={openShiftModal.isSubmitting || !openShiftModal.base_amount}
+                    className="flex-1 py-2.5 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-gold-glow cursor-pointer disabled:opacity-50"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>{openShiftModal.isSubmitting ? 'Abriendo...' : 'Iniciar Turno'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: CONFIRMACIÓN DEFINITIVA DE CIERRE DE CAJA */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {confirmCloseModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setConfirmCloseModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-lg p-6 sm:p-8 rounded-3xl glass-dark border-2 border-emerald-500/50 shadow-2xl space-y-4 z-10 font-fredoka"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <CheckCircle2 className="w-6 h-6" />
+                  <h3 className="font-display text-lg font-black text-white uppercase">
+                    Confirmar Cierre de Caja Definitivo
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setConfirmCloseModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs">
+                ✅ <strong>Cuadre Verificado:</strong> El dinero físico contado coincide con el esperado contable ($0 COP de descuadre).
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="p-3 rounded-2xl bg-black/40 border border-white/10 space-y-1.5 font-mono">
+                  <div className="flex justify-between text-linen-300">
+                    <span>Base Inicial:</span>
+                    <span className="font-bold text-white">{formatCOP(cashSummary.baseInitial)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-400">
+                    <span>(+) Efectivo Cobrado:</span>
+                    <span className="font-bold">+{formatCOP(cashSummary.totalCashIn)}</span>
+                  </div>
+                  <div className="flex justify-between text-red-400">
+                    <span>(-) Gastos en Caja:</span>
+                    <span className="font-bold">-{formatCOP(cashSummary.totalExpenses)}</span>
+                  </div>
+                  <div className="pt-1.5 border-t border-white/10 flex justify-between text-gold-300 text-sm font-bold">
+                    <span>Total Efectivo a Entregar:</span>
+                    <span className="text-white">{formatCOP(cashSummary.expectedCash)}</span>
+                  </div>
+                </div>
+
+                {closureNotesInput && (
+                  <div className="p-2.5 rounded-xl bg-black/20 border border-white/5 text-[11px] text-linen-300 italic">
+                    <strong>Novedades:</strong> {closureNotesInput}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmCloseModal(prev => ({ ...prev, isOpen: false }))}
+                  className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-linen-200 font-cartoon text-xs uppercase"
+                >
+                  Regresar
+                </button>
+
+                <button
+                  type="button"
+                  disabled={confirmCloseModal.isSubmitting}
+                  onClick={handleConfirmFinalCloseCashShift}
+                  className="flex-1 py-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-gold-glow cursor-pointer disabled:opacity-50"
+                >
+                  <Lock className="w-4 h-4" />
+                  <span>{confirmCloseModal.isSubmitting ? 'Emitiendo Cierre...' : 'Confirmar & Cerrar'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: REGISTRAR NUEVO GASTO DE CAJA */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {isExpenseModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsExpenseModalOpen(false)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-red-500/50 shadow-2xl space-y-4 z-10 font-fredoka"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2 text-red-400">
+                  <TrendingDown className="w-5 h-5" />
+                  <h3 className="font-display text-base font-black text-white uppercase">
+                    Registrar Salida / Gasto de Caja
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setIsExpenseModalOpen(false)}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddExpense} className="space-y-3 text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Concepto / Motivo (*):
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Compra de cloro e insumos de aseo"
+                    value={newExpense.concept}
+                    onChange={(e) => setNewExpense({ ...newExpense, concept: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white placeholder:text-linen-500 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                      Monto ($ COP) (*):
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="500"
+                      step="500"
+                      placeholder="Ej: 45000"
+                      value={newExpense.amount}
+                      onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white font-mono outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                      Categoría:
+                    </label>
+                    <select
+                      value={newExpense.category}
+                      onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer"
+                    >
+                      <option value="Insumos">Insumos & Aseo</option>
+                      <option value="Alimentos">Alimentos & Bebidas</option>
+                      <option value="Mantenimiento">Mantenimiento</option>
+                      <option value="Servicios">Servicios Públicos</option>
+                      <option value="Nómina">Nómina / Viáticos</option>
+                      <option value="Varios">Varios / Otros</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                    Notas / Comprobante (Opcional):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Factura #1234 ferretería"
+                    value={newExpense.notes}
+                    onChange={(e) => setNewExpense({ ...newExpense, notes: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white placeholder:text-linen-500 outline-none"
+                  />
+                </div>
+
+                {expenseError && (
+                  <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs">
+                    {expenseError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isAddingExpense || !newExpense.concept || !newExpense.amount}
+                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-cartoon font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isAddingExpense ? 'Registrando...' : 'Registrar Salida de Dinero'}</span>
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: AÑADIR NUEVA CABAÑA LUXURY */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {newCabinModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setNewCabinModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-gold-500/50 shadow-2xl space-y-4 z-10 font-fredoka max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <h3 className="font-display text-base font-black text-white uppercase">
+                  Añadir Nueva Cabaña Luxury
+                </h3>
+                <button
+                  onClick={() => setNewCabinModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateCustomCabin} className="space-y-3 text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Nombre de la Cabaña (*):</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Cabaña Bambú Sunset"
+                    value={newCabinModal.name}
+                    onChange={(e) => setNewCabinModal({ ...newCabinModal, name: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Categoría / Tipo:</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Suite Panorámica"
+                      value={newCabinModal.category}
+                      onChange={(e) => setNewCabinModal({ ...newCabinModal, category: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Capacidad Máxima:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={newCabinModal.maxGuests}
+                      onChange={(e) => setNewCabinModal({ ...newCabinModal, maxGuests: Number(e.target.value) })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white font-mono outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Precio Noche (COP) (*):</label>
+                    <input
+                      type="number"
+                      required
+                      min="10000"
+                      step="10000"
+                      placeholder="Ej: 380000"
+                      value={newCabinModal.price}
+                      onChange={(e) => setNewCabinModal({ ...newCabinModal, price: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white font-mono outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Persona Extra (COP):</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="5000"
+                      placeholder="Ej: 60000"
+                      value={newCabinModal.extraPersonPrice}
+                      onChange={(e) => setNewCabinModal({ ...newCabinModal, extraPersonPrice: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white font-mono outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Descripción / Características:</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ej: Jacuzzi privado con hidromasajes, cama King, vista al cañón..."
+                    value={newCabinModal.description}
+                    onChange={(e) => setNewCabinModal({ ...newCabinModal, description: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none resize-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!newCabinModal.name || !newCabinModal.price}
+                  className="w-full py-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Guardar Cabaña</span>
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: AÑADIR NUEVO PLAN DE PASADÍA */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {newPlanModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setNewPlanModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-gold-500/50 shadow-2xl space-y-4 z-10 font-fredoka"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <h3 className="font-display text-base font-black text-white uppercase">
+                  Añadir Nuevo Plan de Pasadía / Experiencia
+                </h3>
+                <button
+                  onClick={() => setNewPlanModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateCustomPlan} className="space-y-3 text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Nombre del Plan (*):</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Pasadía VIP + Masaje Relajante"
+                    value={newPlanModal.name}
+                    onChange={(e) => setNewPlanModal({ ...newPlanModal, name: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Precio por Persona (COP) (*):</label>
+                    <input
+                      type="number"
+                      required
+                      min="1000"
+                      step="1000"
+                      placeholder="Ej: 85000"
+                      value={newPlanModal.price}
+                      onChange={(e) => setNewPlanModal({ ...newPlanModal, price: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white font-mono outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Categoría:</label>
+                    <select
+                      value={newPlanModal.category}
+                      onChange={(e) => setNewPlanModal({ ...newPlanModal, category: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer"
+                    >
+                      <option value="Pasadía">Pasadía</option>
+                      <option value="Pasanoche">Pasanoche</option>
+                      <option value="Especial">Especial / Spa</option>
+                      <option value="Corporativo">Corporativo / Grupos</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Horario del Plan:</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 8:30 AM - 5:30 PM"
+                    value={newPlanModal.schedule}
+                    onChange={(e) => setNewPlanModal({ ...newPlanModal, schedule: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Descripción / Qué incluye:</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ej: Almuerzo gourmet campestre, acceso a piscinas y sendero..."
+                    value={newPlanModal.desc}
+                    onChange={(e) => setNewPlanModal({ ...newPlanModal, desc: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none resize-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!newPlanModal.name || !newPlanModal.price}
+                  className="w-full py-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Guardar Plan</span>
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: AÑADIR NUEVO MEDIO DE PAGO */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {newPaymentMethodModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setNewPaymentMethodModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-gold-500/50 shadow-2xl space-y-4 z-10 font-fredoka"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <h3 className="font-display text-base font-black text-white uppercase">
+                  Añadir Nuevo Medio de Pago
+                </h3>
+                <button
+                  onClick={() => setNewPaymentMethodModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateCustomPaymentMethod} className="space-y-3 text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Nombre del Medio de Pago (*):</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Nequi / Daviplata / Datáfono"
+                    value={newPaymentMethodModal.name}
+                    onChange={(e) => setNewPaymentMethodModal({ ...newPaymentMethodModal, name: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Tipo de Método:</label>
+                  <select
+                    value={newPaymentMethodModal.type}
+                    onChange={(e) => setNewPaymentMethodModal({ ...newPaymentMethodModal, type: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer"
+                  >
+                    <option value="Billetera Digital">Billetera Digital (Nequi, Daviplata, Dale)</option>
+                    <option value="Datáfono / Tarjeta">Datáfono / Tarjeta (Bold, Redeban)</option>
+                    <option value="Pasarela Online">Pasarela Online (Wompi, MercadoPago, Bold QR)</option>
+                    <option value="Efectivo en Sitio">Efectivo en Sitio / Recepción</option>
+                    <option value="Cuenta Bancaria">Cuenta Bancaria Adicional</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Número de Cuenta / Teléfono / Enlace:</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 310 123 4567 o 031-987654-21"
+                    value={newPaymentMethodModal.accountNumber}
+                    onChange={(e) => setNewPaymentMethodModal({ ...newPaymentMethodModal, accountNumber: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white font-mono outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Titular / Indicaciones de Pago:</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Andicas Bioparque SAS - Enviar comprobante"
+                    value={newPaymentMethodModal.holder}
+                    onChange={(e) => setNewPaymentMethodModal({ ...newPaymentMethodModal, holder: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!newPaymentMethodModal.name}
+                  className="w-full py-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Guardar Medio de Pago</span>
+                </button>
               </form>
             </motion.div>
           </div>
