@@ -280,6 +280,31 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const isMasterAdmin = userRole === 'master_admin' || userRole === 'MASTER';
   const isAdminOrMaster = isMasterAdmin || userRole === 'admin' || userRole === 'ADMIN';
 
+  // Auto-ajuste de sección activa si un módulo es deshabilitado remotamente desde Dynamind
+  useEffect(() => {
+    if (activeModules) {
+      if (activeSection === 'agendamientos' && activeModules.bookings === false) {
+        if (isAdminOrMaster && activeModules.recaudos !== false) setActiveSection('recaudos');
+        else if (isAdminOrMaster && activeModules.cancelaciones !== false) setActiveSection('cancelaciones');
+        else if (isAdminOrMaster && activeModules.personalizacion !== false) setActiveSection('personalizacion');
+        else if (isMasterAdmin && activeModules.users_management !== false) setActiveSection('usuarios');
+      } else if (activeSection === 'recaudos' && activeModules.recaudos === false) {
+        if (activeModules.bookings !== false) setActiveSection('agendamientos');
+        else if (isAdminOrMaster && activeModules.cancelaciones !== false) setActiveSection('cancelaciones');
+        else if (isAdminOrMaster && activeModules.personalizacion !== false) setActiveSection('personalizacion');
+      } else if (activeSection === 'cancelaciones' && activeModules.cancelaciones === false) {
+        if (activeModules.bookings !== false) setActiveSection('agendamientos');
+        else if (isAdminOrMaster && activeModules.recaudos !== false) setActiveSection('recaudos');
+      } else if (activeSection === 'personalizacion' && activeModules.personalizacion === false) {
+        if (activeModules.bookings !== false) setActiveSection('agendamientos');
+        else if (isAdminOrMaster && activeModules.recaudos !== false) setActiveSection('recaudos');
+      } else if (activeSection === 'usuarios' && activeModules.users_management === false) {
+        if (activeModules.bookings !== false) setActiveSection('agendamientos');
+        else if (isAdminOrMaster && activeModules.recaudos !== false) setActiveSection('recaudos');
+      }
+    }
+  }, [activeModules, isAdminOrMaster, isMasterAdmin, activeSection]);
+
   const fetchDashboardData = async (key) => {
     setIsLoading(true);
     try {
