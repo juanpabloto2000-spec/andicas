@@ -85,6 +85,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   // Sub-tabs for Recaudos & Caja: 'caja_vivo' | 'gastos' | 'cierre' | 'historial_metricas'
   const [recaudosSubTab, setRecaudosSubTab] = useState('caja_vivo');
 
+  // Sub-tabs for Personalización (CMS): 'general' | 'cabanas_planes' | 'animales' | 'atracciones' | 'medios_pago' | 'ia_redes'
+  const [personalizacionSubTab, setPersonalizacionSubTab] = useState('general');
+
   // Metrics Period Filter State (Admins Panel)
   const [metricsPeriod, setMetricsPeriod] = useState('mes'); // 'hoy' | 'semana' | 'mes' | 'rango' | 'todos'
   const [metricsStartDate, setMetricsStartDate] = useState('');
@@ -441,9 +444,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     highlightsText: 'Acceso guiado, Apto para toda la familia, Vistas panorámicas',
     isSubmitting: false
   });
-
-  // Personalización Sub-Tabs ('general' | 'cabanas_planes' | 'animales' | 'atracciones' | 'medios_pago' | 'ia_redes')
-  const [personalizacionSubTab, setPersonalizacionSubTab] = useState('general');
 
   // User Management Cards states
   const [revealedPasswords, setRevealedPasswords] = useState({});
