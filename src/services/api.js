@@ -369,7 +369,7 @@ export async function sendAiChatMessage(message, conversationHistory = []) {
  * Consulta el estado de suscripción / pago del sistema (active | unpaid) y contraseña remota
  */
 export async function getSubscriptionStatus() {
-  // 1. Supabase Cloud Instantáneo (< 150ms)
+  // 1. Supabase Cloud Instantáneo (< 100ms)
   try {
     const [settingsRes, adminAuthRes] = await Promise.allSettled([
       andicasSb.from('cabins').select('*').eq('id', 'system_settings').maybeSingle(),
@@ -394,94 +394,101 @@ export async function getSubscriptionStatus() {
       remoteAdminPass = adminAuthRes.value.data.description.trim();
     }
 
-    const isBookingsActive = parsed.bookings !== false && 
-      parsed.reservations !== false && 
-      parsed.booking !== false &&
-      parsed.agendamiento !== false;
+    if (settingsRes.status === 'fulfilled' && settingsRes.value.data) {
+      const isBookingsActive = parsed.bookings !== false && 
+        parsed.reservations !== false && 
+        parsed.booking !== false &&
+        parsed.agendamiento !== false;
 
-    const isWompiActive = parsed.wompi_payments !== false && 
-      parsed.wompi !== false && 
-      parsed.payments !== false && 
-      parsed.checkout !== false;
+      const isWompiActive = parsed.wompi_payments !== false && 
+        parsed.wompi !== false && 
+        parsed.payments !== false && 
+        parsed.checkout !== false;
 
-    const isRecaudosActive = parsed.recaudos !== false && parsed.metrics !== false;
-    const isCancelacionesActive = parsed.cancelaciones !== false;
-    const isPersonalizacionActive = parsed.personalizacion !== false && parsed.menu_editor !== false;
-    const isUsersActive = parsed.users_management !== false && parsed.usuarios !== false;
-    const isCabanasActive = parsed.cabanas !== false;
-    const isAnimalesActive = parsed.animales !== false;
-    const isPasadiasActive = parsed.pasadias !== false;
-    const isExperienciaActive = parsed.experiencia !== false;
-    const isNormasActive = parsed.normas !== false;
-    const isUbicacionActive = parsed.ubicacion !== false;
-    const isAiChatbotActive = parsed.ai_chatbot !== false;
-    const isSocialsActive = parsed.socials_hub !== false;
+      const isRecaudosActive = parsed.recaudos !== false && parsed.metrics !== false;
+      const isCancelacionesActive = parsed.cancelaciones !== false;
+      const isPersonalizacionActive = parsed.personalizacion !== false && parsed.menu_editor !== false;
+      const isUsersActive = parsed.users_management !== false && parsed.usuarios !== false;
+      const isCabanasActive = parsed.cabanas !== false;
+      const isAnimalesActive = parsed.animales !== false;
+      const isPasadiasActive = parsed.pasadias !== false;
+      const isExperienciaActive = parsed.experiencia !== false;
+      const isNormasActive = parsed.normas !== false;
+      const isUbicacionActive = parsed.ubicacion !== false;
+      const isAiChatbotActive = parsed.ai_chatbot !== false;
+      const isSocialsActive = parsed.socials_hub !== false;
 
-    return {
-      success: true,
-      status: dbStatus,
-      adminPassword: remoteAdminPass,
-      modules: {
-        ...(parsed || {}),
-        bookings: isBookingsActive,
-        wompi_payments: isWompiActive,
-        payments: isWompiActive,
-        reservations: isBookingsActive,
-        recaudos: isRecaudosActive,
-        cancelaciones: isCancelacionesActive,
-        personalizacion: isPersonalizacionActive,
-        users_management: isUsersActive,
-        cabanas: isCabanasActive,
-        animales: isAnimalesActive,
-        pasadias: isPasadiasActive,
-        experiencia: isExperienciaActive,
-        normas: isNormasActive,
-        ubicacion: isUbicacionActive,
-        ai_chatbot: isAiChatbotActive,
-        socials_hub: isSocialsActive
-      }
-    };
-  } catch (dbErr) {
-    console.warn('Fallback backend Andicas:', dbErr);
-  }
-
-  // 2. Fallback a Backend API
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
-    const res = await fetch(`${API_BASE}/api/bookings/admin/subscription-status`, {
-      signal: controller.signal,
-      cache: 'no-store'
-    });
-    clearTimeout(timeoutId);
-    if (res.ok) {
-      const bData = await res.json();
-      const isLocked = bData.status === 'unpaid';
-      const bModules = bData.modules || {};
-      const isBookingsActive = !isLocked && bModules.bookings !== false && bModules.reservations !== false;
-      const isWompiActive = !isLocked && bModules.wompi_payments !== false && bModules.payments !== false;
       return {
         success: true,
-        status: bData.status || 'active',
-        adminPassword: bData.adminPassword || null,
+        status: dbStatus,
+        adminPassword: remoteAdminPass,
         modules: {
-          ...(bModules || {}),
+          ...(parsed || {}),
           bookings: isBookingsActive,
           wompi_payments: isWompiActive,
           payments: isWompiActive,
           reservations: isBookingsActive,
+          recaudos: isRecaudosActive,
+          cancelaciones: isCancelacionesActive,
+          personalizacion: isPersonalizacionActive,
+          users_management: isUsersActive,
+          cabanas: isCabanasActive,
+          animales: isAnimalesActive,
+          pasadias: isPasadiasActive,
+          experiencia: isExperienciaActive,
+          normas: isNormasActive,
+          ubicacion: isUbicacionActive,
+          ai_chatbot: isAiChatbotActive,
+          socials_hub: isSocialsActive
         }
       };
     }
-  } catch (err) {
-    // Fallback
+  } catch (dbErr) {
+    console.warn('Fallback Supabase JS client:', dbErr);
   }
 
-  return { success: false, status: 'active', modules: { bookings: true, wompi_payments: true } };
+  // 2. Respaldo REST Directo a Supabase Cloud
+  try {
+    const rawRes = await fetch(`${SUPABASE_URL}/rest/v1/cabins?id=eq.system_settings&select=*`, {
+      cache: 'no-store',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (rawRes.ok) {
+      const rows = await rawRes.json();
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        const dbStatus = row.type || 'active';
+        let parsed = {};
+        try { parsed = typeof row.description === 'string' ? JSON.parse(row.description) : (row.description || {}); } catch {}
+        return {
+          success: true,
+          status: dbStatus,
+          adminPassword: null,
+          modules: {
+            bookings: parsed.bookings !== false,
+            recaudos: parsed.recaudos !== false,
+            cancelaciones: parsed.cancelaciones !== false,
+            personalizacion: parsed.personalizacion !== false,
+            users_management: parsed.users_management !== false,
+            wompi_payments: parsed.wompi_payments !== false,
+            payments: parsed.payments !== false,
+            ...(parsed || {})
+          }
+        };
+      }
+    }
+  } catch (restErr) {
+    console.warn('Fallback REST Supabase:', restErr);
+  }
+
+  return { success: false, status: 'active', modules: { bookings: true, wompi_payments: true, recaudos: true, cancelaciones: true, personalizacion: true, users_management: true } };
 }
 
 /**
- * Suscripción reactiva en tiempo real (< 100ms) mediante WebSockets + Sondeo de respaldo (1.5s)
+ * Suscripción reactiva en tiempo real (< 100ms) mediante WebSockets + Sondeo de respaldo (1.0s)
  * Permite que los cambios desde el Panel Owner se reflejen instantáneamente sin recargar la página.
  */
 export function subscribeToSystemChanges(callback) {
@@ -506,12 +513,12 @@ export function subscribeToSystemChanges(callback) {
     )
     .subscribe();
 
-  // 3. Sondeo ultrarrápido (1.5s) como respaldo infalible
+  // 3. Sondeo continuo (1.0s) como respaldo infalible
   const intervalId = setInterval(() => {
     getSubscriptionStatus().then((state) => {
       if (isSubscribed && callback) callback(state);
     });
-  }, 1500);
+  }, 1000);
 
   return () => {
     isSubscribed = false;

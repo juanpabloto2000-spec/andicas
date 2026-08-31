@@ -63,6 +63,37 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Live Module State & Remote Subscription Status (Identical to KAL Engine)
+  const [localActiveModules, setLocalActiveModules] = useState(() => activeModules || {
+    bookings: true,
+    recaudos: true,
+    cancelaciones: true,
+    personalizacion: true,
+    users_management: true
+  });
+  const [remoteSubStatus, setRemoteSubStatus] = useState(() => localStorage.getItem('andicas_subscription_status') || 'active');
+
+  useEffect(() => {
+    if (activeModules) {
+      setLocalActiveModules(activeModules);
+    }
+  }, [activeModules]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToSystemChanges((res) => {
+      if (res && res.success) {
+        if (res.status) {
+          setRemoteSubStatus(res.status);
+          try { localStorage.setItem('andicas_subscription_status', res.status); } catch {}
+        }
+        if (res.modules && typeof res.modules === 'object') {
+          setLocalActiveModules(res.modules);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'cancelaciones' | 'personalizacion' | 'usuarios'
   const [activeSection, setActiveSection] = useState('agendamientos');
 
@@ -280,30 +311,30 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const isMasterAdmin = userRole === 'master_admin' || userRole === 'MASTER';
   const isAdminOrMaster = isMasterAdmin || userRole === 'admin' || userRole === 'ADMIN';
 
-  // Auto-ajuste de sección activa si un módulo es deshabilitado remotamente desde Dynamind
-  useEffect(() => {
-    if (activeModules) {
-      if (activeSection === 'agendamientos' && activeModules.bookings === false) {
-        if (isAdminOrMaster && activeModules.recaudos !== false) setActiveSection('recaudos');
-        else if (isAdminOrMaster && activeModules.cancelaciones !== false) setActiveSection('cancelaciones');
-        else if (isAdminOrMaster && activeModules.personalizacion !== false) setActiveSection('personalizacion');
-        else if (isMasterAdmin && activeModules.users_management !== false) setActiveSection('usuarios');
-      } else if (activeSection === 'recaudos' && activeModules.recaudos === false) {
-        if (activeModules.bookings !== false) setActiveSection('agendamientos');
-        else if (isAdminOrMaster && activeModules.cancelaciones !== false) setActiveSection('cancelaciones');
-        else if (isAdminOrMaster && activeModules.personalizacion !== false) setActiveSection('personalizacion');
-      } else if (activeSection === 'cancelaciones' && activeModules.cancelaciones === false) {
-        if (activeModules.bookings !== false) setActiveSection('agendamientos');
-        else if (isAdminOrMaster && activeModules.recaudos !== false) setActiveSection('recaudos');
-      } else if (activeSection === 'personalizacion' && activeModules.personalizacion === false) {
-        if (activeModules.bookings !== false) setActiveSection('agendamientos');
-        else if (isAdminOrMaster && activeModules.recaudos !== false) setActiveSection('recaudos');
-      } else if (activeSection === 'usuarios' && activeModules.users_management === false) {
-        if (activeModules.bookings !== false) setActiveSection('agendamientos');
-        else if (isAdminOrMaster && activeModules.recaudos !== false) setActiveSection('recaudos');
-      }
-    }
-  }, [activeModules, isAdminOrMaster, isMasterAdmin, activeSection]);
+  const isBookingsEnabled = localActiveModules.bookings !== false;
+  const isRecaudosEnabled = localActiveModules.recaudos !== false;
+  const isCancelacionesEnabled = localActiveModules.cancelaciones !== false;
+  const isPersonalizacionEnabled = localActiveModules.personalizacion !== false;
+  const isUsersEnabled = localActiveModules.users_management !== false;
+
+  const renderLockedSection = (title, description) => (
+    <div className="p-8 sm:p-12 rounded-3xl bg-[#061e1f]/90 border-2 border-red-500/40 text-center space-y-5 max-w-lg mx-auto my-12 shadow-[0_0_50px_rgba(239,68,68,0.25)] backdrop-blur-xl">
+      <div className="relative w-20 h-20 rounded-full bg-red-950/80 border-2 border-red-500 flex items-center justify-center mx-auto text-red-400 shadow-[0_0_30px_rgba(239,68,68,0.5)]">
+        <Lock className="w-10 h-10 animate-pulse text-red-400" />
+      </div>
+      <div className="space-y-2">
+        <span className="px-3.5 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-mono font-bold uppercase tracking-widest inline-block">
+          Sección Bloqueada
+        </span>
+        <h2 className="text-2xl sm:text-3xl font-black text-red-400 uppercase tracking-wide font-display">
+          {title} Bloqueado
+        </h2>
+        <p className="text-xs sm:text-sm text-linen-300 max-w-md mx-auto leading-relaxed font-fredoka">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
 
   const fetchDashboardData = async (key) => {
     setIsLoading(true);
@@ -1155,99 +1186,150 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           {/* Section Navigation Buttons */}
           <nav className="space-y-1.5 font-cartoon text-xs uppercase">
             
-            {/* 1. Agendamientos & Calendario (Visible para todos si está habilitado) */}
-            {activeModules?.bookings !== false && (
-              <button
-                onClick={() => setActiveSection('agendamientos')}
-                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
-                  activeSection === 'agendamientos'
+            {/* 1. Agendamientos & Calendario */}
+            <button
+              onClick={() => setActiveSection('agendamientos')}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
+                activeSection === 'agendamientos'
+                  ? isBookingsEnabled
                     ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                    : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <CalendarDays className="w-4 h-4" />
-                  <span>Agendamientos</span>
-                </div>
+                    : 'bg-red-950/80 border border-red-500/50 text-red-300 font-bold shadow-lg shadow-red-950/40'
+                  : isBookingsEnabled
+                    ? 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                    : 'bg-red-950/20 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 border border-red-500/20'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <CalendarDays className="w-4 h-4" />
+                <span>Agendamientos</span>
+              </div>
+              {isBookingsEnabled ? (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
                   {bookings.length}
                 </span>
-              </button>
-            )}
+              ) : (
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold">
+                  <Lock className="w-3 h-3 text-red-400" />
+                  <span>Bloqueado</span>
+                </div>
+              )}
+            </button>
 
-            {/* 2. Recaudos & Caja (Solo Admin y Master si está habilitado) */}
-            {isAdminOrMaster && activeModules?.recaudos !== false && (
+            {/* 2. Recaudos & Caja (Solo Admin y Master) */}
+            {isAdminOrMaster && (
               <button
                 onClick={() => setActiveSection('recaudos')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                   activeSection === 'recaudos'
-                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                    : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                    ? isRecaudosEnabled
+                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                      : 'bg-red-950/80 border border-red-500/50 text-red-300 font-bold shadow-lg shadow-red-950/40'
+                    : isRecaudosEnabled
+                      ? 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                      : 'bg-red-950/20 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 border border-red-500/20'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
                   <DollarSign className="w-4 h-4" />
                   <span>Recaudos & Caja</span>
                 </div>
+                {!isRecaudosEnabled && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold">
+                    <Lock className="w-3 h-3 text-red-400" />
+                    <span>Bloqueado</span>
+                  </div>
+                )}
               </button>
             )}
 
-            {/* 3. Cancelaciones (Solo Admin y Master si está habilitado) */}
-            {isAdminOrMaster && activeModules?.cancelaciones !== false && (
+            {/* 3. Cancelaciones (Solo Admin y Master) */}
+            {isAdminOrMaster && (
               <button
                 onClick={() => setActiveSection('cancelaciones')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                   activeSection === 'cancelaciones'
-                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                    : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                    ? isCancelacionesEnabled
+                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                      : 'bg-red-950/80 border border-red-500/50 text-red-300 font-bold shadow-lg shadow-red-950/40'
+                    : isCancelacionesEnabled
+                      ? 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                      : 'bg-red-950/20 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 border border-red-500/20'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
                   <AlertTriangle className="w-4 h-4 text-amber-400" />
                   <span>Cancelaciones</span>
                 </div>
-                {pendingCancellationCount > 0 && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500 text-white font-mono font-bold animate-pulse">
-                    {pendingCancellationCount}
-                  </span>
+                {isCancelacionesEnabled ? (
+                  pendingCancellationCount > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500 text-white font-mono font-bold animate-pulse">
+                      {pendingCancellationCount}
+                    </span>
+                  )
+                ) : (
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold">
+                    <Lock className="w-3 h-3 text-red-400" />
+                    <span>Bloqueado</span>
+                  </div>
                 )}
               </button>
             )}
 
-            {/* 4. Personalización / CMS Lite (Solo Admin y Master si está habilitado) */}
-            {isAdminOrMaster && activeModules?.personalizacion !== false && (
+            {/* 4. Personalización / CMS Lite (Solo Admin y Master) */}
+            {isAdminOrMaster && (
               <button
                 onClick={() => setActiveSection('personalizacion')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                   activeSection === 'personalizacion'
-                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                    : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                    ? isPersonalizacionEnabled
+                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                      : 'bg-red-950/80 border border-red-500/50 text-red-300 font-bold shadow-lg shadow-red-950/40'
+                    : isPersonalizacionEnabled
+                      ? 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                      : 'bg-red-950/20 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 border border-red-500/20'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
                   <Sliders className="w-4 h-4" />
                   <span>Personalización</span>
                 </div>
+                {!isPersonalizacionEnabled && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold">
+                    <Lock className="w-3 h-3 text-red-400" />
+                    <span>Bloqueado</span>
+                  </div>
+                )}
               </button>
             )}
 
-            {/* 5. Gestión de Usuarios / Empleados (Exclusivo Admin Master si está habilitado) */}
-            {isMasterAdmin && activeModules?.users_management !== false && (
+            {/* 5. Gestión de Usuarios / Empleados (Exclusivo Admin Master) */}
+            {isMasterAdmin && (
               <button
                 onClick={() => setActiveSection('usuarios')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                   activeSection === 'usuarios'
-                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                    : 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                    ? isUsersEnabled
+                      ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                      : 'bg-red-950/80 border border-red-500/50 text-red-300 font-bold shadow-lg shadow-red-950/40'
+                    : isUsersEnabled
+                      ? 'bg-jade-900/60 hover:bg-jade-900 text-linen-200 border border-white/5'
+                      : 'bg-red-950/20 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 border border-red-500/20'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
                   <Users className="w-4 h-4" />
                   <span>Gestión de Usuarios</span>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
-                  {systemUsers.length}
-                </span>
+                {isUsersEnabled ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
+                    {systemUsers.length}
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold">
+                    <Lock className="w-3 h-3 text-red-400" />
+                    <span>Bloqueado</span>
+                  </div>
+                )}
               </button>
             )}
           </nav>
@@ -1316,7 +1398,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         {/* SECCIÓN 1: AGENDAMIENTOS, CALENDARIO & AUDITORÍA INTEGRADA */}
         {/* ======================================================================= */}
         {activeSection === 'agendamientos' && (
-          <div className="space-y-6">
+          isBookingsEnabled ? (
+            <div className="space-y-6">
             
             {/* Header & Sub-tab Switcher (Lista | Calendario | Auditoría) */}
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
@@ -1821,13 +1904,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             </div>
 
           </div>
+          ) : (
+            renderLockedSection('Agendamientos y Calendario', 'La gestión de reservas, calendario interactivo y bloqueo de fechas ha sido deshabilitada temporalmente por la administración central de Dynamind.')
+          )
         )}
 
         {/* ======================================================================= */}
         {/* SECCIÓN 2: RECAUDOS, CAJA & MÉTRICAS (SOLO ADMIN Y MASTER) */}
         {/* ======================================================================= */}
         {activeSection === 'recaudos' && isAdminOrMaster && (
-          <div className="space-y-6">
+          isRecaudosEnabled ? (
+            <div className="space-y-6">
             
             {/* Header & Sub-Tabs Navigation */}
             <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xl">
@@ -2829,13 +2916,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             )}
 
           </div>
+          ) : (
+            renderLockedSection('Recaudos y Caja', 'La visualización de métricas financieras, arqueo ciego de caja y registro de gastos ha sido deshabilitada temporalmente por la administración central de Dynamind.')
+          )
         )}
 
         {/* ======================================================================= */}
         {/* SECCIÓN 3: SOLICITUDES DE CANCELACIÓN (SOLO ADMIN Y MASTER) */}
         {/* ======================================================================= */}
         {activeSection === 'cancelaciones' && isAdminOrMaster && (
-          <div className="space-y-6">
+          isCancelacionesEnabled ? (
+            <div className="space-y-6">
             <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
               <div>
                 <span className="text-xs font-cartoon text-amber-400 uppercase tracking-wider block">
@@ -2960,13 +3051,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               )}
             </div>
           </div>
+          ) : (
+            renderLockedSection('Cancelaciones', 'El trámite y resolución de solicitudes de cancelación de reservas ha sido deshabilitado temporalmente por la administración central de Dynamind.')
+          )
         )}
 
         {/* ======================================================================= */}
         {/* SECCIÓN 4: PERSONALIZACIÓN DE PÁGINA (CMS LITE - ADMIN Y MASTER) */}
         {/* ======================================================================= */}
         {activeSection === 'personalizacion' && isAdminOrMaster && (
-          <div className="space-y-6">
+          isPersonalizacionEnabled ? (
+            <div className="space-y-6">
             <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
               <div>
                 <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
@@ -3319,13 +3414,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
             </div>
           </div>
+          ) : (
+            renderLockedSection('Personalización (CMS)', 'La modificación de tarifas de pasadías, precios de cabañas y enlaces de contacto ha sido deshabilitada temporalmente por la administración central de Dynamind.')
+          )
         )}
 
         {/* ======================================================================= */}
         {/* SECCIÓN 5: GESTIÓN DE USUARIOS / EMPLEADOS (EXCLUSIVO ADMIN MASTER) */}
         {/* ======================================================================= */}
         {activeSection === 'usuarios' && isMasterAdmin && (
-          <div className="space-y-6">
+          isUsersEnabled ? (
+            <div className="space-y-6">
             <div className="p-5 rounded-3xl glass-dark border border-white/10 shadow-xl">
               <span className="text-xs font-cartoon text-gold-400 uppercase tracking-wider block">
                 Control de Acceso, Empleados & Permisos
@@ -3507,6 +3606,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </div>
             </div>
           </div>
+          ) : (
+            renderLockedSection('Gestión de Usuarios', 'La creación, edición y control de credenciales de empleados ha sido deshabilitada temporalmente por la administración central de Dynamind.')
+          )
         )}
       </main>
 
