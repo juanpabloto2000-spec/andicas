@@ -9,8 +9,19 @@ import AmbientFireflies from '../components/ui/AmbientFireflies';
 import { animalsData } from '../data/animals';
 import { contactData } from '../data/banking';
 
-export default function AnimalesPage({ onNavigate }) {
-  const [selectedAnimal, setSelectedAnimal] = useState(animalsData[0]);
+export default function AnimalesPage({ onNavigate, customConfig = {} }) {
+  const activeAnimals = (customConfig.animals && Array.isArray(customConfig.animals) && customConfig.animals.length > 0)
+    ? customConfig.animals.filter(a => a.enabled !== false)
+    : animalsData;
+
+  const [selectedAnimal, setSelectedAnimal] = useState(activeAnimals[0] || animalsData[0]);
+
+  // Keep selectedAnimal valid if activeAnimals changes
+  useEffect(() => {
+    if (!activeAnimals.some(a => a.id === selectedAnimal?.id) && activeAnimals.length > 0) {
+      setSelectedAnimal(activeAnimals[0]);
+    }
+  }, [activeAnimals, selectedAnimal]);
 
   return (
     <div className="min-h-screen pt-28 pb-20 px-4 sm:px-6 lg:px-8 relative z-10 overflow-hidden">
@@ -24,12 +35,22 @@ export default function AnimalesPage({ onNavigate }) {
           className="text-center max-w-3xl mx-auto mb-10"
         >
           <h1 className="font-display text-4xl sm:text-6xl font-black text-linen-100 uppercase tracking-wide leading-tight mb-4">
-            NUESTROS AMIGOS DEL{' '}
-            <span className="text-3d-gold">SANTUARIO</span>
+            {customConfig.animalesSectionTitle ? (
+              customConfig.animalesSectionTitle
+            ) : (
+              <>
+                NUESTROS AMIGOS DEL{' '}
+                <span className="text-3d-gold">SANTUARIO</span>
+              </>
+            )}
           </h1>
 
           <p className="text-linen-200 font-fredoka text-sm sm:text-base leading-relaxed">
-            En Andicas Bioparque Temático el bienestar animal es nuestro pilar. Todos nuestros animales son cuidados con amor, viven en amplias praderas y la interacción con ellos está <strong className="text-gold-400 font-bold">100% incluida en tu entrada general de Pasadía</strong>.
+            {customConfig.animalesSectionSubtitle || (
+              <>
+                En Andicas Bioparque Temático el bienestar animal es nuestro pilar. Todos nuestros animales son cuidados con amor, viven en amplias praderas y la interacción con ellos está <strong className="text-gold-400 font-bold">100% incluida en tu entrada general de Pasadía</strong>.
+              </>
+            )}
           </p>
         </motion.div>
 
@@ -44,8 +65,8 @@ export default function AnimalesPage({ onNavigate }) {
           className="mb-10 w-full"
         >
           <ImageAutoSlider
-            items={animalsData}
-            activeId={selectedAnimal.id}
+            items={activeAnimals}
+            activeId={selectedAnimal?.id}
             onItemClick={(animal) => setSelectedAnimal(animal)}
           />
         </motion.div>

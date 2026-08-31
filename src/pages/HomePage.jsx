@@ -138,7 +138,7 @@ export default function HomePage({
 
       {/* 2. La Experiencia Quimbayas (With CardStack Component) */}
       {activeModules?.experiencia !== false && (
-        <ExperienceStory />
+        <ExperienceStory customConfig={customConfig} />
       )}
 
       {/* 3. Cabañas Luxury & Miradores with 3D Rotating Carousel & Full Thatched Roof Atmosphere */}
@@ -197,14 +197,14 @@ export default function HomePage({
             className="text-center max-w-3xl mx-auto mb-10"
           >
             <h2 className="font-display text-3xl sm:text-5xl font-black text-linen-100 uppercase tracking-wide mb-3">
-              CABAÑAS TRADICIONALES, SUITES EN ROCA & <span className="text-3d-gold">HABITACIONES</span>
+              {customConfig.cabanasSectionTitle || 'CABAÑAS TRADICIONALES, SUITES EN ROCA & HABITACIONES'}
             </h2>
             <p className="text-xs sm:text-sm font-fredoka text-linen-300 max-w-2xl mx-auto leading-relaxed">
-              Vive una noche mágica en el corazón de la naturaleza. Todas nuestras opciones de hospedaje incluyen <strong>desayuno campesino</strong>, <strong>jacuzzi compartido con hidromasaje</strong>, <strong>cine bajo las estrellas</strong>, <strong>fogata nocturna con masmelos</strong> y acceso libre a la Aldea Andicas.
+              {customConfig.cabanasSectionSubtitle || 'Vive una noche mágica en el corazón de la naturaleza. Todas nuestras opciones de hospedaje incluyen desayuno campesino, jacuzzi compartido con hidromasaje, cine bajo las estrellas, fogata nocturna con masmelos y acceso libre a la Aldea Andicas.'}
             </p>
           </motion.div>
 
-          {/* 3D Smooth Rotational Cylinder Carousel with Visible Gliding Arrival */}
+          {/* 3D Smooth Rotational Cylinder Carousel with Dynamic Images */}
           <motion.div
             initial={{ opacity: 0, scale: 0.85, y: 60 }}
             whileInView={{ opacity: 1, scale: 1, y: 0 }}
@@ -213,7 +213,11 @@ export default function HomePage({
             className="w-full mb-10 sm:mb-14"
           >
             <ThreeDPhotoCarousel
-              items={cabinsData}
+              items={cabinsData.map(c => ({
+                ...c,
+                image: customConfig.cabinImages?.[c.id] || c.image,
+                pricePerNight: customConfig.cabinPrices?.[c.id] || c.pricePerNight
+              }))}
               onItemClick={handleCabinSelect}
             />
           </motion.div>
@@ -294,7 +298,7 @@ export default function HomePage({
 
       {/* 4. Arma Tu Plan (With Mini-Navbar Tabs & Side-by-Side Cards & Summary) */}
       {activeModules?.pasadias !== false && (
-        <PassPricing onOpenSummary={onOpenSummary} activeModules={activeModules} />
+        <PassPricing onOpenSummary={onOpenSummary} activeModules={activeModules} customConfig={customConfig} />
       )}
 
       {/* 5. Santuario Animal Preview Section (With ImageAutoSlider) */}
@@ -309,14 +313,20 @@ export default function HomePage({
               className="text-center max-w-3xl mx-auto mb-10"
             >
               <h2 className="font-display text-3xl sm:text-5xl font-black text-linen-100 uppercase tracking-wide">
-                CONOCE NUESTROS <span className="text-3d-gold">ANIMALES</span> DE LA CASA
+                {customConfig.animalesSectionTitle ? (
+                  customConfig.animalesSectionTitle
+                ) : (
+                  <>
+                    CONOCE NUESTROS <span className="text-3d-gold">ANIMALES</span> DE LA CASA
+                  </>
+                )}
               </h2>
               <p className="text-xs sm:text-sm font-fredoka text-linen-300 mt-2">
-                Interacción gratuita 100% incluida con tu entrada general de Pasadía.
+                {customConfig.animalesSectionSubtitle || 'Interacción gratuita 100% incluida con tu entrada general de Pasadía.'}
               </p>
             </motion.div>
 
-            {/* Integrated Infinite Auto-Slider Component with Gliding Arrival */}
+            {/* Integrated Infinite Auto-Slider Component with Dynamic Animals */}
             <motion.div
               initial={{ opacity: 0, x: 70, scale: 0.94 }}
               whileInView={{ opacity: 1, x: 0, scale: 1 }}
@@ -325,7 +335,11 @@ export default function HomePage({
               className="w-full"
             >
               <ImageAutoSlider
-                items={animalsData}
+                items={
+                  (customConfig.animals && Array.isArray(customConfig.animals) && customConfig.animals.length > 0)
+                    ? customConfig.animals.filter(a => a.enabled !== false)
+                    : animalsData
+                }
                 onItemClick={handleAnimalSelect}
               />
             </motion.div>

@@ -7,8 +7,13 @@ import {
 import { contactData } from '../data/banking';
 import InteractiveTiltCard from './ui/InteractiveTiltCard';
 
-export default function PassPricing({ onOpenSummary, activeModules }) {
+export default function PassPricing({ onOpenSummary, activeModules, customConfig = {} }) {
   const [activeTab, setActiveTab] = useState('pasadia');
+
+  const customPlans = customConfig.passPlans || {};
+  const getPlanProp = (id, prop, fallback) => {
+    return (customPlans[id] && customPlans[id][prop] !== undefined) ? customPlans[id][prop] : fallback;
+  };
 
   // Quantities state
   const [quantities, setQuantities] = useState({
@@ -27,7 +32,7 @@ export default function PassPricing({ onOpenSummary, activeModules }) {
     }));
   };
 
-  const CATEGORIES = [
+  const RAW_CATEGORIES = [
     {
       id: 'pasadia',
       name: 'Pasadía',
@@ -37,12 +42,13 @@ export default function PassPricing({ onOpenSummary, activeModules }) {
       plans: [
         {
           id: 'aventurero',
-          name: 'Pase Andicas Bio-Aventura',
-          tagline: 'Acceso Total al Bioparque',
-          price: 65000,
-          priceFormatted: '$65.000 COP',
-          image: 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=800&q=80',
-          desc: 'Acceso completo a piscinas de roca natural con caverna, tobogán acuático, show equino y senderos ecológicos.',
+          name: getPlanProp('aventurero', 'name', 'Pase Andicas Bio-Aventura'),
+          tagline: getPlanProp('aventurero', 'tagline', 'Acceso Total al Bioparque'),
+          price: getPlanProp('aventurero', 'price', 65000),
+          priceFormatted: `$${getPlanProp('aventurero', 'price', 65000).toLocaleString('es-CO')} COP`,
+          image: getPlanProp('aventurero', 'image', 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=800&q=80'),
+          desc: getPlanProp('aventurero', 'desc', 'Acceso completo a piscinas de roca natural con caverna, tobogán acuático, show equino y senderos ecológicos.'),
+          enabled: getPlanProp('aventurero', 'enabled', true),
           features: [
             'Piscina natural de roca con caverna & cascada',
             'Tobogán acuático & piscina climatizada',
@@ -53,12 +59,13 @@ export default function PassPricing({ onOpenSummary, activeModules }) {
         },
         {
           id: 'bronce',
-          name: 'Pase Andicas Gourmet & Selva',
-          tagline: 'Aventura + Almuerzo Típico',
-          price: 95000,
-          priceFormatted: '$95.000 COP',
-          image: 'https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=800&q=80',
-          desc: 'Todo lo del Pase Bio-Aventura + almuerzo campesino tradicional servido a la carta con bebida natural.',
+          name: getPlanProp('bronce', 'name', 'Pase Andicas Gourmet & Selva'),
+          tagline: getPlanProp('bronce', 'tagline', 'Aventura + Almuerzo Típico'),
+          price: getPlanProp('bronce', 'price', 95000),
+          priceFormatted: `$${getPlanProp('bronce', 'price', 95000).toLocaleString('es-CO')} COP`,
+          image: getPlanProp('bronce', 'image', 'https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=800&q=80'),
+          desc: getPlanProp('bronce', 'desc', 'Todo lo del Pase Bio-Aventura + almuerzo campesino tradicional servido a la carta con bebida natural.'),
+          enabled: getPlanProp('bronce', 'enabled', true),
           features: [
             'Todo lo incluido en Pase Bio-Aventura',
             'Almuerzo campesino gourmet a la carta',
@@ -78,12 +85,13 @@ export default function PassPricing({ onOpenSummary, activeModules }) {
       plans: [
         {
           id: 'nocturna',
-          name: 'Noche de Luces & Manantiales',
-          tagline: 'Noche Mágica & Chillout',
-          price: 70000,
-          priceFormatted: '$70.000 COP',
-          image: 'https://images.unsplash.com/photo-1517824806704-9040b037703b?auto=format&fit=crop&w=800&q=80',
-          desc: 'Piscina natural climatizada bajo las estrellas con senderos iluminados por antorchas y coctelería.',
+          name: getPlanProp('nocturna', 'name', 'Noche de Luces & Manantiales'),
+          tagline: getPlanProp('nocturna', 'tagline', 'Noche Mágica & Chillout'),
+          price: getPlanProp('nocturna', 'price', 70000),
+          priceFormatted: `$${getPlanProp('nocturna', 'price', 70000).toLocaleString('es-CO')} COP`,
+          image: getPlanProp('nocturna', 'image', 'https://images.unsplash.com/photo-1517824806704-9040b037703b?auto=format&fit=crop&w=800&q=80'),
+          desc: getPlanProp('nocturna', 'desc', 'Piscina natural climatizada bajo las estrellas con senderos iluminados por antorchas y coctelería.'),
+          enabled: getPlanProp('nocturna', 'enabled', true),
           features: [
             'Piscina natural climatizada nocturna',
             'Senderos y miradores iluminados',
@@ -93,12 +101,13 @@ export default function PassPricing({ onOpenSummary, activeModules }) {
         },
         {
           id: 'plata',
-          name: 'Velada Astral, Fogata & Cine',
-          tagline: 'Cine Bajo Estrellas & Fogata',
-          price: 90000,
-          priceFormatted: '$90.000 COP',
-          image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
-          desc: 'Piscina climatizada nocturna + función de cine en pantalla gigante al aire libre + fogata con masmelos.',
+          name: getPlanProp('plata', 'name', 'Velada Astral, Fogata & Cine'),
+          tagline: getPlanProp('plata', 'tagline', 'Cine Bajo Estrellas & Fogata'),
+          price: getPlanProp('plata', 'price', 90000),
+          priceFormatted: `$${getPlanProp('plata', 'price', 90000).toLocaleString('es-CO')} COP`,
+          image: getPlanProp('plata', 'image', 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80'),
+          desc: getPlanProp('plata', 'desc', 'Piscina climatizada nocturna + función de cine en pantalla gigante al aire libre + fogata con masmelos.'),
+          enabled: getPlanProp('plata', 'enabled', true),
           features: [
             'Piscina nocturna climatizada',
             'Función de cine bajo las estrellas',
@@ -118,12 +127,13 @@ export default function PassPricing({ onOpenSummary, activeModules }) {
       plans: [
         {
           id: 'pet_caminante',
-          name: 'Pase Huellitas Safari',
-          tagline: 'Paseo en Praderas Libres',
-          price: 25000,
-          priceFormatted: '$25.000 COP',
-          image: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=800&q=80',
-          desc: 'Ingreso de tu mascota a todas las zonas verdes, praderas, senderos ecológicos y estaciones de hidratación.',
+          name: getPlanProp('pet_caminante', 'name', 'Pase Mascota Caminante'),
+          tagline: getPlanProp('pet_caminante', 'tagline', 'Paseo en Praderas Libres'),
+          price: getPlanProp('pet_caminante', 'price', 30000),
+          priceFormatted: `$${getPlanProp('pet_caminante', 'price', 30000).toLocaleString('es-CO')} COP`,
+          image: getPlanProp('pet_caminante', 'image', 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=800&q=80'),
+          desc: getPlanProp('pet_caminante', 'desc', 'Ingreso de tu mascota a todas las zonas verdes, praderas, senderos ecológicos y estaciones de hidratación.'),
+          enabled: getPlanProp('pet_caminante', 'enabled', true),
           features: [
             'Ingreso a zonas verdes y senderos',
             'Estaciones de hidratación fresca',
@@ -133,14 +143,15 @@ export default function PassPricing({ onOpenSummary, activeModules }) {
         },
         {
           id: 'pet_aventurero',
-          name: 'Pase Pet VIP Acuático',
-          tagline: 'Acceso a Piscina Canina VIP',
-          price: 55000,
-          priceFormatted: '$55.000 COP',
-          image: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=800&q=80',
-          desc: 'Acceso a senderos + uso exclusivo de la piscina canina con rampas de agua, pelotas y snack saludable.',
+          name: getPlanProp('pet_aventurero', 'name', 'Pase Mascota Aventurera'),
+          tagline: getPlanProp('pet_aventurero', 'tagline', 'Acceso a Piscina Canina VIP'),
+          price: getPlanProp('pet_aventurero', 'price', 45000),
+          priceFormatted: `$${getPlanProp('pet_aventurero', 'price', 45000).toLocaleString('es-CO')} COP`,
+          image: getPlanProp('pet_aventurero', 'image', 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=800&q=80'),
+          desc: getPlanProp('pet_aventurero', 'desc', 'Acceso a senderos + uso exclusivo de la piscina canina con rampas de agua, pelotas y snack saludable.'),
+          enabled: getPlanProp('pet_aventurero', 'enabled', true),
           features: [
-            'Todo lo de Pase Huellitas Safari',
+            'Todo lo de Pase Mascota Caminante',
             'Acceso ilimitado a Piscina Canina',
             'Juguetes acuáticos & chalecos',
             'Área de secado al aire libre',
@@ -151,13 +162,18 @@ export default function PassPricing({ onOpenSummary, activeModules }) {
     },
   ];
 
+  const CATEGORIES = RAW_CATEGORIES.map(cat => ({
+    ...cat,
+    plans: cat.plans.filter(p => p.enabled !== false)
+  }));
+
   const allPlansMap = {
-    aventurero: { name: 'Pase Andicas Bio-Aventura', price: 65000 },
-    bronce: { name: 'Pase Andicas Gourmet & Selva (+Almuerzo)', price: 95000 },
-    nocturna: { name: 'Noche de Luces & Manantiales', price: 70000 },
-    plata: { name: 'Velada Astral, Fogata & Cine', price: 90000 },
-    pet_caminante: { name: 'Pase Huellitas Safari', price: 25000 },
-    pet_aventurero: { name: 'Pase Pet VIP Acuático (Piscina Canina)', price: 55000 },
+    aventurero: { name: getPlanProp('aventurero', 'name', 'Pase Andicas Bio-Aventura'), price: getPlanProp('aventurero', 'price', 65000) },
+    bronce: { name: getPlanProp('bronce', 'name', 'Pase Andicas Gourmet & Selva (+Almuerzo)'), price: getPlanProp('bronce', 'price', 95000) },
+    nocturna: { name: getPlanProp('nocturna', 'name', 'Noche de Luces & Manantiales'), price: getPlanProp('nocturna', 'price', 70000) },
+    plata: { name: getPlanProp('plata', 'name', 'Velada Astral, Fogata & Cine'), price: getPlanProp('plata', 'price', 90000) },
+    pet_caminante: { name: getPlanProp('pet_caminante', 'name', 'Pase Mascota Caminante'), price: getPlanProp('pet_caminante', 'price', 30000) },
+    pet_aventurero: { name: getPlanProp('pet_aventurero', 'name', 'Pase Mascota Aventurera (Piscina Canina)'), price: getPlanProp('pet_aventurero', 'price', 45000) },
   };
 
   const currentCategory = CATEGORIES.find((c) => c.id === activeTab) || CATEGORIES[0];

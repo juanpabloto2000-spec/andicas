@@ -52,19 +52,64 @@ export default function Navbar({
     return () => window.removeEventListener('scroll', handleScroll);
   }, [currentPage]);
 
+  const navConfig = customConfig.navItems || {};
+
   // Left Nav Group
   const allLeftNavItems = [
-    { id: 'inicio', name: 'Inicio', page: 'home', href: '#experiencia', enabled: activeModules?.experiencia !== false },
-    { id: 'arma-tu-plan', name: 'Arma Tu Plan', page: 'home', href: '#arma-tu-plan', enabled: activeModules?.pasadias !== false },
-    { id: 'normas', name: 'Normas & Políticas', page: 'home', href: '#normas', enabled: activeModules?.normas !== false },
-    { id: 'ubicacion', name: 'Ubicación', page: 'home', href: '#ubicacion', enabled: activeModules?.ubicacion !== false },
+    { 
+      id: 'inicio', 
+      name: navConfig.inicio?.label || 'Inicio', 
+      page: 'home', 
+      href: '#experiencia', 
+      enabled: activeModules?.experiencia !== false && navConfig.inicio?.enabled !== false 
+    },
+    ...(navConfig.experiencia && navConfig.experiencia.enabled ? [{
+      id: 'experiencia',
+      name: navConfig.experiencia?.label || 'Atracciones',
+      page: 'home',
+      href: '#experiencia',
+      enabled: activeModules?.experiencia !== false
+    }] : []),
+    { 
+      id: 'arma-tu-plan', 
+      name: navConfig.pasadias?.label || navConfig['arma-tu-plan']?.label || 'Arma Tu Plan', 
+      page: 'home', 
+      href: '#arma-tu-plan', 
+      enabled: activeModules?.pasadias !== false && navConfig.pasadias?.enabled !== false && navConfig['arma-tu-plan']?.enabled !== false 
+    },
+    { 
+      id: 'normas', 
+      name: navConfig.normas?.label || 'Normas & Políticas', 
+      page: 'home', 
+      href: '#normas', 
+      enabled: activeModules?.normas !== false && navConfig.normas?.enabled !== false 
+    },
+    { 
+      id: 'ubicacion', 
+      name: navConfig.ubicacion?.label || 'Ubicación', 
+      page: 'home', 
+      href: '#ubicacion', 
+      enabled: activeModules?.ubicacion !== false && navConfig.ubicacion?.enabled !== false 
+    },
   ];
   const leftNavItems = allLeftNavItems.filter(item => item.enabled);
 
   // Right Nav Group (Dedicated Pages)
   const allRightNavItems = [
-    { id: 'cabanas', name: 'Reservar Cabaña', page: 'cabanas', href: '#', enabled: activeModules?.cabanas !== false },
-    { id: 'animales', name: 'Santuario Animal', page: 'animales', href: '#', enabled: activeModules?.animales !== false },
+    { 
+      id: 'cabanas', 
+      name: navConfig.cabanas?.label || 'Reservar Cabaña', 
+      page: 'cabanas', 
+      href: '#', 
+      enabled: activeModules?.cabanas !== false && navConfig.cabanas?.enabled !== false 
+    },
+    { 
+      id: 'animales', 
+      name: navConfig.animales?.label || 'Santuario Animal', 
+      page: 'animales', 
+      href: '#', 
+      enabled: activeModules?.animales !== false && navConfig.animales?.enabled !== false 
+    },
   ];
   const rightNavItems = allRightNavItems.filter(item => item.enabled);
 

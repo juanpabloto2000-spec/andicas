@@ -307,6 +307,7 @@ export default function App() {
               <AnimalesPage
                 onNavigate={navigateTo}
                 activeModules={activeModules}
+                customConfig={customConfig}
               />
             </motion.div>
           )}

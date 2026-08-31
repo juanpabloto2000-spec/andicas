@@ -8,7 +8,7 @@ import {
   Sliders, AlertTriangle, Sparkles, CreditCard, Eye, EyeOff, Save, Sun, Moon, CalendarDays,
   Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle, KeyRound, UserPlus, Shield,
   Receipt, Wallet, Coins, TrendingDown, Printer, Calculator, AlertOctagon, CalendarRange,
-  Settings, Image as ImageIcon, Type
+  Settings, Image as ImageIcon, Type, PawPrint, Compass, Waves, Flame, HeartHandshake, Layout
 } from 'lucide-react';
 import { 
   adminLogin, 
@@ -41,6 +41,8 @@ import {
   getCashClosuresHistory
 } from '../services/api';
 import { cabinsData, cabinAddons } from '../data/cabins';
+import { animalsData } from '../data/animals';
+import { attractionsData } from '../data/attractions';
 import { contactData } from '../data/banking';
 
 export default function AdminDashboard({ onNavigate, activeModules }) {
@@ -289,7 +291,38 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     enabled: true
   });
 
-  // Personalización Sub-Tabs ('general' | 'cabanas_planes' | 'medios_pago' | 'ia_redes')
+  // Custom Animals Modal State
+  const [newAnimalModal, setNewAnimalModal] = useState({
+    isOpen: false,
+    isEditing: false,
+    id: '',
+    name: '',
+    species: '',
+    emoji: '🐾',
+    role: '',
+    tagline: '',
+    image: '',
+    description: '',
+    traitsText: 'Sociable, Cariñoso, Manso',
+    funFact: '',
+    isSubmitting: false
+  });
+
+  // Custom Attractions Modal State
+  const [newAttractionModal, setNewAttractionModal] = useState({
+    isOpen: false,
+    isEditing: false,
+    id: '',
+    title: '',
+    category: 'Aventura & Naturaleza',
+    badge: 'Atracción Estrella',
+    image: '',
+    description: '',
+    highlightsText: 'Acceso guiado, Apto para toda la familia, Vistas panorámicas',
+    isSubmitting: false
+  });
+
+  // Personalización Sub-Tabs ('general' | 'cabanas_planes' | 'animales' | 'atracciones' | 'medios_pago' | 'ia_redes')
   const [personalizacionSubTab, setPersonalizacionSubTab] = useState('general');
 
   // User Management Cards states
@@ -336,22 +369,37 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       heroTitle1: parsed.heroTitle1 || 'EL LUJO DE CONECTAR CON LA',
       heroTitle2: parsed.heroTitle2 || 'NATURALEZA',
       heroSubtitle: parsed.heroSubtitle || 'Piscina natural con caverna, cabañas en los árboles con jacuzzi privado y aventuras inolvidables para toda la familia.',
+      navItems: parsed.navItems || {
+        inicio: { label: 'Inicio', enabled: true },
+        experiencia: { label: 'Atracciones', enabled: true },
+        cabanas: { label: 'Reservar Cabaña', enabled: true },
+        pasadias: { label: 'Arma Tu Plan', enabled: true },
+        animales: { label: 'Santuario Animal', enabled: true },
+        normas: { label: 'Normas & Políticas', enabled: true },
+        ubicacion: { label: 'Ubicación', enabled: true }
+      },
       cabanasSectionTitle: parsed.cabanasSectionTitle || 'Cabañas Luxury & Suites Panorámicas',
       cabanasSectionSubtitle: parsed.cabanasSectionSubtitle || 'Descanso exclusivo rodeado de naturaleza con jacuzzis climatizados y atención de primera clase.',
       pasadiasSectionTitle: parsed.pasadiasSectionTitle || 'Planes de Pasadía & Aventura Familiar',
       pasadiasSectionSubtitle: parsed.pasadiasSectionSubtitle || 'Un día inolvidable con piscinas naturales, show equino, senderismo ecológico y santuario animal.',
+      animalesSectionTitle: parsed.animalesSectionTitle || 'Nuestros Amigos del Santuario',
+      animalesSectionSubtitle: parsed.animalesSectionSubtitle || 'En Andicas Bioparque Temático el bienestar animal es nuestro pilar. Interacción 100% incluida con tu pasadía.',
+      animals: Array.isArray(parsed.animals) && parsed.animals.length > 0 ? parsed.animals : animalsData,
+      atraccionesSectionTitle: parsed.atraccionesSectionTitle || 'Un Refugio de Naturaleza & Aventura',
+      atraccionesSectionSubtitle: parsed.atraccionesSectionSubtitle || 'Inspirados en la armonía y sabiduría de la cultura ancestral Andica, hemos creado un ecosistema donde el descanso se funde con piscinas de roca natural, cavernas con cascada, miradores y senderos vivos.',
+      attractions: Array.isArray(parsed.attractions) && parsed.attractions.length > 0 ? parsed.attractions : attractionsData,
       cabinImages: parsed.cabinImages || {},
       customCabins: Array.isArray(parsed.customCabins) ? parsed.customCabins : [],
       cabinPrices: parsed.cabinPrices || {},
       extraPersonPrices: parsed.extraPersonPrices || {},
       cabinStatus: parsed.cabinStatus || {},
       passPlans: parsed.passPlans || {
-        aventurero: { enabled: true, price: 65000, name: 'Pase Andicas Bio-Aventura', tagline: 'Acceso Total al Bioparque', schedule: '9:00 AM a 5:00 PM', desc: 'Acceso completo a piscinas de roca natural con caverna, tobogán acuático, show equino y senderos ecológicos.' },
-        bronce: { enabled: true, price: 95000, name: 'Pase Andicas Gourmet & Selva', tagline: 'Aventura + Almuerzo Típico', schedule: '9:00 AM a 5:00 PM', desc: 'Todo lo del Pase Bio-Aventura + almuerzo campesino tradicional servido a la carta con bebida natural.' },
-        nocturna: { enabled: true, price: 70000, name: 'Noche de Luces & Manantiales', tagline: 'Noche Mágica & Chillout', schedule: '6:00 PM a 10:00 PM', desc: 'Piscina natural climatizada bajo las estrellas con senderos iluminados por antorchas y coctelería.' },
-        plata: { enabled: true, price: 90000, name: 'Velada Astral, Fogata & Cine', tagline: 'Cine Bajo Estrellas & Fogata', schedule: '6:00 PM a 10:00 PM', desc: 'Piscina climatizada nocturna + función de cine en pantalla gigante al aire libre + fogata con masmelos.' },
-        pet_caminante: { enabled: true, price: 30000, name: 'Pase Mascota Caminante', tagline: 'Senderismo & Aventura Canina', schedule: 'Ingreso Todo el Día', desc: 'Acceso a senderos ecológicos, miradores y kit de hidratación canina con bebederos en ruta.' },
-        pet_aventurero: { enabled: true, price: 45000, name: 'Pase Mascota Aventurera', tagline: 'Senderos + Piscina Canina', schedule: 'Ingreso Todo el Día', desc: 'Acceso a senderos + uso de piscina natural exclusiva para mascotas y zona de juegos al aire libre.' },
+        aventurero: { enabled: true, price: 65000, name: 'Pase Andicas Bio-Aventura', tagline: 'Acceso Total al Bioparque', schedule: '9:00 AM a 5:00 PM', desc: 'Acceso completo a piscinas de roca natural con caverna, tobogán acuático, show equino y senderos ecológicos.', image: 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=800&q=80' },
+        bronce: { enabled: true, price: 95000, name: 'Pase Andicas Gourmet & Selva', tagline: 'Aventura + Almuerzo Típico', schedule: '9:00 AM a 5:00 PM', desc: 'Todo lo del Pase Bio-Aventura + almuerzo campesino tradicional servido a la carta con bebida natural.', image: 'https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=800&q=80' },
+        nocturna: { enabled: true, price: 70000, name: 'Noche de Luces & Manantiales', tagline: 'Noche Mágica & Chillout', schedule: '6:00 PM a 10:00 PM', desc: 'Piscina natural climatizada bajo las estrellas con senderos iluminados por antorchas y coctelería.', image: 'https://images.unsplash.com/photo-1517824806704-9040b037703b?auto=format&fit=crop&w=800&q=80' },
+        plata: { enabled: true, price: 90000, name: 'Velada Astral, Fogata & Cine', tagline: 'Cine Bajo Estrellas & Fogata', schedule: '6:00 PM a 10:00 PM', desc: 'Piscina climatizada nocturna + función de cine en pantalla gigante al aire libre + fogata con masmelos.', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80' },
+        pet_caminante: { enabled: true, price: 30000, name: 'Pase Mascota Caminante', tagline: 'Senderismo & Aventura Canina', schedule: 'Ingreso Todo el Día', desc: 'Acceso a senderos ecológicos, miradores y kit de hidratación canina con bebederos en ruta.', image: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=800&q=80' },
+        pet_aventurero: { enabled: true, price: 45000, name: 'Pase Mascota Aventurera', tagline: 'Senderos + Piscina Canina', schedule: 'Ingreso Todo el Día', desc: 'Acceso a senderos + uso de piscina natural exclusiva para mascotas y zona de juegos al aire libre.', image: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=800&q=80' },
       },
       bankAccounts: parsed.bankAccounts || contactData.banks || [],
       customPaymentMethods: Array.isArray(parsed.customPaymentMethods) ? parsed.customPaymentMethods : [
@@ -1279,6 +1327,169 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     }));
   };
 
+  // Animal Sanctuary Handlers
+  const handleOpenNewAnimalModal = (animalToEdit = null) => {
+    if (animalToEdit) {
+      setNewAnimalModal({
+        isOpen: true,
+        isEditing: true,
+        id: animalToEdit.id,
+        name: animalToEdit.name || '',
+        species: animalToEdit.species || '',
+        emoji: animalToEdit.emoji || '🐾',
+        role: animalToEdit.role || '',
+        tagline: animalToEdit.tagline || '',
+        image: animalToEdit.image || '',
+        description: animalToEdit.description || '',
+        traitsText: Array.isArray(animalToEdit.traits) ? animalToEdit.traits.join(', ') : (animalToEdit.traits || ''),
+        funFact: animalToEdit.funFact || '',
+        isSubmitting: false
+      });
+    } else {
+      setNewAnimalModal({
+        isOpen: true,
+        isEditing: false,
+        id: 'animal_' + Date.now(),
+        name: '',
+        species: '',
+        emoji: '🐾',
+        role: 'Amigo del Santuario',
+        tagline: 'Compañero amigable de la reserva',
+        image: '',
+        description: '',
+        traitsText: 'Sociable, Manso, Cariñoso',
+        funFact: 'Disfruta compartir con los visitantes y niños.',
+        isSubmitting: false
+      });
+    }
+  };
+
+  const handleSaveAnimal = (e) => {
+    e.preventDefault();
+    if (!newAnimalModal.name.trim()) {
+      alert('Ingresa el nombre del animal.');
+      return;
+    }
+
+    const traits = newAnimalModal.traitsText
+      ? newAnimalModal.traitsText.split(',').map(s => s.trim()).filter(Boolean)
+      : ['Sociable', 'Manso'];
+
+    const animalId = newAnimalModal.id || ('animal_' + Date.now());
+    const animalObj = {
+      id: animalId,
+      name: newAnimalModal.name.trim(),
+      species: newAnimalModal.species.trim() || 'Especie del Santuario',
+      emoji: newAnimalModal.emoji.trim() || '🐾',
+      role: newAnimalModal.role.trim() || 'Amigo del Santuario',
+      tagline: newAnimalModal.tagline.trim() || 'Siempre listo para una foto',
+      image: newAnimalModal.image.trim() || 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=800&q=80',
+      description: newAnimalModal.description.trim() || `Conoce a ${newAnimalModal.name}, un ejemplar maravilloso cuidado con amor en nuestro santuario.`,
+      traits,
+      funFact: newAnimalModal.funFact.trim() || 'Le encanta recibir visitas y compartir con las familias.',
+      enabled: true
+    };
+
+    setSiteConfig(prev => {
+      const currentList = Array.isArray(prev.animals) ? prev.animals : animalsData;
+      const exists = currentList.some(a => a.id === animalId);
+      const updated = exists
+        ? currentList.map(a => a.id === animalId ? animalObj : a)
+        : [...currentList, animalObj];
+      return { ...prev, animals: updated };
+    });
+
+    setNewAnimalModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleDeleteAnimal = (animalId) => {
+    if (!window.confirm('¿Estás seguro de eliminar este animal del santuario?')) return;
+    setSiteConfig(prev => {
+      const currentList = Array.isArray(prev.animals) ? prev.animals : animalsData;
+      return {
+        ...prev,
+        animals: currentList.filter(a => a.id !== animalId)
+      };
+    });
+  };
+
+  // Attractions Handlers
+  const handleOpenNewAttractionModal = (attractionToEdit = null) => {
+    if (attractionToEdit) {
+      setNewAttractionModal({
+        isOpen: true,
+        isEditing: true,
+        id: attractionToEdit.id,
+        title: attractionToEdit.title || '',
+        category: attractionToEdit.category || 'Aventura & Naturaleza',
+        badge: attractionToEdit.badge || 'Atracción Estrella',
+        image: attractionToEdit.image || '',
+        description: attractionToEdit.description || '',
+        highlightsText: Array.isArray(attractionToEdit.highlights) ? attractionToEdit.highlights.join(', ') : (attractionToEdit.highlights || ''),
+        isSubmitting: false
+      });
+    } else {
+      setNewAttractionModal({
+        isOpen: true,
+        isEditing: false,
+        id: 'attraction_' + Date.now(),
+        title: '',
+        category: 'Aventura & Naturaleza',
+        badge: 'Atracción Estrella',
+        image: '',
+        description: '',
+        highlightsText: 'Acceso guiado, Apto para toda la familia, Vistas panorámicas',
+        isSubmitting: false
+      });
+    }
+  };
+
+  const handleSaveAttraction = (e) => {
+    e.preventDefault();
+    if (!newAttractionModal.title.trim()) {
+      alert('Ingresa el título de la atracción.');
+      return;
+    }
+
+    const highlights = newAttractionModal.highlightsText
+      ? newAttractionModal.highlightsText.split(',').map(s => s.trim()).filter(Boolean)
+      : ['Acceso incluido', 'Apto para toda la familia'];
+
+    const attractionId = newAttractionModal.id || ('attraction_' + Date.now());
+    const attractionObj = {
+      id: attractionId,
+      title: newAttractionModal.title.trim(),
+      category: newAttractionModal.category.trim() || 'Aventura & Naturaleza',
+      badge: newAttractionModal.badge.trim() || 'Atracción Estrella',
+      image: newAttractionModal.image.trim() || 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=800&q=80',
+      description: newAttractionModal.description.trim() || `Disfruta de ${newAttractionModal.title} en el Bioparque Temático Andicas.`,
+      highlights,
+      enabled: true
+    };
+
+    setSiteConfig(prev => {
+      const currentList = Array.isArray(prev.attractions) ? prev.attractions : attractionsData;
+      const exists = currentList.some(a => a.id === attractionId);
+      const updated = exists
+        ? currentList.map(a => a.id === attractionId ? attractionObj : a)
+        : [...currentList, attractionObj];
+      return { ...prev, attractions: updated };
+    });
+
+    setNewAttractionModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleDeleteAttraction = (attractionId) => {
+    if (!window.confirm('¿Estás seguro de eliminar esta atracción del parque?')) return;
+    setSiteConfig(prev => {
+      const currentList = Array.isArray(prev.attractions) ? prev.attractions : attractionsData;
+      return {
+        ...prev,
+        attractions: currentList.filter(a => a.id !== attractionId)
+      };
+    });
+  };
+
   const handleOpenAnnulModal = (closure) => {
     setAnnulModal({
       isOpen: true,
@@ -1809,6 +2020,52 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     <span>Bloqueado</span>
                   </div>
                 )}
+              </button>
+            )}
+
+            {/* 3.1 Santuario Animal (Acceso Rápido CMS) */}
+            {isAdminOrMaster && isPersonalizacionEnabled && (
+              <button
+                onClick={() => {
+                  setActiveSection('personalizacion');
+                  setPersonalizacionSubTab('animales');
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl transition-all cursor-pointer pl-6 ${
+                  activeSection === 'personalizacion' && personalizacionSubTab === 'animales'
+                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                    : 'bg-jade-900/40 hover:bg-jade-900 text-linen-200 border border-white/5'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <PawPrint className="w-3.5 h-3.5 text-hoja-400" />
+                  <span>🐾 Animales & Santuario</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
+                  {(siteConfig.animals || []).length}
+                </span>
+              </button>
+            )}
+
+            {/* 3.2 Atracciones del Bioparque (Acceso Rápido CMS) */}
+            {isAdminOrMaster && isPersonalizacionEnabled && (
+              <button
+                onClick={() => {
+                  setActiveSection('personalizacion');
+                  setPersonalizacionSubTab('atracciones');
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl transition-all cursor-pointer pl-6 ${
+                  activeSection === 'personalizacion' && personalizacionSubTab === 'atracciones'
+                    ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                    : 'bg-jade-900/40 hover:bg-jade-900 text-linen-200 border border-white/5'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>🎡 Atracciones Parque</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">
+                  {(siteConfig.attractions || []).length}
+                </span>
               </button>
             )}
 
@@ -3391,20 +3648,20 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     <button
                       type="button"
                       onClick={() => setPersonalizacionSubTab('general')}
-                      className={`px-3.5 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                         personalizacionSubTab === 'general'
                           ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
                           : 'text-linen-300 hover:text-white hover:bg-white/5'
                       }`}
                     >
                       <Settings className="w-3.5 h-3.5" />
-                      <span>General</span>
+                      <span>General & Páginas</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setPersonalizacionSubTab('cabanas_planes')}
-                      className={`px-3.5 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                         personalizacionSubTab === 'cabanas_planes'
                           ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
                           : 'text-linen-300 hover:text-white hover:bg-white/5'
@@ -3416,8 +3673,34 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
                     <button
                       type="button"
+                      onClick={() => setPersonalizacionSubTab('animales')}
+                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                        personalizacionSubTab === 'animales'
+                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                          : 'text-linen-300 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <PawPrint className="w-3.5 h-3.5 text-hoja-400" />
+                      <span>Santuario Animal</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPersonalizacionSubTab('atracciones')}
+                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                        personalizacionSubTab === 'atracciones'
+                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
+                          : 'text-linen-300 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Atracciones</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setPersonalizacionSubTab('medios_pago')}
-                      className={`px-3.5 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                         personalizacionSubTab === 'medios_pago'
                           ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
                           : 'text-linen-300 hover:text-white hover:bg-white/5'
@@ -3430,7 +3713,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     <button
                       type="button"
                       onClick={() => setPersonalizacionSubTab('ia_redes')}
-                      className={`px-3.5 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                      className={`px-3 py-2 rounded-xl font-cartoon text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                         personalizacionSubTab === 'ia_redes'
                           ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow border border-gold-400'
                           : 'text-linen-300 hover:text-white hover:bg-white/5'
@@ -3459,7 +3742,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               )}
 
               {/* ================================================================= */}
-              {/* SUB-PESTAÑA 0: GENERAL (MARCA, LOGOS, TÍTULOS Y CABAÑAS) */}
+              {/* SUB-PESTAÑA 0: GENERAL & CONTROL DE PÁGINAS Y NAVEGACIÓN */}
               {/* ================================================================= */}
               {personalizacionSubTab === 'general' && (
                 <div className="space-y-6">
@@ -3596,60 +3879,93 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     </div>
                   </div>
 
-                  {/* 0.3 Portadas / Logos / Fotos de Cabañas */}
+                  {/* 0.3 Gestión de Navegación & Activar/Desactivar Páginas Web */}
                   <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
-                    <div className="border-b border-white/10 pb-3">
-                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
-                        <ImageIcon className="w-4 h-4 text-gold-400" />
-                        <span>3. Fotos & Logos de Portada de Cabañas:</span>
-                      </h3>
-                      <span className="text-xs text-linen-400 font-fredoka">
-                        Cambia la imagen o logo de portada de cada cabaña luxury individualmente.
-                      </span>
+                    <div className="border-b border-white/10 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                          <Layout className="w-4 h-4 text-gold-400" />
+                          <span>3. Menú de Navegación & Páginas del Sitio:</span>
+                        </h3>
+                        <span className="text-xs text-linen-400 font-fredoka">
+                          Edita los nombres de los botones en la Navbar y activa o desactiva la visibilidad de cada página o sección web.
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {cabinsData.map((cabin) => {
-                        const currentImg = siteConfig.cabinImages?.[cabin.id] || cabin.image;
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 font-fredoka text-xs">
+                      {[
+                        { key: 'inicio', defaultLabel: 'Inicio', target: 'Página Principal (#experiencia)', desc: 'Portada y resumen general.' },
+                        { key: 'experiencia', defaultLabel: 'Atracciones', target: 'Atracciones del Parque (#experiencia)', desc: 'Piscinas de roca, toboganes y caverna.' },
+                        { key: 'cabanas', defaultLabel: 'Reservar Cabaña', target: 'Catálogo de Cabañas (/cabanas)', desc: 'Página dedicada de reserva de hospedajes.' },
+                        { key: 'pasadias', defaultLabel: 'Arma Tu Plan', target: 'Planes de Pasadía (#arma-tu-plan)', desc: 'Calculador y paquetes de pasadía y pasanoche.' },
+                        { key: 'animales', defaultLabel: 'Santuario Animal', target: 'Santuario Animal (/animales)', desc: 'Página dedicada con catálogo de ejemplares.' },
+                        { key: 'normas', defaultLabel: 'Normas & Políticas', target: 'Reglamento del Parque (#normas)', desc: 'Políticas de vestuario, mascotas y cancelaciones.' },
+                        { key: 'ubicacion', defaultLabel: 'Ubicación', target: 'Mapa & Contacto (#ubicacion)', desc: 'Ruta de acceso y contacto directo.' },
+                      ].map((navItem) => {
+                        const currentItem = siteConfig.navItems?.[navItem.key] || { label: navItem.defaultLabel, enabled: true };
+                        const isEnabled = currentItem.enabled !== false;
+
                         return (
-                          <div key={cabin.id} className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-3 flex items-start gap-3.5">
-                            <div className="w-20 h-20 rounded-xl bg-black/40 border border-white/10 overflow-hidden flex-shrink-0">
-                              <img
-                                src={currentImg}
-                                alt={cabin.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => { e.target.src = cabin.image; }}
-                              />
-                            </div>
+                          <div key={navItem.key} className="p-4 rounded-2xl bg-jade-900/60 border border-white/10 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-mono text-gold-400 font-bold uppercase bg-gold-500/10 px-2 py-0.5 rounded border border-gold-500/20">
+                                {navItem.target}
+                              </span>
 
-                            <div className="flex-grow space-y-2 font-fredoka text-xs">
-                              <div>
-                                <h4 className="font-bold text-linen-100 text-xs">{cabin.name}</h4>
-                                <span className="text-[10px] text-gold-400 font-mono">{cabin.type}</span>
-                              </div>
-
-                              <div>
-                                <label className="text-[9px] font-cartoon text-linen-400 uppercase block mb-1">
-                                  URL de la Imagen / Logo de Portada:
-                                </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer text-[11px]">
                                 <input
-                                  type="text"
-                                  value={siteConfig.cabinImages?.[cabin.id] || ''}
+                                  type="checkbox"
+                                  checked={isEnabled}
                                   onChange={(e) => {
-                                    const val = e.target.value;
+                                    const val = e.target.checked;
                                     setSiteConfig(prev => ({
                                       ...prev,
-                                      cabinImages: {
-                                        ...(prev.cabinImages || {}),
-                                        [cabin.id]: val
+                                      navItems: {
+                                        ...(prev.navItems || {}),
+                                        [navItem.key]: {
+                                          label: currentItem.label || navItem.defaultLabel,
+                                          enabled: val
+                                        }
                                       }
                                     }));
                                   }}
-                                  placeholder={cabin.image}
-                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-linen-100 outline-none"
+                                  className="rounded accent-gold-500 cursor-pointer"
                                 />
-                              </div>
+                                <span className={isEnabled ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
+                                  {isEnabled ? 'Activa' : 'Oculta'}
+                                </span>
+                              </label>
                             </div>
+
+                            <div>
+                              <label className="text-[10px] font-cartoon text-linen-300 uppercase block mb-1">
+                                Texto / Nombre en la Navbar:
+                              </label>
+                              <input
+                                type="text"
+                                value={currentItem.label || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setSiteConfig(prev => ({
+                                    ...prev,
+                                    navItems: {
+                                      ...(prev.navItems || {}),
+                                      [navItem.key]: {
+                                        ...currentItem,
+                                        label: val
+                                      }
+                                    }
+                                  }));
+                                }}
+                                placeholder={navItem.defaultLabel}
+                                className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-bold text-linen-100 outline-none"
+                              />
+                            </div>
+
+                            <p className="text-[10px] text-linen-400">
+                              {navItem.desc}
+                            </p>
                           </div>
                         );
                       })}
@@ -3659,7 +3975,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               )}
 
               {/* ================================================================= */}
-              {/* SUB-PESTAÑA 1: CABAÑAS Y PLANES DE PASADÍA */}
+              {/* SUB-PESTAÑA 1: CABAÑAS Y PLANES DE PASADÍA (CON FOTOS INTEGRADAS) */}
               {/* ================================================================= */}
               {personalizacionSubTab === 'cabanas_planes' && (
                 <div className="space-y-6">
@@ -3671,7 +3987,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           1. Cabañas Luxury & Hospedaje:
                         </h3>
                         <span className="text-xs text-linen-400 font-fredoka">
-                          Gestiona tarifas nocturnas, disponibilidad para reservas y añade nuevas cabañas al bioparque.
+                          Gestiona tarifas nocturnas, fotos de portada, disponibilidad para reservas y añade nuevas cabañas.
                         </span>
                       </div>
 
@@ -3685,12 +4001,13 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       </button>
                     </div>
 
-                    {/* Standard Cabins Grid */}
+                    {/* Standard Cabins Grid with Embedded Photos */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {cabinsData.map((cabin) => {
                         const currentPrice = siteConfig.cabinPrices?.[cabin.id] || cabin.price;
                         const currentExtraPrice = siteConfig.extraPersonPrices?.[cabin.id] || cabin.extraPersonPrice;
                         const isEnabled = siteConfig.cabinStatus?.[cabin.id] !== false;
+                        const currentPhoto = siteConfig.cabinImages?.[cabin.id] || cabin.image;
 
                         return (
                           <div key={cabin.id} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3">
@@ -3718,6 +4035,39 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                                   {isEnabled ? 'Activa' : 'Desactivada'}
                                 </span>
                               </label>
+                            </div>
+
+                            {/* Embedded Photo Preview and Input */}
+                            <div className="flex items-center gap-3 p-2 rounded-xl bg-black/40 border border-white/10">
+                              <div className="w-16 h-16 rounded-lg bg-jade-950 overflow-hidden flex-shrink-0 border border-white/10">
+                                <img
+                                  src={currentPhoto}
+                                  alt={cabin.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.src = cabin.image; }}
+                                />
+                              </div>
+                              <div className="flex-grow space-y-1">
+                                <label className="text-[9px] font-cartoon text-gold-400 uppercase block">
+                                  Foto / Portada Cabaña:
+                                </label>
+                                <input
+                                  type="text"
+                                  value={siteConfig.cabinImages?.[cabin.id] || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setSiteConfig(prev => ({
+                                      ...prev,
+                                      cabinImages: {
+                                        ...(prev.cabinImages || {}),
+                                        [cabin.id]: val
+                                      }
+                                    }));
+                                  }}
+                                  placeholder={cabin.image}
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-lg px-2 py-1 text-[11px] font-mono text-linen-100 outline-none"
+                                />
+                              </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3 text-xs">
@@ -3848,7 +4198,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                     )}
                   </div>
 
-                  {/* 2. Planes Pasadía & Pasanoche */}
+                  {/* 2. Planes Pasadía & Pasanoche (Con Fotos y Edición Completa) */}
                   <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
                       <div>
@@ -3856,7 +4206,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                           2. Planes de Pasadía & Experiencias:
                         </h3>
                         <span className="text-xs text-linen-400 font-fredoka">
-                          Modifica los nombres de los pasadías, sus tarifas, horarios o añade nuevos planes.
+                          Modifica los nombres de los pasadías, tarifas, fotos de portada, horarios o añade nuevos planes.
                         </span>
                       </div>
 
@@ -3912,6 +4262,42 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                                   <Trash2 className="w-3 h-3" />
                                 </button>
                               )}
+                            </div>
+                          </div>
+
+                          {/* Embedded Plan Photo Preview & Input */}
+                          <div className="flex items-center gap-3 p-2 rounded-xl bg-black/40 border border-white/10">
+                            <div className="w-14 h-14 rounded-lg bg-jade-950 overflow-hidden flex-shrink-0 border border-white/10">
+                              <img
+                                src={planData.image || 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=800&q=80'}
+                                alt={planData.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=800&q=80'; }}
+                              />
+                            </div>
+                            <div className="flex-grow space-y-1">
+                              <label className="text-[9px] font-cartoon text-gold-400 uppercase block">
+                                Foto del Plan:
+                              </label>
+                              <input
+                                type="text"
+                                value={planData.image || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setSiteConfig(prev => ({
+                                    ...prev,
+                                    passPlans: {
+                                      ...(prev.passPlans || {}),
+                                      [planKey]: {
+                                        ...planData,
+                                        image: val
+                                      }
+                                    }
+                                  }));
+                                }}
+                                placeholder="https://..."
+                                className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-lg px-2 py-1 text-[11px] font-mono text-linen-100 outline-none"
+                              />
                             </div>
                           </div>
 
@@ -3982,9 +4368,461 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                                 />
                               </div>
                             </div>
+
+                            <div>
+                              <label className="text-[10px] text-linen-400 uppercase block mb-1">Lema / Tagline:</label>
+                              <input
+                                type="text"
+                                value={planData.tagline || ''}
+                                onChange={(e) => {
+                                  setSiteConfig(prev => ({
+                                    ...prev,
+                                    passPlans: {
+                                      ...(prev.passPlans || {}),
+                                      [planKey]: {
+                                        ...planData,
+                                        tagline: e.target.value
+                                      }
+                                    }
+                                  }));
+                                }}
+                                placeholder="Lema descriptivo del plan"
+                                className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-1.5 text-xs text-linen-200 outline-none"
+                              />
+                            </div>
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ================================================================= */}
+              {/* SUB-PESTAÑA 2: ANIMALES & SANTUARIO (FULL CMS) */}
+              {/* ================================================================= */}
+              {personalizacionSubTab === 'animales' && (
+                <div className="space-y-6">
+                  {/* Encabezado y Textos de Sección */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="border-b border-white/10 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                          <PawPrint className="w-4 h-4 text-hoja-400" />
+                          <span>1. Textos de la Sección Santuario Animal:</span>
+                        </h3>
+                        <span className="text-xs text-linen-400 font-fredoka">
+                          Personaliza los títulos y el mensaje de bienestar animal en la web.
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenNewAnimalModal()}
+                        className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Añadir Animal</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-fredoka text-xs">
+                      <div>
+                        <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                          Título de la Sección de Animales:
+                        </label>
+                        <input
+                          type="text"
+                          value={siteConfig.animalesSectionTitle || ''}
+                          onChange={(e) => setSiteConfig(prev => ({ ...prev, animalesSectionTitle: e.target.value }))}
+                          placeholder="CONOCE NUESTROS ANIMALES DE LA CASA"
+                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none font-bold uppercase"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-cartoon text-linen-400 uppercase block mb-1">
+                          Subtítulo / Mensaje de Interacción:
+                        </label>
+                        <input
+                          type="text"
+                          value={siteConfig.animalesSectionSubtitle || ''}
+                          onChange={(e) => setSiteConfig(prev => ({ ...prev, animalesSectionSubtitle: e.target.value }))}
+                          placeholder="Interacción gratuita 100% incluida con tu entrada general de Pasadía."
+                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-200 outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Listado Completo de Animales Editables */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="border-b border-white/10 pb-3">
+                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                        2. Catálogo de Ejemplares del Santuario:
+                      </h3>
+                      <span className="text-xs text-linen-400 font-fredoka">
+                        Edita los nombres, fotos, historias, rasgos y activa u oculta cada animal del slider interactivo.
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {(siteConfig.animals || animalsData).map((animal) => {
+                        const isEnabled = animal.enabled !== false;
+
+                        return (
+                          <div key={animal.id} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3 font-fredoka text-xs">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-2xl">{animal.emoji || '🐾'}</span>
+                                <div>
+                                  <h4 className="font-bold text-xs text-linen-100">{animal.name}</h4>
+                                  <span className="text-[10px] text-gold-400/80 font-mono">{animal.species}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1.5 cursor-pointer text-[11px]">
+                                  <input
+                                    type="checkbox"
+                                    checked={isEnabled}
+                                    onChange={(e) => {
+                                      const currentList = Array.isArray(siteConfig.animals) ? siteConfig.animals : animalsData;
+                                      const updated = currentList.map(a => 
+                                        a.id === animal.id ? { ...a, enabled: e.target.checked } : a
+                                      );
+                                      setSiteConfig(prev => ({ ...prev, animals: updated }));
+                                    }}
+                                    className="rounded accent-gold-500 cursor-pointer"
+                                  />
+                                  <span className={isEnabled ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
+                                    {isEnabled ? 'Visible' : 'Oculto'}
+                                  </span>
+                                </label>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAnimal(animal.id)}
+                                  className="p-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer"
+                                  title="Eliminar animal"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Photo Preview & URL */}
+                            <div className="flex items-center gap-3 p-2 rounded-xl bg-black/40 border border-white/10">
+                              <div className="w-16 h-16 rounded-lg bg-jade-950 overflow-hidden flex-shrink-0 border border-white/10">
+                                <img
+                                  src={animal.image}
+                                  alt={animal.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?auto=format&fit=crop&w=800&q=80'; }}
+                                />
+                              </div>
+                              <div className="flex-grow space-y-1">
+                                <label className="text-[9px] font-cartoon text-gold-400 uppercase block">
+                                  URL de la Foto:
+                                </label>
+                                <input
+                                  type="text"
+                                  value={animal.image || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const currentList = Array.isArray(siteConfig.animals) ? siteConfig.animals : animalsData;
+                                    const updated = currentList.map(a => 
+                                      a.id === animal.id ? { ...a, image: val } : a
+                                    );
+                                    setSiteConfig(prev => ({ ...prev, animals: updated }));
+                                  }}
+                                  placeholder="https://..."
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-lg px-2 py-1 text-[11px] font-mono text-linen-100 outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Editable Fields */}
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[9px] text-linen-400 uppercase block mb-1">Nombre:</label>
+                                  <input
+                                    type="text"
+                                    value={animal.name || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const currentList = Array.isArray(siteConfig.animals) ? siteConfig.animals : animalsData;
+                                      const updated = currentList.map(a => 
+                                        a.id === animal.id ? { ...a, name: val } : a
+                                      );
+                                      setSiteConfig(prev => ({ ...prev, animals: updated }));
+                                    }}
+                                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-linen-100 outline-none"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[9px] text-linen-400 uppercase block mb-1">Especie:</label>
+                                  <input
+                                    type="text"
+                                    value={animal.species || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const currentList = Array.isArray(siteConfig.animals) ? siteConfig.animals : animalsData;
+                                      const updated = currentList.map(a => 
+                                        a.id === animal.id ? { ...a, species: val } : a
+                                      );
+                                      setSiteConfig(prev => ({ ...prev, animals: updated }));
+                                    }}
+                                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-lg px-2.5 py-1.5 text-xs text-linen-200 outline-none"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="text-[9px] text-linen-400 uppercase block mb-1">Rol / Cargo:</label>
+                                <input
+                                  type="text"
+                                  value={animal.role || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const currentList = Array.isArray(siteConfig.animals) ? siteConfig.animals : animalsData;
+                                    const updated = currentList.map(a => 
+                                      a.id === animal.id ? { ...a, role: val } : a
+                                    );
+                                    setSiteConfig(prev => ({ ...prev, animals: updated }));
+                                  }}
+                                  placeholder="Ej: Embajador de la Alegría"
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-lg px-2.5 py-1.5 text-xs text-linen-200 outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[9px] text-linen-400 uppercase block mb-1">Descripción / Historia:</label>
+                                <textarea
+                                  rows={2}
+                                  value={animal.description || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const currentList = Array.isArray(siteConfig.animals) ? siteConfig.animals : animalsData;
+                                    const updated = currentList.map(a => 
+                                      a.id === animal.id ? { ...a, description: val } : a
+                                    );
+                                    setSiteConfig(prev => ({ ...prev, animals: updated }));
+                                  }}
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-lg px-2.5 py-1.5 text-xs text-linen-200 outline-none resize-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ================================================================= */}
+              {/* SUB-PESTAÑA 3: ATRACCIONES PRINCIPALES (FULL CMS) */}
+              {/* ================================================================= */}
+              {personalizacionSubTab === 'atracciones' && (
+                <div className="space-y-6">
+                  {/* Encabezado y Textos de Sección */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="border-b border-white/10 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider flex items-center gap-2">
+                          <Compass className="w-4 h-4 text-cyan-400" />
+                          <span>1. Textos de la Sección de Atracciones:</span>
+                        </h3>
+                        <span className="text-xs text-linen-400 font-fredoka">
+                          Personaliza los títulos y el subtítulo del carrusel 3D CardStack de atracciones.
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenNewAttractionModal()}
+                        className="px-3.5 py-2 rounded-xl bg-gold-gradient text-jade-950 text-xs font-bold font-cartoon uppercase tracking-wider flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer shadow-gold-glow"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Añadir Atracción</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-fredoka text-xs">
+                      <div>
+                        <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
+                          Título de la Sección de Atracciones:
+                        </label>
+                        <input
+                          type="text"
+                          value={siteConfig.atraccionesSectionTitle || ''}
+                          onChange={(e) => setSiteConfig(prev => ({ ...prev, atraccionesSectionTitle: e.target.value }))}
+                          placeholder="UN REFUGIO DE NATURALEZA & AVENTURA"
+                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none font-bold uppercase"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-cartoon text-linen-400 uppercase block mb-1">
+                          Subtítulo Descriptivo:
+                        </label>
+                        <input
+                          type="text"
+                          value={siteConfig.atraccionesSectionSubtitle || ''}
+                          onChange={(e) => setSiteConfig(prev => ({ ...prev, atraccionesSectionSubtitle: e.target.value }))}
+                          placeholder="Inspirados en la armonía y sabiduría de la cultura ancestral Andica..."
+                          className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3.5 py-2.5 text-xs text-linen-200 outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Listado Completo de Atracciones Editables */}
+                  <div className="p-6 rounded-3xl glass-dark border border-white/10 space-y-5 shadow-xl">
+                    <div className="border-b border-white/10 pb-3">
+                      <h3 className="font-cartoon text-sm uppercase text-gold-400 tracking-wider">
+                        2. Catálogo de Atracciones del Parque:
+                      </h3>
+                      <span className="text-xs text-linen-400 font-fredoka">
+                        Edita los títulos, fotos, etiquetas, descripciones y puntos destacados de cada atracción.
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {(siteConfig.attractions || attractionsData).map((attraction) => {
+                        const isEnabled = attraction.enabled !== false;
+
+                        return (
+                          <div key={attraction.id} className="p-4 rounded-2xl bg-jade-900/70 border border-white/10 space-y-3 font-fredoka text-xs">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h4 className="font-bold text-xs text-linen-100">{attraction.title}</h4>
+                                <span className="text-[10px] text-cyan-400 font-mono">{attraction.badge || attraction.category}</span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1.5 cursor-pointer text-[11px]">
+                                  <input
+                                    type="checkbox"
+                                    checked={isEnabled}
+                                    onChange={(e) => {
+                                      const currentList = Array.isArray(siteConfig.attractions) ? siteConfig.attractions : attractionsData;
+                                      const updated = currentList.map(a => 
+                                        a.id === attraction.id ? { ...a, enabled: e.target.checked } : a
+                                      );
+                                      setSiteConfig(prev => ({ ...prev, attractions: updated }));
+                                    }}
+                                    className="rounded accent-cyan-500 cursor-pointer"
+                                  />
+                                  <span className={isEnabled ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
+                                    {isEnabled ? 'Visible' : 'Oculta'}
+                                  </span>
+                                </label>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAttraction(attraction.id)}
+                                  className="p-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 cursor-pointer"
+                                  title="Eliminar atracción"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Photo Preview & URL */}
+                            <div className="flex items-center gap-3 p-2 rounded-xl bg-black/40 border border-white/10">
+                              <div className="w-16 h-16 rounded-lg bg-jade-950 overflow-hidden flex-shrink-0 border border-white/10">
+                                <img
+                                  src={attraction.image}
+                                  alt={attraction.title}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=800&q=80'; }}
+                                />
+                              </div>
+                              <div className="flex-grow space-y-1">
+                                <label className="text-[9px] font-cartoon text-cyan-400 uppercase block">
+                                  URL de la Foto:
+                                </label>
+                                <input
+                                  type="text"
+                                  value={attraction.image || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const currentList = Array.isArray(siteConfig.attractions) ? siteConfig.attractions : attractionsData;
+                                    const updated = currentList.map(a => 
+                                      a.id === attraction.id ? { ...a, image: val } : a
+                                    );
+                                    setSiteConfig(prev => ({ ...prev, attractions: updated }));
+                                  }}
+                                  placeholder="https://..."
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-cyan-400 rounded-lg px-2 py-1 text-[11px] font-mono text-linen-100 outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Editable Fields */}
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[9px] text-linen-400 uppercase block mb-1">Título:</label>
+                                  <input
+                                    type="text"
+                                    value={attraction.title || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const currentList = Array.isArray(siteConfig.attractions) ? siteConfig.attractions : attractionsData;
+                                      const updated = currentList.map(a => 
+                                        a.id === attraction.id ? { ...a, title: val } : a
+                                      );
+                                      setSiteConfig(prev => ({ ...prev, attractions: updated }));
+                                    }}
+                                    className="w-full bg-jade-950 border border-white/15 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-linen-100 outline-none"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[9px] text-linen-400 uppercase block mb-1">Insignia / Badge:</label>
+                                  <input
+                                    type="text"
+                                    value={attraction.badge || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const currentList = Array.isArray(siteConfig.attractions) ? siteConfig.attractions : attractionsData;
+                                      const updated = currentList.map(a => 
+                                        a.id === attraction.id ? { ...a, badge: val } : a
+                                      );
+                                      setSiteConfig(prev => ({ ...prev, attractions: updated }));
+                                    }}
+                                    placeholder="Ej: Atracción Estrella"
+                                    className="w-full bg-jade-950 border border-white/15 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-xs text-linen-200 outline-none"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="text-[9px] text-linen-400 uppercase block mb-1">Descripción:</label>
+                                <textarea
+                                  rows={2}
+                                  value={attraction.description || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const currentList = Array.isArray(siteConfig.attractions) ? siteConfig.attractions : attractionsData;
+                                    const updated = currentList.map(a => 
+                                      a.id === attraction.id ? { ...a, description: val } : a
+                                    );
+                                    setSiteConfig(prev => ({ ...prev, attractions: updated }));
+                                  }}
+                                  className="w-full bg-jade-950 border border-white/15 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-xs text-linen-200 outline-none resize-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -5994,6 +6832,274 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Guardar Medio de Pago</span>
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: AÑADIR NUEVO ANIMAL DEL SANTUARIO */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {newAnimalModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setNewAnimalModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-gold-500/50 shadow-2xl space-y-4 z-10 font-fredoka max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <h3 className="font-display text-base font-black text-white uppercase flex items-center gap-2">
+                  <span>🐾</span>
+                  <span>{newAnimalModal.isEditing ? 'Editar Animal' : 'Añadir Animal al Santuario'}</span>
+                </h3>
+                <button
+                  onClick={() => setNewAnimalModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAnimal} className="space-y-3 text-xs">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Nombre (*):</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Max, Ramona, Lucas..."
+                      value={newAnimalModal.name}
+                      onChange={(e) => setNewAnimalModal({ ...newAnimalModal, name: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Emoji:</label>
+                    <input
+                      type="text"
+                      placeholder="🐴"
+                      value={newAnimalModal.emoji}
+                      onChange={(e) => setNewAnimalModal({ ...newAnimalModal, emoji: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-center text-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Especie:</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Caballo Criollo, Avestruz..."
+                      value={newAnimalModal.species}
+                      onChange={(e) => setNewAnimalModal({ ...newAnimalModal, species: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Rol / Título:</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Guardián de la Colina"
+                      value={newAnimalModal.role}
+                      onChange={(e) => setNewAnimalModal({ ...newAnimalModal, role: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">URL de la Foto:</label>
+                  <input
+                    type="text"
+                    placeholder="https://images.unsplash.com/..."
+                    value={newAnimalModal.image}
+                    onChange={(e) => setNewAnimalModal({ ...newAnimalModal, image: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                  />
+                  {newAnimalModal.image && (
+                    <div className="w-20 h-20 rounded-xl overflow-hidden mt-2 border border-white/15">
+                      <img src={newAnimalModal.image} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Descripción / Historia:</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Describe al animal, cómo llegó al bioparque o cómo interactúa..."
+                    value={newAnimalModal.description}
+                    onChange={(e) => setNewAnimalModal({ ...newAnimalModal, description: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Rasgos (separados por coma):</label>
+                    <input
+                      type="text"
+                      placeholder="Manso, Juguetón, Noble"
+                      value={newAnimalModal.traitsText}
+                      onChange={(e) => setNewAnimalModal({ ...newAnimalModal, traitsText: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">Dato Curioso:</label>
+                    <input
+                      type="text"
+                      placeholder="Le encanta comer zanahorias frescas"
+                      value={newAnimalModal.funFact}
+                      onChange={(e) => setNewAnimalModal({ ...newAnimalModal, funFact: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-gold-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!newAnimalModal.name}
+                  className="w-full py-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{newAnimalModal.isEditing ? 'Actualizar Animal' : 'Guardar Animal'}</span>
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================= */}
+      {/* MODAL: AÑADIR NUEVA ATRACCIÓN */}
+      {/* ======================================================================= */}
+      <AnimatePresence>
+        {newAttractionModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setNewAttractionModal(prev => ({ ...prev, isOpen: false }))}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-md p-6 rounded-3xl glass-dark border border-cyan-500/50 shadow-2xl space-y-4 z-10 font-fredoka max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <h3 className="font-display text-base font-black text-white uppercase flex items-center gap-2">
+                  <span>🎡</span>
+                  <span>{newAttractionModal.isEditing ? 'Editar Atracción' : 'Añadir Nueva Atracción'}</span>
+                </h3>
+                <button
+                  onClick={() => setNewAttractionModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-jade-900 text-linen-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAttraction} className="space-y-3 text-xs">
+                <div>
+                  <label className="text-[10px] font-cartoon text-cyan-400 uppercase block mb-1">Título de la Atracción (*):</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Piscina Natural con Caverna & Cascada"
+                    value={newAttractionModal.title}
+                    onChange={(e) => setNewAttractionModal({ ...newAttractionModal, title: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-white outline-none font-bold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-cartoon text-cyan-400 uppercase block mb-1">Categoría:</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Aventura & Naturaleza"
+                      value={newAttractionModal.category}
+                      onChange={(e) => setNewAttractionModal({ ...newAttractionModal, category: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-cartoon text-cyan-400 uppercase block mb-1">Insignia / Badge:</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Atracción Estrella"
+                      value={newAttractionModal.badge}
+                      onChange={(e) => setNewAttractionModal({ ...newAttractionModal, badge: e.target.value })}
+                      className="w-full bg-jade-950 border border-white/15 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-cyan-400 uppercase block mb-1">URL de la Foto:</label>
+                  <input
+                    type="text"
+                    placeholder="https://images.unsplash.com/..."
+                    value={newAttractionModal.image}
+                    onChange={(e) => setNewAttractionModal({ ...newAttractionModal, image: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                  />
+                  {newAttractionModal.image && (
+                    <div className="w-20 h-20 rounded-xl overflow-hidden mt-2 border border-white/15">
+                      <img src={newAttractionModal.image} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-cyan-400 uppercase block mb-1">Descripción:</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Explica de qué trata la atracción y la experiencia del visitante..."
+                    value={newAttractionModal.description}
+                    onChange={(e) => setNewAttractionModal({ ...newAttractionModal, description: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-white outline-none resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-cartoon text-cyan-400 uppercase block mb-1">Puntos Clave / Highlights (separados por coma):</label>
+                  <input
+                    type="text"
+                    placeholder="Agua cristalina, Apta para niños, Fotos incluidas"
+                    value={newAttractionModal.highlightsText}
+                    onChange={(e) => setNewAttractionModal({ ...newAttractionModal, highlightsText: e.target.value })}
+                    className="w-full bg-jade-950 border border-white/15 focus:border-cyan-400 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!newAttractionModal.title}
+                  className="w-full py-3 rounded-xl bg-gold-gradient text-jade-950 font-cartoon font-bold text-xs uppercase tracking-wider shadow-gold-glow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{newAttractionModal.isEditing ? 'Actualizar Atracción' : 'Guardar Atracción'}</span>
                 </button>
               </form>
             </motion.div>

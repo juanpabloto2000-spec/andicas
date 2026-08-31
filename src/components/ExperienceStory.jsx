@@ -3,20 +3,26 @@ import { motion } from 'framer-motion';
 import { CardStack } from './ui/card-stack';
 import { attractions } from '../data/attractions';
 
-export default function ExperienceStory() {
-  const stackItems = attractions.map((item) => ({
+export default function ExperienceStory({ customConfig = {} }) {
+  const currentAttractions = (customConfig.attractions && Array.isArray(customConfig.attractions) && customConfig.attractions.length > 0)
+    ? customConfig.attractions.filter(item => item.enabled !== false)
+    : attractions;
+
+  const stackItems = currentAttractions.map((item) => ({
     id: item.id,
     title: item.title,
     description: item.description,
     imageSrc: item.image,
     tag: item.badge,
-    highlights: item.highlights,
+    highlights: Array.isArray(item.highlights) 
+      ? item.highlights 
+      : (typeof item.highlights === 'string' ? item.highlights.split(',').map(s => s.trim()) : []),
   }));
 
   return (
     <section id="experiencia" aria-labelledby="experiencia-heading" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 relative bg-transparent overflow-hidden">
       <div className="max-w-7xl mx-auto relative z-10">
-        {/* Single Clean Master Header: Un Refugio de Naturaleza & Aventura */}
+        {/* Single Clean Master Header */}
         <motion.div
           initial={{ opacity: 0, y: 40, scale: 0.95 }}
           whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -25,12 +31,18 @@ export default function ExperienceStory() {
           className="text-center max-w-3xl mx-auto mb-12"
         >
           <h2 id="experiencia-heading" className="font-display text-3xl sm:text-5xl lg:text-6xl font-black text-linen-100 leading-tight mb-4 uppercase">
-            UN REFUGIO DE NATURALEZA &{' '}
-            <span className="text-3d-gold">AVENTURA</span>
+            {customConfig.atraccionesSectionTitle ? (
+              customConfig.atraccionesSectionTitle
+            ) : (
+              <>
+                UN REFUGIO DE NATURALEZA &{' '}
+                <span className="text-3d-gold">AVENTURA</span>
+              </>
+            )}
           </h2>
 
           <p className="text-linen-200 font-fredoka text-sm sm:text-base font-normal leading-relaxed max-w-2xl mx-auto">
-            Inspirados en la armonía y sabiduría de la cultura ancestral Andica, hemos creado un ecosistema donde el descanso se funde con piscinas de roca natural, cavernas con cascada, miradores y senderos vivos.
+            {customConfig.atraccionesSectionSubtitle || 'Inspirados en la armonía y sabiduría de la cultura ancestral Andica, hemos creado un ecosistema donde el descanso se funde con piscinas de roca natural, cavernas con cascada, miradores y senderos vivos.'}
           </p>
         </motion.div>
 
