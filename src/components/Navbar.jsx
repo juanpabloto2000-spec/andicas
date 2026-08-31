@@ -4,7 +4,9 @@ import { Menu, X, ChevronRight } from 'lucide-react';
 
 export default function Navbar({ 
   currentPage = 'home',
-  onNavigate, 
+  onNavigate,
+  onOpenBooking,
+  activeModules = {}
 }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -50,18 +52,20 @@ export default function Navbar({
   }, [currentPage]);
 
   // Left Nav Group
-  const leftNavItems = [
-    { id: 'inicio', name: 'Inicio', page: 'home', href: '#experiencia' },
-    { id: 'arma-tu-plan', name: 'Arma Tu Plan', page: 'home', href: '#arma-tu-plan' },
-    { id: 'normas', name: 'Normas & Políticas', page: 'home', href: '#normas' },
-    { id: 'ubicacion', name: 'Ubicación', page: 'home', href: '#ubicacion' },
+  const allLeftNavItems = [
+    { id: 'inicio', name: 'Inicio', page: 'home', href: '#experiencia', enabled: activeModules?.experiencia !== false },
+    { id: 'arma-tu-plan', name: 'Arma Tu Plan', page: 'home', href: '#arma-tu-plan', enabled: activeModules?.pasadias !== false },
+    { id: 'normas', name: 'Normas & Políticas', page: 'home', href: '#normas', enabled: activeModules?.normas !== false },
+    { id: 'ubicacion', name: 'Ubicación', page: 'home', href: '#ubicacion', enabled: activeModules?.ubicacion !== false },
   ];
+  const leftNavItems = allLeftNavItems.filter(item => item.enabled);
 
   // Right Nav Group (Dedicated Pages)
-  const rightNavItems = [
-    { id: 'cabanas', name: 'Reservar Cabaña', page: 'cabanas', href: '#' },
-    { id: 'animales', name: 'Santuario Animal', page: 'animales', href: '#' },
+  const allRightNavItems = [
+    { id: 'cabanas', name: 'Reservar Cabaña', page: 'cabanas', href: '#', enabled: activeModules?.cabanas !== false },
+    { id: 'animales', name: 'Santuario Animal', page: 'animales', href: '#', enabled: activeModules?.animales !== false },
   ];
+  const rightNavItems = allRightNavItems.filter(item => item.enabled);
 
   const handleItemClick = (item) => {
     setMobileMenuOpen(false);

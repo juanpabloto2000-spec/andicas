@@ -136,10 +136,13 @@ export default function HomePage({
       <Hero onOpenBooking={onOpenBooking} activeModules={activeModules} />
 
       {/* 2. La Experiencia Quimbayas (With CardStack Component) */}
-      <ExperienceStory />
+      {activeModules?.experiencia !== false && (
+        <ExperienceStory />
+      )}
 
       {/* 3. Cabañas Luxury & Miradores with 3D Rotating Carousel & Full Thatched Roof Atmosphere */}
-      <section id="cabanas-seccion" className="py-24 sm:py-32 px-4 sm:px-6 lg:px-8 relative overflow-hidden bg-thatch-texture">
+      {activeModules?.cabanas !== false && (
+        <section id="cabanas-seccion" className="py-24 sm:py-32 px-4 sm:px-6 lg:px-8 relative overflow-hidden bg-thatch-texture">
         {/* Photorealistic Thatched Roof Eave (Techo de Paja Ancestral con Difuminado) */}
         <ThatchedRoofDecoration />
 
@@ -286,163 +289,172 @@ export default function HomePage({
           </div>
         </div>
       </section>
+      )}
 
       {/* 4. Arma Tu Plan (With Mini-Navbar Tabs & Side-by-Side Cards & Summary) */}
-      <PassPricing onOpenSummary={onOpenSummary} activeModules={activeModules} />
+      {activeModules?.pasadias !== false && (
+        <PassPricing onOpenSummary={onOpenSummary} activeModules={activeModules} />
+      )}
 
       {/* 5. Santuario Animal Preview Section (With ImageAutoSlider) */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 40, scale: 0.95 }}
-            whileInView={{ opacity: 1, y: 0, scale: 1 }}
-            viewport={{ once: true, amount: 0.15 }}
-            transition={{ type: "spring", stiffness: 85, damping: 15 }}
-            className="text-center max-w-3xl mx-auto mb-10"
-          >
-            <h2 className="font-display text-3xl sm:text-5xl font-black text-linen-100 uppercase tracking-wide">
-              CONOCE NUESTROS <span className="text-3d-gold">ANIMALES</span> DE LA CASA
-            </h2>
-            <p className="text-xs sm:text-sm font-fredoka text-linen-300 mt-2">
-              Interacción gratuita 100% incluida con tu entrada general de Pasadía.
-            </p>
-          </motion.div>
-
-          {/* Integrated Infinite Auto-Slider Component with Gliding Arrival */}
-          <motion.div
-            initial={{ opacity: 0, x: 70, scale: 0.94 }}
-            whileInView={{ opacity: 1, x: 0, scale: 1 }}
-            viewport={{ once: true, amount: 0.15 }}
-            transition={{ type: "spring", stiffness: 75, damping: 14, delay: 0.12 }}
-            className="w-full"
-          >
-            <ImageAutoSlider
-              items={animalsData}
-              onItemClick={handleAnimalSelect}
-            />
-          </motion.div>
-        </div>
-      </section>
-
-      {/* 6. Normas & Políticas del Parque */}
-      <section id="normas" aria-labelledby="normas-heading" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 40, scale: 0.95 }}
-            whileInView={{ opacity: 1, y: 0, scale: 1 }}
-            viewport={{ once: true, amount: 0.15 }}
-            transition={{ type: "spring", stiffness: 85, damping: 15 }}
-            className="text-center max-w-3xl mx-auto mb-14"
-          >
-            <h2 id="normas-heading" className="font-display text-3xl sm:text-5xl font-black text-linen-100 uppercase tracking-wide mb-3">
-              GUÍA DE ESTADÍA & POLÍTICAS
-            </h2>
-            <p className="text-xs sm:text-sm font-fredoka text-linen-300 max-w-xl mx-auto">
-              Diseñadas para garantizar la seguridad, el bienestar y una estancia memorable en el corazón de la naturaleza.
-            </p>
-          </motion.div>
-
-          {/* Interactive Dual-Column Hospitality Guide with Animated Entry */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Category Selector (4 cols) with Slide from Left */}
+      {activeModules?.animales !== false && (
+        <section className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto">
             <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 40, scale: 0.95 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
               viewport={{ once: true, amount: 0.15 }}
-              transition={{ type: "spring", stiffness: 80, damping: 15 }}
-              className="lg:col-span-4 space-y-2.5"
+              transition={{ type: "spring", stiffness: 85, damping: 15 }}
+              className="text-center max-w-3xl mx-auto mb-10"
             >
-              {RULES_CATEGORIES.map((cat) => {
-                const Icon = cat.icon;
-                const isSelected = activeRuleCategory.id === cat.id;
-
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => setActiveRuleCategory(cat)}
-                    className={`w-full p-4 rounded-xl text-left transition-all flex items-center justify-between border cursor-pointer ${
-                      isSelected
-                        ? 'bg-jade-950/90 border-gold-400 shadow-gold-glow'
-                        : 'glass-card border-white/10 hover:border-gold-500/40'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg bg-jade-900/90 border border-white/10 ${cat.accent}`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-cartoon text-sm font-bold text-linen-100 uppercase tracking-wider">
-                          {cat.title}
-                        </h4>
-                        <p className="text-[11px] font-fredoka text-linen-300/80">
-                          {cat.subtitle}
-                        </p>
-                      </div>
-                    </div>
-
-                    <ChevronRight className={`w-4 h-4 transition-transform ${isSelected ? 'text-gold-400 translate-x-1' : 'text-linen-400'}`} />
-                  </button>
-                );
-              })}
+              <h2 className="font-display text-3xl sm:text-5xl font-black text-linen-100 uppercase tracking-wide">
+                CONOCE NUESTROS <span className="text-3d-gold">ANIMALES</span> DE LA CASA
+              </h2>
+              <p className="text-xs sm:text-sm font-fredoka text-linen-300 mt-2">
+                Interacción gratuita 100% incluida con tu entrada general de Pasadía.
+              </p>
             </motion.div>
 
-            {/* Right Rule Detail Card (8 cols) with Slide from Right */}
+            {/* Integrated Infinite Auto-Slider Component with Gliding Arrival */}
             <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, x: 70, scale: 0.94 }}
+              whileInView={{ opacity: 1, x: 0, scale: 1 }}
               viewport={{ once: true, amount: 0.15 }}
-              transition={{ type: "spring", stiffness: 80, damping: 15, delay: 0.1 }}
-              className="lg:col-span-8 p-6 sm:p-8 rounded-2xl glass-dark border border-gold-600/40 shadow-2xl space-y-6"
+              transition={{ type: "spring", stiffness: 75, damping: 14, delay: 0.12 }}
+              className="w-full"
             >
-              <div className="flex items-center justify-between pb-4 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-lg bg-gold-600/20 text-gold-400">
-                    <ShieldCheck className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
-                      {activeRuleCategory.title}
-                    </h3>
-                    <p className="text-xs font-fredoka text-gold-400">
-                      {activeRuleCategory.description}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <ImageAutoSlider
+                items={animalsData}
+                onItemClick={handleAnimalSelect}
+              />
+            </motion.div>
+          </div>
+        </section>
+      )}
 
-              {/* Rules List */}
-              <div className="space-y-3.5">
-                {activeRuleCategory.rules.map((rule, idx) => (
-                  <div 
-                    key={idx} 
-                    className="p-4 rounded-xl bg-jade-950/70 border border-white/10 flex items-start gap-3.5 hover:border-gold-500/30 transition-all"
-                  >
-                    <div className="w-6 h-6 rounded-md bg-gold-500/20 text-gold-400 text-xs font-bold font-cartoon flex items-center justify-center flex-shrink-0 mt-0.5">
-                      0{idx + 1}
+      {/* 6. Normas & Políticas del Parque */}
+      {activeModules?.normas !== false && (
+        <section id="normas" aria-labelledby="normas-heading" className="py-20 sm:py-28 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto relative z-10">
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.95 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true, amount: 0.15 }}
+              transition={{ type: "spring", stiffness: 85, damping: 15 }}
+              className="text-center max-w-3xl mx-auto mb-14"
+            >
+              <h2 id="normas-heading" className="font-display text-3xl sm:text-5xl font-black text-linen-100 uppercase tracking-wide mb-3">
+                GUÍA DE ESTADÍA & POLÍTICAS
+              </h2>
+              <p className="text-xs sm:text-sm font-fredoka text-linen-300 max-w-xl mx-auto">
+                Diseñadas para garantizar la seguridad, el bienestar y una estancia memorable en el corazón de la naturaleza.
+              </p>
+            </motion.div>
+
+            {/* Interactive Dual-Column Hospitality Guide with Animated Entry */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Category Selector (4 cols) with Slide from Left */}
+              <motion.div
+                initial={{ opacity: 0, x: -50 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, amount: 0.15 }}
+                transition={{ type: "spring", stiffness: 80, damping: 15 }}
+                className="lg:col-span-4 space-y-2.5"
+              >
+                {RULES_CATEGORIES.map((cat) => {
+                  const Icon = cat.icon;
+                  const isSelected = activeRuleCategory.id === cat.id;
+
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveRuleCategory(cat)}
+                      className={`w-full p-4 rounded-xl text-left transition-all flex items-center justify-between border cursor-pointer ${
+                        isSelected
+                          ? 'bg-jade-950/90 border-gold-400 shadow-gold-glow'
+                          : 'glass-card border-white/10 hover:border-gold-500/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg bg-jade-900/90 border border-white/10 ${cat.accent}`}>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-cartoon text-sm font-bold text-linen-100 uppercase tracking-wider">
+                            {cat.title}
+                          </h4>
+                          <p className="text-[11px] font-fredoka text-linen-300/80">
+                            {cat.subtitle}
+                          </p>
+                        </div>
+                      </div>
+
+                      <ChevronRight className={`w-4 h-4 transition-transform ${isSelected ? 'text-gold-400 translate-x-1' : 'text-linen-400'}`} />
+                    </button>
+                  );
+                })}
+              </motion.div>
+
+              {/* Right Rule Detail Card (8 cols) with Slide from Right */}
+              <motion.div
+                initial={{ opacity: 0, x: 50 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, amount: 0.15 }}
+                transition={{ type: "spring", stiffness: 80, damping: 15, delay: 0.1 }}
+                className="lg:col-span-8 p-6 sm:p-8 rounded-2xl glass-dark border border-gold-600/40 shadow-2xl space-y-6"
+              >
+                <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-gold-600/20 text-gold-400">
+                      <ShieldCheck className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="font-cartoon text-sm font-bold text-linen-100 mb-0.5 uppercase tracking-wide">
-                        {rule.title}
-                      </h4>
-                      <p className="text-xs font-fredoka text-linen-300 leading-relaxed">
-                        {rule.text}
+                      <h3 className="font-display text-xl sm:text-2xl font-black text-linen-100 uppercase tracking-wide">
+                        {activeRuleCategory.title}
+                      </h3>
+                      <p className="text-xs font-fredoka text-gold-400">
+                        {activeRuleCategory.description}
                       </p>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
 
-              <div className="pt-2 text-xs font-fredoka text-linen-400 flex items-center justify-between">
-                <span>¿Dudas sobre el reglamento? Escríbenos directamente a WhatsApp.</span>
-                <span className="text-gold-400 font-bold">Andicas Bioparque Temático</span>
-              </div>
-            </motion.div>
+                {/* Rules List */}
+                <div className="space-y-3.5">
+                  {activeRuleCategory.rules.map((rule, idx) => (
+                    <div 
+                      key={idx} 
+                      className="p-4 rounded-xl bg-jade-950/70 border border-white/10 flex items-start gap-3.5 hover:border-gold-500/30 transition-all"
+                    >
+                      <div className="w-6 h-6 rounded-md bg-gold-500/20 text-gold-400 text-xs font-bold font-cartoon flex items-center justify-center flex-shrink-0 mt-0.5">
+                        0{idx + 1}
+                      </div>
+                      <div>
+                        <h4 className="font-cartoon text-sm font-bold text-linen-100 mb-0.5 uppercase tracking-wide">
+                          {rule.title}
+                        </h4>
+                        <p className="text-xs font-fredoka text-linen-300 leading-relaxed">
+                          {rule.text}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 text-xs font-fredoka text-linen-400 flex items-center justify-between">
+                  <span>¿Dudas sobre el reglamento? Escríbenos directamente a WhatsApp.</span>
+                  <span className="text-gold-400 font-bold">Andicas Bioparque Temático</span>
+                </div>
+              </motion.div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* 7. Ubicación & Garantía Bancaria */}
-      <LocationAndBanking onShowToast={onShowToast} />
+      {activeModules?.ubicacion !== false && (
+        <LocationAndBanking onShowToast={onShowToast} />
+      )}
     </div>
   );
 }

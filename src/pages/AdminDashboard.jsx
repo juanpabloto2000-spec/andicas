@@ -4,7 +4,7 @@ import {
   ShieldCheck, DollarSign, Users, CheckCircle2, AlertCircle, Ban, 
   Search, RefreshCw, LogOut, Phone, Mail, MessageCircle, Home, 
   Clock, ChevronLeft, ChevronRight, ChevronDown, Plus, X, Trash2, Calendar as CalendarIcon,
-  Filter, Check, ArrowUpRight, ArrowLeft, Lock, Unlock, History, User, FileText,
+  Filter, Check, ArrowUpRight, ArrowLeft, ArrowRight, Lock, Unlock, History, User, FileText,
   Sliders, AlertTriangle, Sparkles, CreditCard, Eye, Save, Sun, Moon, CalendarDays,
   Layers, CheckSquare, MessageSquare, Send, Crown, HelpCircle, KeyRound, UserPlus, Shield,
   Receipt, Wallet, Coins, TrendingDown, Printer, Calculator, AlertOctagon, CalendarRange

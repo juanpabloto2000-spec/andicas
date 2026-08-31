@@ -131,7 +131,14 @@ export default function App() {
             cancelaciones: res.modules.cancelaciones !== false,
             personalizacion: res.modules.personalizacion !== false,
             users_management: res.modules.users_management !== false,
-            ai_chatbot: res.modules.ai_chatbot !== false && res.modules.whatsapp_agent !== false
+            cabanas: res.modules.cabanas !== false,
+            animales: res.modules.animales !== false,
+            pasadias: res.modules.pasadias !== false,
+            experiencia: res.modules.experiencia !== false,
+            normas: res.modules.normas !== false,
+            ubicacion: res.modules.ubicacion !== false,
+            ai_chatbot: res.modules.ai_chatbot !== false && res.modules.whatsapp_agent !== false,
+            socials_hub: res.modules.socials_hub !== false
           });
         }
       }
@@ -285,10 +292,12 @@ export default function App() {
       />
 
       {/* Floating Contact Hub with Hover Trigger (Derecha) */}
-      <FloatingContactHub
-        onOpenWhatsAppMenu={() => handleOpenBooking('cabana')}
-        socials={customConfig.socials}
-      />
+      {activeModules.socials_hub !== false && (
+        <FloatingContactHub
+          onOpenWhatsAppMenu={() => handleOpenBooking('cabana')}
+          socials={customConfig.socials}
+        />
+      )}
 
       {/* Floating AI Assistant Button with Robot Icon (Izquierda) */}
       {isAiChatEnabled && (

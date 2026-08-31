@@ -408,6 +408,14 @@ export async function getSubscriptionStatus() {
     const isCancelacionesActive = parsed.cancelaciones !== false;
     const isPersonalizacionActive = parsed.personalizacion !== false && parsed.menu_editor !== false;
     const isUsersActive = parsed.users_management !== false && parsed.usuarios !== false;
+    const isCabanasActive = parsed.cabanas !== false;
+    const isAnimalesActive = parsed.animales !== false;
+    const isPasadiasActive = parsed.pasadias !== false;
+    const isExperienciaActive = parsed.experiencia !== false;
+    const isNormasActive = parsed.normas !== false;
+    const isUbicacionActive = parsed.ubicacion !== false;
+    const isAiChatbotActive = parsed.ai_chatbot !== false;
+    const isSocialsActive = parsed.socials_hub !== false;
 
     return {
       success: true,
@@ -422,7 +430,15 @@ export async function getSubscriptionStatus() {
         recaudos: isRecaudosActive,
         cancelaciones: isCancelacionesActive,
         personalizacion: isPersonalizacionActive,
-        users_management: isUsersActive
+        users_management: isUsersActive,
+        cabanas: isCabanasActive,
+        animales: isAnimalesActive,
+        pasadias: isPasadiasActive,
+        experiencia: isExperienciaActive,
+        normas: isNormasActive,
+        ubicacion: isUbicacionActive,
+        ai_chatbot: isAiChatbotActive,
+        socials_hub: isSocialsActive
       }
     };
   } catch (dbErr) {
