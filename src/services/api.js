@@ -585,30 +585,17 @@ export function subscribeToSystemChanges(callback) {
 
   const fetchAndNotify = async () => {
     try {
-      const [state, cmsRes] = await Promise.all([
-        getSubscriptionStatus(),
-        getSiteCustomConfig()
-      ]);
+      const state = await getSubscriptionStatus();
       if (isSubscribed && callback && state) {
         if (state.status) {
           try {
             localStorage.setItem('andicas_subscription_status', state.status);
           } catch {}
         }
-        callback({
-          ...state,
-          customConfig: cmsRes?.success ? cmsRes.config : null
-        });
+        callback(state);
       }
     } catch (e) {
-      if (isSubscribed && callback) {
-        getSubscriptionStatus().then(st => {
-          if (st?.status) {
-            try { localStorage.setItem('andicas_subscription_status', st.status); } catch {}
-          }
-          callback(st);
-        }).catch(() => {});
-      }
+      console.warn('[Andicas System] Polling error:', e);
     }
   };
 
