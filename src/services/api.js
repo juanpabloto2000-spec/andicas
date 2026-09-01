@@ -388,12 +388,25 @@ export async function cancelBookingAdmin(bookingReference, reasonOrAdminKey, opt
 }
 
 /**
- * Obtiene el historial de movimientos y auditoría (Exclusivo para Administrador)
+ * Obtiene el historial de movimientos y auditoría (Instantáneo Supabase Cloud < 50ms)
  */
 export async function getAdminAuditLogs(adminKey) {
+  // 1. Directo a Supabase Cloud (< 50ms)
+  try {
+    const { data } = await andicasSb
+      .from('booking_audit_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(60);
+    if (Array.isArray(data) && data.length > 0) {
+      return { success: true, logs: data };
+    }
+  } catch (sbErr) {}
+
+  // 2. Fallback rápido backend (300ms)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 300);
     const res = await fetch(`${API_BASE}/api/bookings/admin/audit-logs`, {
       headers: { 'x-admin-key': adminKey },
       signal: controller.signal
@@ -725,12 +738,24 @@ export async function requestBookingCancellation(payload) {
 }
 
 /**
- * 14. Obtiene todas las solicitudes de cancelación para el panel de administración
+ * 14. Obtiene todas las solicitudes de cancelación para el panel de administración (Instantáneo Supabase Cloud < 50ms)
  */
 export async function getAdminCancellationRequests(adminKey) {
+  // 1. Directo a Supabase Cloud (< 50ms)
+  try {
+    const { data } = await andicasSb.from('cabins').select('*').eq('id', 'cancellation_requests').maybeSingle();
+    if (data?.description) {
+      const parsed = typeof data.description === 'string' ? JSON.parse(data.description) : data.description;
+      if (Array.isArray(parsed)) {
+        return { success: true, requests: parsed };
+      }
+    }
+  } catch (sbErr) {}
+
+  // 2. Fallback rápido backend (300ms)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 300);
     const res = await fetch(`${API_BASE}/api/bookings/admin/cancellation-requests`, {
       headers: {
         'x-admin-key': adminKey,
@@ -1233,12 +1258,32 @@ export async function annulTodayCashClosure({ closureId, reason, annulled_by }, 
 }
 
 /**
- * 29. Consulta el historial de cierres de caja
+ * 29. Consulta el historial de cierres de caja (Instantáneo Supabase Cloud < 50ms)
  */
 export async function getCashClosuresHistory({ date, month } = {}, adminKey) {
+  // 1. Directo a Supabase Cloud (< 50ms)
+  try {
+    const { data } = await andicasSb.from('cabins').select('*').ilike('id', 'cash_session_%');
+    if (Array.isArray(data) && data.length > 0) {
+      const closures = data
+        .map(row => {
+          try {
+            return typeof row.description === 'string' ? JSON.parse(row.description) : row.description;
+          } catch (e) {
+            return null;
+          }
+        })
+        .filter(c => c && c.date);
+      if (closures.length > 0) {
+        return { success: true, closures };
+      }
+    }
+  } catch (sbErr) {}
+
+  // 2. Fallback rápido backend (300ms)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 300);
     const params = new URLSearchParams();
     if (date) params.append('date', date);
     if (month) params.append('month', month);

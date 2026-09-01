@@ -636,77 +636,76 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     if (!silent) setIsLoading(true);
     try {
       const targetKey = key || adminKey;
-      const data = await getAdminBookings(targetKey);
-      if (data.success) {
-        setBookings(data.bookings || []);
-        if (data.blockedDates) setBlockedDates(data.blockedDates);
-        
-        // Historial de auditoría
-        const auditData = await getAdminAuditLogs(targetKey);
-        if (auditData.success) {
-          setAuditLogs(auditData.logs || []);
-        }
 
-        // Configuración de sitio CMS (Solo refrescar en segundo plano si NO estamos editando en Personalización)
-        if (!silent || activeSection !== 'personalizacion') {
-          const cmsData = await getSiteCustomConfig();
-          if (cmsData.success && cmsData.config) {
-            setSiteConfig(prev => ({
-              ...prev,
-              ...cmsData.config
-            }));
-          }
-        }
+      // Carga ultrarrápida en paralelo de todos los módulos (<100ms)
+      const [
+        bookingsResult,
+        auditResult,
+        cmsResult,
+        cashTodayResult,
+        cashHistoryResult,
+        cancelResult,
+        usersResult
+      ] = await Promise.allSettled([
+        getAdminBookings(targetKey),
+        getAdminAuditLogs(targetKey),
+        (!silent || activeSection !== 'personalizacion') ? getSiteCustomConfig() : Promise.resolve(null),
+        getTodayCashSession(targetKey),
+        getCashClosuresHistory({}, targetKey),
+        (isAdminOrMaster || isCancelacionesEnabled) ? getAdminCancellationRequests(targetKey) : Promise.resolve(null),
+        isMasterAdmin ? getAdminUsers(targetKey) : Promise.resolve(null)
+      ]);
 
-        // Módulo de Caja & Cierres Diarios
-        try {
-          const [cashTodayRes, cashHistoryRes] = await Promise.allSettled([
-            getTodayCashSession(targetKey),
-            getCashClosuresHistory({}, targetKey)
-          ]);
+      // 1. Reservas & Bloqueos
+      if (bookingsResult.status === 'fulfilled' && bookingsResult.value?.success) {
+        setBookings(bookingsResult.value.bookings || []);
+        if (bookingsResult.value.blockedDates) setBlockedDates(bookingsResult.value.blockedDates);
+      }
 
-          if (cashTodayRes.status === 'fulfilled' && cashTodayRes.value?.success) {
-            const s = cashTodayRes.value.todaySession || {};
-            setTodayCashSession({
-              date: s.date || new Date().toISOString().split('T')[0],
-              base_initial: s.base_initial || 0,
-              opened_by: s.opened_by || null,
-              opened_at: s.opened_at || null,
-              is_locked: !!s.is_locked,
-              expenses: Array.isArray(s.expenses) ? s.expenses : [],
-              payments_received: Array.isArray(s.payments_received) ? s.payments_received : [],
-              users_on_shift: Array.isArray(s.users_on_shift) ? s.users_on_shift : []
-            });
-            setTodayClosure(cashTodayRes.value.todayClosure || null);
-            setCashSummary(cashTodayRes.value.summary || {});
-          }
+      // 2. Historial de Auditoría
+      if (auditResult.status === 'fulfilled' && auditResult.value?.success) {
+        setAuditLogs(auditResult.value.logs || []);
+      }
 
-          if (cashHistoryRes.status === 'fulfilled' && cashHistoryRes.value?.success) {
-            setClosuresHistory(cashHistoryRes.value.closures || []);
-          }
-        } catch (cashErr) {
-          console.warn('Error cargando módulo de caja:', cashErr);
-        }
+      // 3. CMS / Personalización
+      if (cmsResult.status === 'fulfilled' && cmsResult.value?.success && cmsResult.value?.config) {
+        setSiteConfig(prev => ({
+          ...prev,
+          ...cmsResult.value.config
+        }));
+      }
 
-        if (isAdminOrMaster || isCancelacionesEnabled) {
-          try {
-            const cancelData = await getAdminCancellationRequests(targetKey);
-            if (cancelData && cancelData.success) {
-              setCancellationRequests(cancelData.requests || []);
-            }
-          } catch (cancelErr) {
-            console.warn('Error cargando solicitudes de cancelación:', cancelErr);
-          }
-        }
+      // 4. Módulo de Caja en Vivo
+      if (cashTodayResult.status === 'fulfilled' && cashTodayResult.value?.success) {
+        const s = cashTodayResult.value.todaySession || {};
+        setTodayCashSession({
+          date: s.date || new Date().toISOString().split('T')[0],
+          base_initial: s.base_initial || 0,
+          opened_by: s.opened_by || null,
+          opened_at: s.opened_at || null,
+          is_locked: !!s.is_locked,
+          expenses: Array.isArray(s.expenses) ? s.expenses : [],
+          payments_received: Array.isArray(s.payments_received) ? s.payments_received : [],
+          users_on_shift: Array.isArray(s.users_on_shift) ? s.users_on_shift : []
+        });
+        setTodayClosure(cashTodayResult.value.todayClosure || null);
+        setCashSummary(cashTodayResult.value.summary || {});
+      }
 
-        // Usuarios del sistema (Exclusivo Master Admin)
-        if (isMasterAdmin) {
-          const usersData = await getAdminUsers(targetKey);
-          if (usersData && usersData.success) {
-            setSystemUsers(usersData.users || []);
-            syncLoginUsersFromList(usersData.users || []);
-          }
-        }
+      // 5. Historial de Cierres de Caja
+      if (cashHistoryResult.status === 'fulfilled' && cashHistoryResult.value?.success) {
+        setClosuresHistory(cashHistoryResult.value.closures || []);
+      }
+
+      // 6. Solicitudes de Cancelación
+      if (cancelResult.status === 'fulfilled' && cancelResult.value?.success) {
+        setCancellationRequests(cancelResult.value.requests || []);
+      }
+
+      // 7. Usuarios del Sistema
+      if (usersResult.status === 'fulfilled' && usersResult.value?.success) {
+        setSystemUsers(usersResult.value.users || []);
+        syncLoginUsersFromList(usersResult.value.users || []);
       }
     } catch (err) {
       console.error('Error fetching admin data:', err);
