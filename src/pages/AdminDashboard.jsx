@@ -231,7 +231,7 @@ export default function AdminDashboard({ onNavigate, activeModules, isSiteLocked
 
   useEffect(() => {
     const unsubscribe = subscribeToSystemChanges((res) => {
-      if (res && res.success) {
+      if (res) {
         if (res.status) {
           setRemoteSubStatus(res.status);
           try { localStorage.setItem('andicas_subscription_status', res.status); } catch {}
