@@ -459,11 +459,10 @@ export async function sendAiChatMessage(message, conversationHistory = []) {
 export async function getSubscriptionStatus() {
   // 1. Direct REST Fetch a Supabase Cloud (< 50ms)
   try {
-    const rawRes = await fetch(`${SUPABASE_URL}/rest/v1/cabins?id=in.(system_settings,admin_auth)&select=*`, {
+    const rawRes = await fetch(`${SUPABASE_URL}/rest/v1/cabins?id=in.(system_settings,admin_auth)&select=*&apikey=${SUPABASE_KEY}`, {
       cache: 'no-store',
       headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`
+        'apikey': SUPABASE_KEY
       }
     });
     if (rawRes.ok) {
