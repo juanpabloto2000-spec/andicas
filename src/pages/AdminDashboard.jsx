@@ -2201,16 +2201,31 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   }
 
   return (
-    <div className="min-h-screen bg-jade-950 text-linen-100 flex flex-col lg:flex-row font-fredoka">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.35, ease: 'easeOut' }}
+      className="min-h-screen bg-jade-950 text-linen-100 flex flex-col lg:flex-row font-fredoka"
+    >
       
       {/* ========================================================================= */}
       {/* SIDEBAR DE NAVEGACIÓN IZQUIERDO */}
       {/* ========================================================================= */}
-      <aside className="w-full lg:w-72 bg-jade-950/95 border-b lg:border-b-0 lg:border-r border-white/10 p-4 sm:p-5 flex flex-col justify-between shrink-0 shadow-2xl z-30">
+      <motion.aside
+        initial={{ x: -60, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full lg:w-72 bg-jade-950/95 border-b lg:border-b-0 lg:border-r border-white/10 p-4 sm:p-5 flex flex-col justify-between shrink-0 shadow-2xl z-30"
+      >
         <div className="space-y-6">
           
           {/* Brand & Role Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-white/10">
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.35, ease: 'easeOut' }}
+            className="flex items-center justify-between pb-4 border-b border-white/10"
+          >
             <div className="flex items-center gap-3">
               {isMasterAdmin ? (
                 <div className="w-10 h-10 rounded-2xl bg-[#2b3518] border border-[#55692e] flex items-center justify-center text-[#cae47a] shadow-md shadow-[#2b3518]/50 flex-shrink-0">
@@ -2252,16 +2267,22 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             >
               <RefreshCw className="w-4 h-4" />
             </motion.button>
-          </div>
+          </motion.div>
 
           {/* Section Navigation Buttons */}
-          <nav className="space-y-2 font-cartoon text-xs uppercase">
+          <motion.nav
+            initial="hidden"
+            animate="visible"
+            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.07, delayChildren: 0.25 } } }}
+            className="space-y-2 font-cartoon text-xs uppercase"
+          >
             
             {/* 1. Agendamientos & Calendario */}
             <motion.button
-              whileHover={{ x: 4 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.15 }}
+              variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              whileHover={{ x: 7, scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => setActiveSection('agendamientos')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                 activeSection === 'agendamientos'
@@ -2291,9 +2312,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
 
             {/* 2. Recaudos & Caja (Acceso con permisos adaptados) */}
             <motion.button
-              whileHover={{ x: 4 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.15 }}
+              variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              whileHover={{ x: 7, scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => setActiveSection('recaudos')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                 activeSection === 'recaudos'
@@ -2307,7 +2329,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             >
               <div className="flex items-center gap-2.5">
                 <DollarSign className="w-4 h-4" />
-                <span>Recaudos & Caja</span>
+                <span>Recaudos &amp; Caja</span>
               </div>
               {!isRecaudosEnabled && (
                 <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold">
@@ -2320,9 +2342,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             {/* 3. Personalización / CMS (Solo Admin y Master) */}
             {isAdminOrMaster && (
               <motion.button
-                whileHover={{ x: 4 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ duration: 0.15 }}
+                variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                whileHover={{ x: 7, scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={() => setActiveSection('personalizacion')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                   activeSection === 'personalizacion'
@@ -2350,9 +2373,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             {/* 4. Gestión de Usuarios / Empleados (Exclusivo Admin Master) */}
             {isMasterAdmin && (
               <motion.button
-                whileHover={{ x: 4 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ duration: 0.15 }}
+                variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                whileHover={{ x: 7, scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={() => setActiveSection('usuarios')}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl transition-all cursor-pointer ${
                   activeSection === 'usuarios'
@@ -2380,14 +2404,19 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 )}
               </motion.button>
             )}
-          </nav>
+          </motion.nav>
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-6 border-t border-white/10 space-y-2">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.35, ease: 'easeOut' }}
+          className="pt-6 border-t border-white/10 space-y-2"
+        >
           {isMasterAdmin && (
             <motion.button
-              whileHover={{ scale: 1.02, y: -1 }}
+              whileHover={{ scale: 1.03, y: -2 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => setPasswordModalOpen(true)}
               className="w-full py-2.5 px-3 rounded-xl bg-gold-500/10 hover:bg-gold-500/20 text-gold-400 border border-gold-500/30 text-xs font-cartoon uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
@@ -2418,8 +2447,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               <LogOut className="w-3.5 h-3.5" />
             </motion.button>
           </div>
-        </div>
-      </aside>
+        </motion.div>
+      </motion.aside>
 
       {/* ========================================================================= */}
       {/* MAIN CONTENT AREA */}
@@ -2455,9 +2484,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           isBookingsEnabled ? (
             <motion.div
               key="sec-agendamientos"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              initial={{ opacity: 0, y: 28, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
               className="space-y-6"
             >
             
@@ -2550,9 +2579,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             {agendaSubTab === 'tabla' && (
               <motion.div
                 key="subtab-tabla"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18 }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                 className="space-y-4"
               >
                 
@@ -2686,10 +2715,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             {agendaSubTab === 'calendario' && (
               <motion.div
                 key="subtab-calendario"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18 }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                 className="space-y-4"
               >
                 
@@ -2839,10 +2868,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             {agendaSubTab === 'cancelaciones' && isAdminOrMaster && (
               <motion.div
                 key="subtab-cancelaciones"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18 }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                 className="space-y-4"
               >
                 <div className="p-5 rounded-3xl glass-dark border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
@@ -2977,10 +3006,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             {agendaSubTab === 'auditoria' && isAdminOrMaster && (
               <motion.div
                 key="subtab-auditoria"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18 }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                 className="space-y-4"
               >
                 <div className="p-4 rounded-3xl glass-dark border border-white/10 flex items-center justify-between">
@@ -3171,10 +3200,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           isRecaudosEnabled ? (
             <motion.div
               key="sec-recaudos"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              initial={{ opacity: 0, y: 28, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -12, scale: 0.99 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
               className="space-y-6"
             >
             
@@ -3323,9 +3352,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             {recaudosSubTab === 'caja_vivo' && (
               <motion.div
                 key="subtab-caja-vivo"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18 }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                 className="space-y-6"
               >
                 
@@ -3581,10 +3610,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             {recaudosSubTab === 'cierre' && (
               <motion.div
                 key="subtab-cierre"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18 }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                 className={`grid gap-6 items-start ${isAdminOrMaster ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'}`}
               >
                 
@@ -3901,10 +3930,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             {recaudosSubTab === 'historial_metricas' && isAdminOrMaster && (
               <motion.div
                 key="subtab-historial-metricas"
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18 }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                 className="space-y-6"
               >
                 
@@ -4221,9 +4250,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           isPersonalizacionEnabled ? (
             <motion.div
               key="sec-personalizacion"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              initial={{ opacity: 0, y: 28, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
               className="space-y-6"
             >
               {/* Header & Sub-Tabs Navigation Bar */}
@@ -4359,9 +4388,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               {personalizacionSubTab === 'general' && (
                 <motion.div
                   key="subtab-cms-general"
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.18 }}
+                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                   className="space-y-6"
                 >
                   {/* 0.1 Identidad de Marca & Logo General */}
@@ -4598,10 +4627,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               {personalizacionSubTab === 'cabanas_planes' && (
                 <motion.div
                   key="subtab-cms-cabanas"
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
+                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                   className="space-y-6"
                 >
                   {/* 1. Gestión de Tarifas & Creación de Cabañas */}
@@ -5029,10 +5058,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               {personalizacionSubTab === 'animales' && (
                 <motion.div
                   key="subtab-cms-animales"
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
+                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                   className="space-y-6"
                 >
                   {/* Encabezado y Textos de Sección */}
@@ -5261,10 +5290,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               {personalizacionSubTab === 'atracciones' && (
                 <motion.div
                   key="subtab-cms-atracciones"
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
+                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                   className="space-y-6"
                 >
                   {/* Encabezado y Textos de Sección */}
@@ -5473,10 +5502,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               {personalizacionSubTab === 'medios_pago' && isMasterAdmin && (
                 <motion.div
                   key="subtab-cms-medios"
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
+                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                   className="space-y-6"
                 >
                   {/* 3. Cuentas Bancarias & Medios de Pago */}
@@ -5616,10 +5645,10 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               {personalizacionSubTab === 'ia_redes' && (
                 <motion.div
                   key="subtab-cms-ia"
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
+                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                   className="space-y-6"
                 >
                   {/* 4. Asistente Virtual & Chatbot de IA */}
@@ -5782,9 +5811,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
             return (
             <motion.div
               key="sec-usuarios"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              initial={{ opacity: 0, y: 28, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
               className="space-y-6"
             >
               {/* Header */}
@@ -5925,7 +5954,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                         <motion.div
                           key={u.id}
                           whileHover={{ y: -3 }}
-                          transition={{ duration: 0.18 }}
+                          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                           className="p-5 rounded-3xl glass-dark border border-white/10 hover:border-gold-500/40 transition-all shadow-xl flex flex-col justify-between space-y-4 relative overflow-hidden group"
                         >
                           {/* Top Badge & Username */}
@@ -8039,6 +8068,6 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
