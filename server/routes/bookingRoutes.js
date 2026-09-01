@@ -1366,6 +1366,24 @@ router.post('/admin/update-site-config', requireAdminOrStaffAuth, requireAdminOn
 });
 
 /**
+ * 17B. GET /api/bookings/public/system-users
+ * Obtiene la lista pública de usuarios para la pantalla de login (sin credenciales sensibles)
+ */
+router.get('/public/system-users', async (req, res) => {
+  try {
+    const users = await getSystemUsers();
+    const publicUsers = users.map(u => ({
+      username: u.username,
+      name: u.name || u.username,
+      role: u.role === 'admin' ? 'admin' : 'staff'
+    }));
+    return res.status(200).json({ success: true, users: publicUsers });
+  } catch (e) {
+    return res.status(200).json({ success: true, users: [] });
+  }
+});
+
+/**
  * 18. GET /api/bookings/admin/users
  * Lista todos los usuarios del sistema (Admin y Master Admin)
  */

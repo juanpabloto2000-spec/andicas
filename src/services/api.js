@@ -192,38 +192,15 @@ export async function adminLogin(password, username = 'admin_master') {
     }
   } catch (err) {}
 
-  // 4. Fallback de roles y credenciales locales por defecto
+  // 4. Fallback de roles para Admin Master / Owner
   if (cleanPass === 'AndicasAdmin2026@' || cleanPass === 'KarolN2026@' || cleanPass === '12345678') {
     const isMaster = cleanUser === 'admin_master' || cleanUser.includes('master') || !cleanUser || cleanUser === 'owner';
-    const isAdmin = cleanUser === 'admin';
     return {
       success: true,
       token: cleanPass,
-      role: isMaster ? 'master_admin' : isAdmin ? 'admin' : 'staff',
+      role: isMaster ? 'master_admin' : 'admin',
       username: cleanUser || 'admin_master',
-      name: isMaster ? 'Administrador Master' : isAdmin ? 'Administrador' : 'Empleado / Recepción'
-    };
-  }
-
-  if (cleanUser === 'recepcion' || cleanUser === 'empleado' || cleanUser === 'staff') {
-    if (cleanPass === 'Recepcion2026@' || cleanPass === 'Staff2026@') {
-      return {
-        success: true,
-        token: cleanPass,
-        role: 'staff',
-        username: cleanUser,
-        name: 'Empleado / Recepción'
-      };
-    }
-  }
-
-  if (cleanUser === 'admin' && (cleanPass === 'Admin2026@' || cleanPass === 'AndicasAdmin2026@')) {
-    return {
-      success: true,
-      token: cleanPass,
-      role: 'admin',
-      username: 'admin',
-      name: 'Administrador'
+      name: isMaster ? 'Administrador Master' : 'Administrador'
     };
   }
 
@@ -870,24 +847,7 @@ export async function updateSiteCustomConfigAdmin(config, adminKey) {
   }
 }
 
-const DEFAULT_PREDEFINED_USERS = [
-  {
-    id: 'usr-admin-default',
-    username: 'admin',
-    name: 'Administrador General',
-    role: 'admin',
-    password: 'AndicasAdmin2026@',
-    created_at: '2026-01-01T00:00:00.000Z'
-  },
-  {
-    id: 'usr-recepcion-default',
-    username: 'recepcion',
-    name: 'Recepción & Reservas',
-    role: 'staff',
-    password: 'Recepcion2026@',
-    created_at: '2026-01-01T00:00:00.000Z'
-  }
-];
+
 
 /**
  * 18. Obtiene la lista de usuarios creados (Exclusivo Admin Master)
@@ -924,18 +884,7 @@ export async function getAdminUsers(adminKey) {
  * 18B. Obtiene la lista pública de usuarios creados para la lista desplegable de login
  */
 export async function getPublicSystemUsers() {
-  // 1. Directo a Supabase Cloud REST / SDK (< 50ms)
-  try {
-    const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
-    if (data?.description) {
-      const users = typeof data.description === 'string' ? JSON.parse(data.description) : data.description;
-      if (Array.isArray(users)) {
-        return users;
-      }
-    }
-  } catch (err) {}
-
-  // 2. Fetch REST directo de respaldo (< 50ms)
+  // 1. Directo a Supabase Cloud REST (< 50ms)
   try {
     const rawRes = await fetch(`${SUPABASE_URL}/rest/v1/cabins?id=eq.system_users&select=*`, {
       headers: {
@@ -948,6 +897,28 @@ export async function getPublicSystemUsers() {
       if (rows && rows[0]?.description) {
         const parsed = typeof rows[0].description === 'string' ? JSON.parse(rows[0].description) : rows[0].description;
         if (Array.isArray(parsed)) return parsed;
+      }
+    }
+  } catch (e) {}
+
+  // 2. Supabase JS SDK (< 100ms)
+  try {
+    const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
+    if (data?.description) {
+      const users = typeof data.description === 'string' ? JSON.parse(data.description) : data.description;
+      if (Array.isArray(users)) {
+        return users;
+      }
+    }
+  } catch (err) {}
+
+  // 3. Fallback a Backend Express (< 200ms)
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/public/system-users`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && Array.isArray(data?.users)) {
+        return data.users;
       }
     }
   } catch (e) {}

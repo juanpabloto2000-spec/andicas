@@ -71,13 +71,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loginDropdownOpen, setLoginDropdownOpen] = useState(false);
 
   const [loginUsersList, setLoginUsersList] = useState(() => {
     try {
       const cached = localStorage.getItem('andicas_cached_users_list');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter(u => u && u.username && u.username !== 'admin' && u.username !== 'recepcion');
+          if (filtered.length > 0) return filtered;
+        }
       }
     } catch (e) {}
     return [
@@ -121,7 +125,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
       users.forEach(u => {
         if (!u || !u.username) return;
         const clean = u.username.trim().toLowerCase();
-        if (clean === 'admin_master') return;
+        if (clean === 'admin_master' || clean === 'admin' || clean === 'recepcion') return;
         userMap.set(clean, {
           username: clean,
           name: u.name || u.username,
@@ -159,6 +163,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         role: 'master_admin',
         label: 'Admin Master',
         icon: '👑',
+        lucideIcon: Crown,
         badgeBg: 'bg-[#2b3518]',
         badgeBorder: 'border-[#55692e]',
         badgeText: 'text-[#cae47a]',
@@ -173,6 +178,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         role: 'admin',
         label: 'Administrador',
         icon: '🛡️',
+        lucideIcon: Shield,
         badgeBg: 'bg-amber-500/20',
         badgeBorder: 'border-amber-400',
         badgeText: 'text-amber-300',
@@ -184,8 +190,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     // 3. Usuarios Comunes (Staff / Recepción) -> Morado
     return {
       role: 'staff',
-      label: 'Usuario Común',
+      label: 'Empleado / Recepción',
       icon: '👤',
+      lucideIcon: User,
       badgeBg: 'bg-purple-900/40',
       badgeBorder: 'border-purple-500/60',
       badgeText: 'text-purple-300',
@@ -2037,7 +2044,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           className="w-full max-w-sm p-6 sm:p-8 rounded-3xl glass-dark border border-white/10 shadow-2xl space-y-6 text-center z-10"
         >
           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto shadow-lg transition-all border ${currentTheme.badgeBg} ${currentTheme.badgeBorder} ${currentTheme.badgeText}`}>
-            <span className="text-2xl">{currentTheme.icon}</span>
+            {React.createElement(currentTheme.lucideIcon, { className: `w-7 h-7 ${currentTheme.badgeText}` })}
           </div>
 
           <div>
@@ -2050,47 +2057,101 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4 font-fredoka text-xs text-left">
-            {/* Lista Desplegable de Usuarios */}
-            <div>
+            {/* Lista Desplegable de Usuarios Custom con Iconos */}
+            <div className="relative">
               <label className="text-[10px] font-cartoon text-gold-400 uppercase block mb-1">
-                Usuario:
+                Usuario / Cuenta:
               </label>
-              <div className="relative">
-                <select
-                  value={usernameInput}
-                  onFocus={() => syncLoginUsersFromSupabase()}
-                  onClick={() => syncLoginUsersFromSupabase()}
-                  onChange={(e) => {
-                    setUsernameInput(e.target.value);
-                    setPasswordInput('');
-                    setLoginError('');
-                  }}
-                  className={`w-full bg-jade-950 border rounded-xl px-3.5 py-3 text-xs text-linen-100 outline-none font-bold cursor-pointer transition-colors appearance-none pr-9 ${currentTheme.badgeBorder}`}
-                >
-                  {loginUsersList.map((acc) => {
-                    const icon = (acc.role === 'master_admin' || acc.username.includes('master'))
-                      ? '👑' 
-                      : (acc.role === 'admin' || acc.username === 'admin')
-                        ? '🛡️' 
-                        : '👤';
-                    const displayName = (acc.name && acc.name.toLowerCase() !== acc.username.toLowerCase())
-                      ? `${acc.name} (${acc.username})`
-                      : acc.username;
-                    return (
-                      <option
-                        key={acc.username}
-                        value={acc.username}
-                        className="bg-jade-950 text-linen-100 py-1.5 font-bold"
-                      >
-                        {icon} {displayName}
-                      </option>
-                    );
-                  })}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-linen-400">
-                  <ChevronDown className="w-4 h-4" />
+              
+              {/* Botón Principal del Selector */}
+              <button
+                type="button"
+                onClick={() => {
+                  syncLoginUsersFromSupabase();
+                  setLoginDropdownOpen(prev => !prev);
+                }}
+                className={`w-full bg-jade-950 border rounded-xl px-3.5 py-2.5 text-xs text-linen-100 outline-none font-bold cursor-pointer transition-all flex items-center justify-between shadow-inner ${currentTheme.badgeBorder}`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 text-left">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${currentTheme.badgeBg} ${currentTheme.badgeBorder} border`}>
+                    {React.createElement(currentTheme.lucideIcon, { className: `w-4 h-4 ${currentTheme.badgeText}` })}
+                  </div>
+                  <div className="truncate">
+                    <span className="block text-linen-100 text-xs font-bold truncate">
+                      {selectedUserObj.name && selectedUserObj.name !== selectedUserObj.username 
+                        ? selectedUserObj.name 
+                        : selectedUserObj.username}
+                    </span>
+                    <span className="block text-[10px] font-mono text-linen-400 truncate">
+                      @{selectedUserObj.username}
+                    </span>
+                  </div>
                 </div>
-              </div>
+
+                <div className="flex items-center gap-1.5 shrink-0 pl-2 text-linen-400">
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${loginDropdownOpen ? 'rotate-180 text-gold-400' : ''}`} />
+                </div>
+              </button>
+
+              {/* Menú Desplegable con Animación */}
+              <AnimatePresence>
+                {loginDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-0 right-0 top-full mt-1.5 bg-[#062627] border border-white/20 rounded-2xl shadow-2xl p-1.5 z-50 max-h-60 overflow-y-auto space-y-1 backdrop-blur-xl"
+                  >
+                    {loginUsersList.map((acc) => {
+                      const userTheme = getUserRoleTheme(acc.role, acc.username);
+                      const isSelected = acc.username.toLowerCase() === usernameInput.toLowerCase();
+                      const IconComponent = userTheme.lucideIcon;
+
+                      return (
+                        <button
+                          key={acc.username}
+                          type="button"
+                          onClick={() => {
+                            setUsernameInput(acc.username);
+                            setPasswordInput('');
+                            setLoginError('');
+                            setLoginDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-2 rounded-xl transition-all text-left cursor-pointer ${
+                            isSelected 
+                              ? 'bg-gold-500/20 border border-gold-400/50 shadow-sm' 
+                              : 'hover:bg-jade-900/80 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${userTheme.badgeBg} ${userTheme.badgeBorder} border`}>
+                              <IconComponent className={`w-4 h-4 ${userTheme.badgeText}`} />
+                            </div>
+                            <div className="truncate">
+                              <span className={`block text-xs font-bold truncate ${isSelected ? 'text-gold-300' : 'text-linen-100'}`}>
+                                {acc.name && acc.name !== acc.username ? acc.name : acc.username}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-mono text-linen-400">
+                                  @{acc.username}
+                                </span>
+                                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-cartoon font-bold uppercase ${userTheme.badgeBg} ${userTheme.badgeText}`}>
+                                  {userTheme.label}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {isSelected && (
+                            <Check className="w-4 h-4 text-gold-400 shrink-0 ml-2" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Campo Contraseña */}
