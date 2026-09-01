@@ -15,6 +15,22 @@ const getSupabaseKey = () => typeof atob === 'function' ? atob('c2Jfc2VjcmV0X3lE
 const SUPABASE_KEY = getSupabaseKey();
 
 export const andicasSb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false },
+  global: {
+    fetch: (url, options = {}) => {
+      try {
+        const u = new URL(url);
+        u.searchParams.set('apikey', SUPABASE_KEY);
+        const headers = new Headers(options.headers || {});
+        headers.set('apikey', SUPABASE_KEY);
+        headers.delete('authorization');
+        headers.delete('Authorization');
+        return fetch(u.toString(), { ...options, headers });
+      } catch (e) {
+        return fetch(url, options);
+      }
+    }
+  },
   realtime: {
     params: {
       eventsPerSecond: 10,
