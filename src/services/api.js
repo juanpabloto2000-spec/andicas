@@ -457,87 +457,9 @@ export async function sendAiChatMessage(message, conversationHistory = []) {
  * Consulta el estado de suscripción / pago del sistema (active | unpaid) y contraseña remota
  */
 export async function getSubscriptionStatus() {
-  // 1. Supabase Cloud Instantáneo (< 100ms)
+  // 1. Direct REST Fetch a Supabase Cloud (< 50ms)
   try {
-    const [settingsRes, adminAuthRes] = await Promise.allSettled([
-      andicasSb.from('cabins').select('*').eq('id', 'system_settings').maybeSingle(),
-      andicasSb.from('cabins').select('*').eq('id', 'admin_auth').maybeSingle()
-    ]);
-
-    let parsed = {};
-    let dbStatus = 'active';
-    let remoteAdminPass = null;
-
-    if (settingsRes.status === 'fulfilled' && settingsRes.value.data) {
-      dbStatus = settingsRes.value.data.type || 'active';
-      try {
-        const rawDesc = settingsRes.value.data.description;
-        parsed = typeof rawDesc === 'string' ? JSON.parse(rawDesc) : (rawDesc || {});
-      } catch (err) {
-        console.warn('Error parseando system_settings:', err);
-      }
-    }
-
-    if (adminAuthRes.status === 'fulfilled' && adminAuthRes.value.data?.description) {
-      remoteAdminPass = adminAuthRes.value.data.description.trim();
-    }
-
-    if (settingsRes.status === 'fulfilled' && settingsRes.value.data) {
-      const isBookingsActive = parsed.bookings !== false && 
-        parsed.reservations !== false && 
-        parsed.booking !== false &&
-        parsed.agendamiento !== false;
-
-      const isWompiActive = parsed.wompi_payments !== false && 
-        parsed.wompi !== false && 
-        parsed.payments !== false && 
-        parsed.checkout !== false;
-
-      const isRecaudosActive = parsed.recaudos !== false && parsed.metrics !== false;
-      const isCancelacionesActive = parsed.cancelaciones !== false;
-      const isPersonalizacionActive = parsed.personalizacion !== false && parsed.menu_editor !== false;
-      const isUsersActive = parsed.users_management !== false && parsed.usuarios !== false;
-      const isCabanasActive = parsed.cabanas !== false;
-      const isAnimalesActive = parsed.animales !== false;
-      const isPasadiasActive = parsed.pasadias !== false;
-      const isExperienciaActive = parsed.experiencia !== false;
-      const isNormasActive = parsed.normas !== false;
-      const isUbicacionActive = parsed.ubicacion !== false;
-      const isAiChatbotActive = parsed.ai_chatbot !== false;
-      const isSocialsActive = parsed.socials_hub !== false;
-
-      return {
-        success: true,
-        status: dbStatus,
-        adminPassword: remoteAdminPass,
-        modules: {
-          ...(parsed || {}),
-          bookings: isBookingsActive,
-          wompi_payments: isWompiActive,
-          payments: isWompiActive,
-          reservations: isBookingsActive,
-          recaudos: isRecaudosActive,
-          cancelaciones: isCancelacionesActive,
-          personalizacion: isPersonalizacionActive,
-          users_management: isUsersActive,
-          cabanas: isCabanasActive,
-          animales: isAnimalesActive,
-          pasadias: isPasadiasActive,
-          experiencia: isExperienciaActive,
-          normas: isNormasActive,
-          ubicacion: isUbicacionActive,
-          ai_chatbot: isAiChatbotActive,
-          socials_hub: isSocialsActive
-        }
-      };
-    }
-  } catch (dbErr) {
-    console.warn('Fallback Supabase JS client:', dbErr);
-  }
-
-  // 2. Respaldo REST Directo a Supabase Cloud
-  try {
-    const rawRes = await fetch(`${SUPABASE_URL}/rest/v1/cabins?id=eq.system_settings&select=*`, {
+    const rawRes = await fetch(`${SUPABASE_URL}/rest/v1/cabins?id=in.(system_settings,admin_auth)&select=*`, {
       cache: 'no-store',
       headers: {
         'apikey': SUPABASE_KEY,
@@ -547,30 +469,70 @@ export async function getSubscriptionStatus() {
     if (rawRes.ok) {
       const rows = await rawRes.json();
       if (rows && rows.length > 0) {
-        const row = rows[0];
-        const dbStatus = row.type || 'active';
+        const settingsRow = rows.find(r => r.id === 'system_settings') || rows[0];
+        const authRow = rows.find(r => r.id === 'admin_auth');
+        const dbStatus = settingsRow.type || 'active';
         let parsed = {};
-        try { parsed = typeof row.description === 'string' ? JSON.parse(row.description) : (row.description || {}); } catch {}
+        try {
+          parsed = typeof settingsRow.description === 'string' 
+            ? JSON.parse(settingsRow.description) 
+            : (settingsRow.description || {});
+        } catch {}
+
+        const remoteAdminPass = authRow?.description ? authRow.description.trim() : null;
+
         return {
           success: true,
           status: dbStatus,
-          adminPassword: null,
+          adminPassword: remoteAdminPass,
           modules: {
-            bookings: parsed.bookings !== false,
-            recaudos: parsed.recaudos !== false,
+            bookings: parsed.bookings !== false && parsed.reservations !== false,
+            recaudos: parsed.recaudos !== false && parsed.metrics !== false,
             cancelaciones: parsed.cancelaciones !== false,
             personalizacion: parsed.personalizacion !== false,
             users_management: parsed.users_management !== false,
-            wompi_payments: parsed.wompi_payments !== false,
+            wompi_payments: parsed.wompi_payments !== false && parsed.payments !== false,
             payments: parsed.payments !== false,
+            cabanas: parsed.cabanas !== false,
+            animales: parsed.animales !== false,
+            pasadias: parsed.pasadias !== false,
+            experiencia: parsed.experiencia !== false,
+            normas: parsed.normas !== false,
+            ubicacion: parsed.ubicacion !== false,
+            ai_chatbot: parsed.ai_chatbot !== false,
+            socials_hub: parsed.socials_hub !== false,
             ...(parsed || {})
           }
         };
       }
     }
   } catch (restErr) {
-    console.warn('Fallback REST Supabase:', restErr);
+    console.warn('REST Supabase fetch fallback:', restErr);
   }
+
+  // 2. Respaldo SDK Supabase
+  try {
+    const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_settings').maybeSingle();
+    if (data) {
+      const dbStatus = data.type || 'active';
+      let parsed = {};
+      try { parsed = typeof data.description === 'string' ? JSON.parse(data.description) : (data.description || {}); } catch {}
+      return {
+        success: true,
+        status: dbStatus,
+        adminPassword: null,
+        modules: {
+          bookings: parsed.bookings !== false,
+          recaudos: parsed.recaudos !== false,
+          cancelaciones: parsed.cancelaciones !== false,
+          personalizacion: parsed.personalizacion !== false,
+          users_management: parsed.users_management !== false,
+          wompi_payments: parsed.wompi_payments !== false,
+          ...(parsed || {})
+        }
+      };
+    }
+  } catch (sdkErr) {}
 
   return { success: false, status: 'active', modules: { bookings: true, wompi_payments: true, recaudos: true, cancelaciones: true, personalizacion: true, users_management: true } };
 }
