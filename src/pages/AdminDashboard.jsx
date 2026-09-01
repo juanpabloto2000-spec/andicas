@@ -632,23 +632,37 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const isUsersEnabled = localActiveModules.users_management !== false;
 
   const renderLockedSection = (title, description) => (
-    <div className="p-8 sm:p-12 rounded-3xl bg-[#061e1f]/90 border-2 border-red-500/40 text-center space-y-5 max-w-lg mx-auto my-12 shadow-[0_0_50px_rgba(239,68,68,0.25)] backdrop-blur-xl">
-      <div className="relative w-20 h-20 rounded-full bg-red-950/80 border-2 border-red-500 flex items-center justify-center mx-auto text-red-400 shadow-[0_0_30px_rgba(239,68,68,0.5)]">
-        <Lock className="w-10 h-10 animate-pulse text-red-400" />
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="p-8 sm:p-12 rounded-3xl bg-[#061e1f]/90 border-2 border-red-500/40 text-center space-y-5 max-w-lg mx-auto my-12 shadow-[0_0_50px_rgba(239,68,68,0.2)] backdrop-blur-xl"
+    >
+      <div className="relative w-20 h-20 rounded-full bg-red-950/80 border-2 border-red-500 flex items-center justify-center mx-auto text-red-400 shadow-[0_0_30px_rgba(239,68,68,0.4)]">
+        <Lock className="w-10 h-10 text-red-400 animate-pulse" />
       </div>
-      <div className="space-y-2">
-        <span className="px-3.5 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-mono font-bold uppercase tracking-widest inline-block">
-          Sección Bloqueada
-        </span>
+      <div className="space-y-3">
+        <div className="flex items-center justify-center gap-2">
+          <span className="px-3 py-1 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold uppercase tracking-widest">
+            Servicio Desactivado
+          </span>
+          <span className="px-2.5 py-1 rounded-full bg-zinc-800/80 border border-white/10 text-zinc-400 text-[10px] font-mono uppercase tracking-widest">
+            Dynamind Control
+          </span>
+        </div>
         <h2 className="text-2xl sm:text-3xl font-black text-red-400 uppercase tracking-wide font-display">
           {title} Bloqueado
         </h2>
         <p className="text-xs sm:text-sm text-linen-300 max-w-md mx-auto leading-relaxed font-fredoka">
           {description}
         </p>
+        <p className="text-[10px] text-zinc-500 font-mono">
+          Este módulo ha sido desactivado remotamente. Cuando sea reactivado, volverá a estar disponible automáticamente para todos los perfiles.
+        </p>
       </div>
-    </div>
+    </motion.div>
   );
+
 
   const fetchDashboardData = async (key, { silent = false } = {}) => {
     if (!silent) setIsLoading(true);
