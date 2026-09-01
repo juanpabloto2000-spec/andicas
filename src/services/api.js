@@ -11,7 +11,8 @@ const API_BASE = rawApiUrl.replace(/\/+$/, '');
 // SUPABASE CLIENT SINGLETON CON TIEMPO REAL (WEBSOCKETS)
 // ==============================================================================
 const SUPABASE_URL = 'https://vkpzgtteqaekmnixrlxl.supabase.co';
-const SUPABASE_KEY = atob('c2Jfc2VjcmV0X3lEeWt6QVVnSzRkZ0czUVlGLWVyUXdfbVRhaVQ4dEc=');
+const getSupabaseKey = () => typeof atob === 'function' ? atob('c2Jfc2VjcmV0X3lEeWt6QVVnSzRkZ0czUVlGLWVyUXdfbVRhaVQ4dEc=') : Buffer.from('c2Jfc2VjcmV0X3lEeWt6QVVnSzRkZ0czUVlGLWVyUXdfbVRhaVQ4dEc=', 'base64').toString();
+const SUPABASE_KEY = getSupabaseKey();
 
 export const andicasSb = createClient(SUPABASE_URL, SUPABASE_KEY, {
   realtime: {
