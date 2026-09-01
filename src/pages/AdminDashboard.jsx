@@ -2600,13 +2600,21 @@ export default function AdminDashboard({ onNavigate, activeModules, isSiteLocked
                       onClick={() => setAgendaSubTab('cancelaciones')}
                       className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
                         agendaSubTab === 'cancelaciones'
-                          ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
-                          : 'text-linen-300 hover:text-white'
+                          ? isCancelacionesEnabled
+                            ? 'bg-gold-gradient text-jade-950 font-bold shadow-gold-glow'
+                            : 'bg-red-950/80 border border-red-500/50 text-red-300 font-bold shadow-lg shadow-red-950/40'
+                          : isCancelacionesEnabled
+                            ? 'text-linen-300 hover:text-white'
+                            : 'text-zinc-500 hover:text-red-400'
                       }`}
                     >
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      {isCancelacionesEnabled ? (
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      ) : (
+                        <Lock className="w-3.5 h-3.5 text-red-400" />
+                      )}
                       <span>Cancelaciones</span>
-                      {pendingCancellationCount > 0 && (
+                      {isCancelacionesEnabled && pendingCancellationCount > 0 && (
                         <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-red-500 text-white font-mono font-bold animate-pulse">
                           {pendingCancellationCount}
                         </span>
@@ -2932,6 +2940,7 @@ export default function AdminDashboard({ onNavigate, activeModules, isSiteLocked
 
             {/* VISTA 1C: SOLICITUDES DE CANCELACIÓN INTEGRADA */}
             {agendaSubTab === 'cancelaciones' && isAdminOrMaster && (
+              isCancelacionesEnabled ? (
               <motion.div
                 key="subtab-cancelaciones"
                 initial={{ opacity: 0, y: 18 }}
@@ -3066,6 +3075,10 @@ export default function AdminDashboard({ onNavigate, activeModules, isSiteLocked
                   )}
                 </div>
               </motion.div>
+              ) : renderLockedSection(
+                'Sub-módulo de Cancelaciones y Devoluciones',
+                'El acceso al procesamiento de solicitudes de cancelación y devoluciones ha sido suspendido temporalmente por Dynamind Central.'
+              )
             )}
 
             {/* VISTA 1D: AUDITORÍA DE AGENDAMIENTOS */}
