@@ -2214,8 +2214,48 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     );
   }
 
+  // ----------------------------------------------------
+  // BLOQUEO COMPLETO DEL DASHBOARD SI ESTÁ SUSPENDIDO (IDÉNTICO A KAL ENGINE)
+  // ----------------------------------------------------
+  if (remoteSubStatus === 'unpaid' || userRole === 'unpaid') {
+    return (
+      <div className="fixed inset-0 z-[99999] min-h-screen bg-gradient-to-b from-[#150404] via-[#200707] to-[#0d0202] text-white flex items-center justify-center p-4 select-none backdrop-blur-2xl font-fredoka">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="w-full max-w-lg p-8 sm:p-10 rounded-3xl bg-black/90 border-2 border-red-500 text-center space-y-6 shadow-[0_0_70px_rgba(239,68,68,0.45)]"
+        >
+          <div className="w-20 h-20 rounded-full bg-red-950/90 border-2 border-red-500 flex items-center justify-center mx-auto text-red-400 shadow-[0_0_30px_rgba(239,68,68,0.5)]">
+            <Lock className="w-10 h-10 animate-pulse text-red-400" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="px-3.5 py-1 rounded-full bg-red-500/20 border border-red-500/50 text-red-300 text-xs uppercase font-mono font-bold tracking-widest inline-block">
+              Acceso Suspendido
+            </span>
+            <h1 className="text-3xl sm:text-4xl font-black text-red-400 uppercase tracking-wide font-cartoon">
+              No se registró pago.
+            </h1>
+            <p className="text-sm text-linen-300 leading-relaxed max-w-md mx-auto">
+              El acceso a las funciones de este panel administrativo se encuentra suspendido temporalmente por la administración central de Dynamind. No cuenta con permisos para ver datos ni realizar operaciones.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold uppercase font-cartoon tracking-wider transition-all cursor-pointer shadow-lg shadow-red-700/30"
+          >
+            Cerrar Sesión
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <motion.div
+
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.35, ease: 'easeOut' }}

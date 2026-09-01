@@ -576,38 +576,11 @@ export async function getSubscriptionStatus() {
 
 /**
  * Suscripción reactiva INSTANTÁNEA a cambios remotos desde Dynamind.
- * Usa Supabase Realtime (WebSocket) para reacciones <500ms + polling de respaldo cada 60s.
- * Cuando Dynamind activa/desactiva un módulo o bloquea el sitio, el dashboard lo refleja de inmediato.
+ * Consulta Supabase Cloud cada 1200ms (1.2s, idéntico al motor de Kal Discobar)
+ * y escucha eventos locales entre pestañas para reacción en <1 segundo.
  */
 export function subscribeToSystemChanges(callback) {
   let isSubscribed = true;
-  const channelId = `andicas-system-${Math.random().toString(36).substring(2, 8)}`;
-
-  // Parsear y normalizar módulos desde el row de system_settings
-  const normalizeModulesFromRow = (row) => {
-    let parsed = {};
-    try {
-      const raw = row?.description;
-      parsed = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
-    } catch {}
-    return {
-      ...(parsed || {}),
-      bookings: parsed.bookings !== false && parsed.reservations !== false && parsed.booking !== false && parsed.agendamiento !== false,
-      wompi_payments: parsed.wompi_payments !== false && parsed.wompi !== false && parsed.payments !== false,
-      recaudos: parsed.recaudos !== false,
-      cancelaciones: parsed.cancelaciones !== false,
-      personalizacion: parsed.personalizacion !== false,
-      users_management: parsed.users_management !== false,
-      cabanas: parsed.cabanas !== false,
-      animales: parsed.animales !== false,
-      pasadias: parsed.pasadias !== false,
-      experiencia: parsed.experiencia !== false,
-      normas: parsed.normas !== false,
-      ubicacion: parsed.ubicacion !== false,
-      ai_chatbot: parsed.ai_chatbot !== false,
-      socials_hub: parsed.socials_hub !== false,
-    };
-  };
 
   const fetchAndNotify = async () => {
     try {
@@ -615,7 +588,12 @@ export function subscribeToSystemChanges(callback) {
         getSubscriptionStatus(),
         getSiteCustomConfig()
       ]);
-      if (isSubscribed && callback) {
+      if (isSubscribed && callback && state) {
+        if (state.status) {
+          try {
+            localStorage.setItem('andicas_subscription_status', state.status);
+          } catch {}
+        }
         callback({
           ...state,
           customConfig: cmsRes?.success ? cmsRes.config : null
@@ -623,7 +601,12 @@ export function subscribeToSystemChanges(callback) {
       }
     } catch (e) {
       if (isSubscribed && callback) {
-        getSubscriptionStatus().then(st => callback(st)).catch(() => {});
+        getSubscriptionStatus().then(st => {
+          if (st?.status) {
+            try { localStorage.setItem('andicas_subscription_status', st.status); } catch {}
+          }
+          callback(st);
+        }).catch(() => {});
       }
     }
   };
@@ -631,41 +614,28 @@ export function subscribeToSystemChanges(callback) {
   // 1. Ejecutar de inmediato al conectar
   fetchAndNotify();
 
-  // 2. Supabase Realtime — detecta cambios en system_settings en <500ms
-  let realtimeChannel = null;
-  try {
-    realtimeChannel = andicasSb
-      .channel(channelId)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'cabins', filter: 'id=eq.system_settings' },
-        (payload) => {
-          if (!isSubscribed) return;
-          const row = payload.new || payload.old;
-          if (!row) return;
-          const newStatus = row.type || 'active';
-          const modules = normalizeModulesFromRow(row);
-          if (callback) {
-            callback({ success: true, status: newStatus, modules });
-          }
-        }
-      )
-      .subscribe();
-  } catch (rtErr) {
-    console.warn('[Andicas] Realtime no disponible, usando solo polling:', rtErr);
-  }
+  // 2. Fast Polling de 1200ms (1.2 segundos, idéntico a Kal Discobar para respuesta inmediata)
+  const intervalId = setInterval(fetchAndNotify, 1200);
 
-  // 3. Heartbeat de respaldo cada 60s (por si el WebSocket cae)
-  const intervalId = setInterval(fetchAndNotify, 60000);
+  // 3. Listener para sincronización instantánea entre pestañas / ventanas en el mismo navegador
+  const handleStorage = (e) => {
+    if (e.key === 'andicas_subscription_status' || e.key === 'andicas_custom_settings' || e.key === 'dynamind_client_sites') {
+      fetchAndNotify();
+    }
+  };
+  const handleCustomEvent = () => fetchAndNotify();
+
+  window.addEventListener('storage', handleStorage);
+  window.addEventListener('andicas_system_update', handleCustomEvent);
 
   return () => {
     isSubscribed = false;
     clearInterval(intervalId);
-    if (realtimeChannel) {
-      try { andicasSb.removeChannel(realtimeChannel); } catch {}
-    }
+    window.removeEventListener('storage', handleStorage);
+    window.removeEventListener('andicas_system_update', handleCustomEvent);
   };
 }
+
 
 
 /**
