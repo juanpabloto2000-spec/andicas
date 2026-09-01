@@ -1721,6 +1721,51 @@ router.post('/admin/cash/open-shift', requireAdminOrStaffAuth, async (req, res) 
 });
 
 /**
+ * 23B. POST /api/bookings/admin/cash/update-base
+ * Permite a administradores modificar o corregir la base inicial de caja
+ */
+router.post('/admin/cash/update-base', requireAdminOrStaffAuth, async (req, res) => {
+  try {
+    const { base_amount, modified_by } = req.body;
+    const todayStr = getTodayStr();
+    const sessions = await getCashSessions();
+
+    let session = sessions.find(s => s.date === todayStr);
+    if (!session) {
+      session = { date: todayStr, expenses: [], payments_received: [], users_on_shift: [] };
+      sessions.unshift(session);
+    }
+
+    const numBase = Math.max(0, Number(base_amount || 0));
+    const userModifying = (modified_by || req.userRole || 'Admin').trim();
+
+    session.base_initial = numBase;
+    session.opened_by = userModifying;
+    session.is_locked = true;
+
+    await saveCashSessions(sessions);
+
+    await recordAuditLog({
+      booking_reference: 'CAJA_MODIF_BASE',
+      client_name: userModifying,
+      cabin_name: 'Caja Recepción',
+      previous_status: 'BASE_ANTERIOR',
+      new_status: 'BASE_CORREGIDA',
+      changed_by: userModifying,
+      notes: `Modificación de base inicial de caja corregida a $${numBase.toLocaleString('es-CO')} COP.`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Base inicial de caja actualizada a $${numBase.toLocaleString('es-CO')} COP.`,
+      session
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error interno actualizando base de caja.' });
+  }
+});
+
+/**
  * 24. POST /api/bookings/admin/cash/add-expense
  * Registra un gasto / salida de dinero de la caja
  */

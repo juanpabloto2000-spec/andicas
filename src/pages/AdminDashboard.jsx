@@ -72,9 +72,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const [loginUsersList, setLoginUsersList] = useState([
-    { username: 'admin_master', name: 'Admin Master', role: 'master_admin' },
-    { username: 'admin', name: 'Administrador', role: 'admin' },
-    { username: 'recepcion', name: 'Recepción', role: 'staff' },
+    { username: 'admin_master', name: 'Admin Master', role: 'master_admin' }
   ]);
 
   // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'personalizacion' | 'usuarios'
@@ -106,21 +104,18 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [remoteSubStatus, setRemoteSubStatus] = useState(() => localStorage.getItem('andicas_subscription_status') || 'active');
 
   const syncLoginUsersFromList = (users) => {
-    const defaults = [
-      { username: 'admin_master', name: 'Admin Master', role: 'master_admin' },
-      { username: 'admin', name: 'Administrador', role: 'admin' },
-      { username: 'recepcion', name: 'Recepción', role: 'staff' },
-    ];
     const userMap = new Map();
-    defaults.forEach(d => userMap.set(d.username.toLowerCase(), d));
+    userMap.set('admin_master', { username: 'admin_master', name: 'Admin Master', role: 'master_admin' });
+
     if (Array.isArray(users)) {
       users.forEach(u => {
         if (!u || !u.username) return;
         const clean = u.username.trim().toLowerCase();
+        if (clean === 'admin_master') return;
         userMap.set(clean, {
           username: clean,
           name: u.name || u.username,
-          role: u.role === 'admin' ? 'admin' : (clean.includes('master') ? 'master_admin' : 'staff')
+          role: u.role === 'admin' ? 'admin' : 'staff'
         });
       });
     }
@@ -131,7 +126,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     try {
       const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
       if (data?.description) {
-        const parsed = JSON.parse(data.description);
+        const parsed = typeof data.description === 'string' ? JSON.parse(data.description) : data.description;
         if (Array.isArray(parsed)) {
           syncLoginUsersFromList(parsed);
         }
@@ -915,12 +910,20 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
     }
   };
 
-  const toggleRevealPassword = (userId) => {
+  const handleTogglePasswordReveal = (userId) => {
     setRevealedPasswords(prev => ({ ...prev, [userId]: !prev[userId] }));
   };
 
+  const toggleRevealPassword = handleTogglePasswordReveal;
+
   const handleUserFieldChange = (userId, field, value) => {
     setSystemUsers(prev => prev.map(u => u.id === userId ? { ...u, [field]: value } : u));
+  };
+
+  const handleSaveUserChanges = async (userId) => {
+    const user = systemUsers.find(u => u.id === userId);
+    if (!user) return;
+    await handleSaveSingleUser(user);
   };
 
   const handleSaveSingleUser = async (user) => {
@@ -1166,6 +1169,13 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         base_initial: amountVal,
         is_locked: true,
         opened_by: prev.opened_by || currentUserInfo.name || currentUserInfo.username
+      }));
+
+      setCashSummary(prev => ({
+        ...prev,
+        baseInitial: amountVal,
+        expectedCash: amountVal + (prev.totalCashIn || 0) - (prev.totalExpenses || 0),
+        isLocked: true
       }));
 
       const res = await updateCashBaseInitial({
@@ -6242,9 +6252,41 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       className="p-4 rounded-2xl bg-jade-900/80 border border-white/10 space-y-2.5 text-xs shadow-md"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-linen-100 text-sm">{b.cabin_name}</span>
-                        <span className={`px-2 py-0.5 rounded-full font-cartoon font-bold text-[10px] uppercase border ${getStatusBadgeStyle(b.status)}`}>
-                          {formatStatusLabel(b.status)}
+                        <div>
+                          <span className="font-bold text-linen-100 text-sm block">{b.cabin_name}</span>
+                          <span className="text-[10px] font-mono text-gold-400">Ref: {b.booking_reference}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleToggleBookingStatus(b);
+                              setDayAgendaModal(prev => ({
+                                ...prev,
+                                dayBookings: prev.dayBookings.map(item => 
+                                  (item.id === b.id || item.booking_reference === b.booking_reference)
+                                    ? { ...item, status: item.status === 'PAGADO' ? 'AGENDADO' : 'PAGADO' }
+                                    : item
+                                )
+                              }));
+                            }}
+                            disabled={b.status === 'CANCELADA' || b.status === 'CANCELLED'}
+                            className={`px-2 py-0.5 rounded-full font-cartoon font-bold text-[10px] uppercase border cursor-pointer hover:scale-105 transition-all ${getStatusBadgeStyle(b.status)}`}
+                            title="Clic para cambiar estado de toda la reserva"
+                          >
+                            {formatStatusLabel(b.status)}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Rango Completo de la Reserva */}
+                      <div className="p-2 rounded-xl bg-jade-950/70 border border-gold-500/20 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5 text-gold-300 font-cartoon">
+                          <span>🗓️ Estadía:</span>
+                          <span className="font-mono text-linen-100 font-bold">{b.check_in_date} al {b.check_out_date}</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-linen-300 bg-white/5 px-2 py-0.5 rounded-md">
+                          {b.nights_count || 1} {Number(b.nights_count) === 1 ? 'noche' : 'noches'}
                         </span>
                       </div>
 
@@ -6488,7 +6530,17 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                 onSubmit={async (e) => {
                   e.preventDefault();
                   if (!blockStartDate || !blockEndDate) return;
-                  const res = await blockDatesAdmin(blockCabinId, [blockStartDate, blockEndDate], blockReason, adminKey);
+                  const datesToBlock = [];
+                  const startD = new Date(blockStartDate + 'T12:00:00');
+                  const endD = new Date(blockEndDate + 'T12:00:00');
+                  if (startD <= endD) {
+                    for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+                      datesToBlock.push(d.toISOString().split('T')[0]);
+                    }
+                  } else {
+                    datesToBlock.push(blockStartDate);
+                  }
+                  const res = await blockDatesAdmin(blockCabinId, datesToBlock.length > 0 ? datesToBlock : [blockStartDate], blockReason, adminKey);
                   if (res.success) {
                     setBlockModalOpen(false);
                     fetchDashboardData(adminKey);

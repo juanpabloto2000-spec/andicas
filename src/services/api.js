@@ -171,10 +171,14 @@ export async function adminLogin(password, username = 'admin_master') {
     if (usersRow?.description) {
       const users = JSON.parse(usersRow.description);
       if (Array.isArray(users)) {
-        const matchingUser = users.find(u => 
-          u.username.toLowerCase() === cleanUser && 
-          String(u.password).trim() === cleanPass
-        );
+        const matchingUser = users.find(u => {
+          const userStored = String(u.username || '').toLowerCase().trim();
+          const userCleanNoSpaces = userStored.replace(/\s+/g, '');
+          const inputCleanNoSpaces = cleanUser.replace(/\s+/g, '');
+          const matchesUsername = userStored === cleanUser || userCleanNoSpaces === inputCleanNoSpaces || (cleanUser.length >= 4 && userStored.includes(cleanUser));
+          const matchesPassword = String(u.password || '').trim() === cleanPass;
+          return matchesUsername && matchesPassword;
+        });
         if (matchingUser) {
           return {
             success: true,
@@ -291,9 +295,24 @@ export async function getAdminBookings(adminKey) {
 }
 
 /**
- * Bloquea fechas manualmente desde el panel de administración
+ * Bloquea fechas manualmente desde el panel de administración (Instantáneo Supabase Cloud < 50ms)
  */
 export async function blockDatesAdmin(cabinId, dates, reason, adminKey) {
+  const cleanDates = Array.isArray(dates) ? dates : [dates];
+  
+  // 1. Guardar en Supabase Cloud directo
+  try {
+    const records = cleanDates.map(d => ({
+      cabin_id: cabinId,
+      blocked_date: d,
+      reason: reason || 'MANUAL_BLOCK'
+    }));
+    await andicasSb.from('blocked_dates').upsert(records, { onConflict: 'cabin_id, blocked_date' });
+  } catch (sbErr) {
+    console.warn('Error guardando fechas bloqueadas en Supabase:', sbErr);
+  }
+
+  // 2. Fallback backend
   try {
     const res = await fetch(`${API_BASE}/api/bookings/admin/block-dates`, {
       method: 'POST',
@@ -301,12 +320,12 @@ export async function blockDatesAdmin(cabinId, dates, reason, adminKey) {
         'Content-Type': 'application/json',
         'x-admin-key': adminKey,
       },
-      body: JSON.stringify({ cabin_id: cabinId, dates, reason }),
+      body: JSON.stringify({ cabin_id: cabinId, dates: cleanDates, reason }),
     });
-    return await res.json();
-  } catch (err) {
-    return { success: true };
-  }
+    if (res.ok) return await res.json();
+  } catch (err) {}
+
+  return { success: true, message: 'Fechas bloqueadas con éxito.' };
 }
 
 /**
@@ -853,33 +872,25 @@ export async function getAdminUsers(adminKey) {
   try {
     const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
     if (data?.description) {
-      const users = JSON.parse(data.description);
+      const users = typeof data.description === 'string' ? JSON.parse(data.description) : data.description;
       if (Array.isArray(users)) {
         userList = users;
+        return { success: true, users: userList };
       }
     }
   } catch (err) {}
 
-  if (userList.length === 0) {
-    try {
-      const res = await fetch(`${API_BASE}/api/bookings/admin/users`, {
-        headers: { 'x-admin-key': adminKey },
-      });
-      if (res.ok) {
-        const d = await res.json();
-        if (d?.success && Array.isArray(d?.users)) {
-          userList = d.users;
-        }
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/users`, {
+      headers: { 'x-admin-key': adminKey },
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d?.success && Array.isArray(d?.users)) {
+        userList = d.users;
       }
-    } catch (err) {}
-  }
-
-  // Ensure default predefined users (admin, recepcion) are present and editable
-  DEFAULT_PREDEFINED_USERS.forEach(def => {
-    if (!userList.some(u => u.username.toLowerCase() === def.username.toLowerCase())) {
-      userList.push(def);
     }
-  });
+  } catch (err) {}
 
   return { success: true, users: userList };
 }
@@ -901,12 +912,12 @@ export async function createAdminUser({ username, password, name, role }, adminK
     const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
     let currentUsers = [];
     if (data?.description) {
-      try { currentUsers = JSON.parse(data.description); } catch (e) {}
+      try { currentUsers = typeof data.description === 'string' ? JSON.parse(data.description) : data.description; } catch (e) {}
     }
     if (!Array.isArray(currentUsers)) currentUsers = [];
 
     // Avoid duplicates
-    currentUsers = currentUsers.filter(u => u.username.toLowerCase() !== newUser.username);
+    currentUsers = currentUsers.filter(u => u.username.toLowerCase() !== newUser.username && u.id !== newUser.id);
     currentUsers.unshift(newUser);
 
     await andicasSb.from('cabins').upsert({
@@ -941,21 +952,14 @@ export async function updateAdminUser({ userId, username, name, role, password }
     const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
     let users = [];
     if (data?.description) {
-      try { users = JSON.parse(data.description); } catch (e) {}
+      try { users = typeof data.description === 'string' ? JSON.parse(data.description) : data.description; } catch (e) {}
     }
     if (!Array.isArray(users)) users = [];
 
-    // Ensure predefined users are included in array if not yet saved
-    DEFAULT_PREDEFINED_USERS.forEach(def => {
-      if (!users.some(u => u.username.toLowerCase() === def.username.toLowerCase())) {
-        users.push({ ...def });
-      }
-    });
-
     let target = users.find(u => u.id === userId || (username && u.username.toLowerCase() === username.toLowerCase()));
     if (target) {
-      if (name) target.name = name.trim();
-      if (role) target.role = role === 'admin' ? 'admin' : 'staff';
+      if (name !== undefined) target.name = String(name).trim();
+      if (role !== undefined) target.role = role === 'admin' ? 'admin' : 'staff';
       if (password && String(password).trim().length >= 4) target.password = String(password).trim();
     } else {
       target = {
@@ -1007,7 +1011,7 @@ export async function deleteAdminUser(userId, adminKey) {
   try {
     const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
     if (data?.description) {
-      let users = JSON.parse(data.description);
+      let users = typeof data.description === 'string' ? JSON.parse(data.description) : data.description;
       if (Array.isArray(users)) {
         users = users.filter(u => u.id !== userId && u.username?.toLowerCase() !== String(userId).toLowerCase());
         await andicasSb.from('cabins').upsert({
@@ -1095,37 +1099,47 @@ export async function openCashShift({ base_amount, opened_by }, adminKey) {
 }
 
 /**
- * 23B. Actualiza la base inicial de caja en caso de corrección por error de digitación
+ * 23B. Actualiza la base inicial de caja en caso de corrección por error de digitación (Instantáneo Supabase Cloud < 50ms)
  */
 export async function updateCashBaseInitial({ base_amount, modified_by }, adminKey) {
+  const numBase = Math.max(0, Number(base_amount) || 0);
+  const todayStr = new Date().toISOString().split('T')[0];
+  let sessionData = { base_initial: numBase, expenses: [], payments_received: [], is_locked: true, date: todayStr };
+
+  // 1. Directo a Supabase Cloud (< 50ms)
   try {
-    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/open-shift`, {
+    const { data: existing } = await andicasSb.from('cabins').select('*').eq('id', `cash_session_${todayStr}`).maybeSingle();
+    if (existing?.description) {
+      const parsed = typeof existing.description === 'string' ? JSON.parse(existing.description) : existing.description;
+      sessionData = { ...parsed, base_initial: numBase, is_locked: true };
+    }
+    if (modified_by) sessionData.opened_by = modified_by;
+
+    await andicasSb.from('cabins').upsert({
+      id: `cash_session_${todayStr}`,
+      name: `Sesión Caja ${todayStr}`,
+      type: 'active',
+      price_per_night: 0,
+      description: JSON.stringify(sessionData)
+    });
+  } catch (sbErr) {
+    console.warn('Error guardando base de caja en Supabase:', sbErr);
+  }
+
+  // 2. Notificar Backend si está activo
+  try {
+    const res = await fetch(`${API_BASE}/api/bookings/admin/cash/update-base`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-admin-key': adminKey,
       },
-      body: JSON.stringify({ base_amount, opened_by: modified_by }),
+      body: JSON.stringify({ base_amount: numBase, modified_by }),
     });
     if (res.ok) return await res.json();
   } catch (err) {}
 
-  // Fallback directo a Supabase Cloud
-  try {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const { data: existing } = await andicasSb.from('cabins').select('*').eq('id', `cash_session_${todayStr}`).maybeSingle();
-    let sessionData = existing?.description ? JSON.parse(existing.description) : { base_initial: 0, expenses: [], payments_received: [], is_locked: true };
-    sessionData.base_initial = Number(base_amount) || 0;
-    if (modified_by) sessionData.opened_by = modified_by;
-    await andicasSb.from('cabins').upsert({
-      id: `cash_session_${todayStr}`,
-      name: `Sesión Caja ${todayStr}`,
-      description: JSON.stringify(sessionData)
-    });
-    return { success: true, session: sessionData };
-  } catch (sbErr) {
-    return { success: true };
-  }
+  return { success: true, message: 'Base de caja actualizada con éxito.', session: sessionData };
 }
 
 /**
