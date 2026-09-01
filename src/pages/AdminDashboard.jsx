@@ -50,7 +50,7 @@ import { animalsData } from '../data/animals';
 import { attractionsData } from '../data/attractions';
 import { contactData } from '../data/banking';
 
-export default function AdminDashboard({ onNavigate, activeModules }) {
+export default function AdminDashboard({ onNavigate, activeModules, isSiteLocked }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!localStorage.getItem('andicas_admin_token');
   });
@@ -2048,7 +2048,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   // ----------------------------------------------------
   // BLOQUEO COMPLETO DEL DASHBOARD SI ESTÁ SUSPENDIDO (IDÉNTICO A KAL ENGINE)
   // ----------------------------------------------------
-  if (remoteSubStatus === 'unpaid' || userRole === 'unpaid') {
+  const isDashboardLocked = Boolean(isSiteLocked) || remoteSubStatus === 'unpaid' || userRole === 'unpaid';
+  if (isDashboardLocked) {
     return (
       <div className="fixed inset-0 z-[99999] min-h-screen bg-gradient-to-b from-[#150404] via-[#200707] to-[#0d0202] text-white flex items-center justify-center p-4 select-none backdrop-blur-2xl font-fredoka">
         <motion.div

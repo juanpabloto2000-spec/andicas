@@ -254,6 +254,7 @@ export default function App() {
       <AdminDashboard
         onNavigate={navigateTo}
         activeModules={activeModules}
+        isSiteLocked={isSiteLocked}
       />
     );
   }
