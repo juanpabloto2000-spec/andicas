@@ -1385,9 +1385,9 @@ router.get('/public/system-users', async (req, res) => {
 
 /**
  * 18. GET /api/bookings/admin/users
- * Lista todos los usuarios del sistema (Admin y Master Admin)
+ * Lista todos los usuarios del sistema (Exclusivo Admin Master)
  */
-router.get('/admin/users', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+router.get('/admin/users', requireAdminOrStaffAuth, requireMasterAdminOnly, async (req, res) => {
   try {
     const users = await getSystemUsers();
     const safeUsers = users.map(u => ({
@@ -1405,9 +1405,9 @@ router.get('/admin/users', requireAdminOrStaffAuth, requireAdminOnly, async (req
 
 /**
  * 19. POST /api/bookings/admin/users/create
- * Crea un nuevo usuario con rol asignado (Admin y Master Admin)
+ * Crea un nuevo usuario con rol asignado (Exclusivo Admin Master)
  */
-router.post('/admin/users/create', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+router.post('/admin/users/create', requireAdminOrStaffAuth, requireMasterAdminOnly, async (req, res) => {
   try {
     const { username, password, name, role } = req.body;
 
@@ -1440,7 +1440,7 @@ router.post('/admin/users/create', requireAdminOrStaffAuth, requireAdminOnly, as
       cabin_name: 'Gestión Usuarios',
       previous_status: 'CREAR_CUENTA',
       new_status: `ROL_${newUser.role.toUpperCase()}`,
-      changed_by: req.userRole === 'master_admin' ? 'Admin Master' : 'Administrador',
+      changed_by: 'Admin Master',
       notes: `Usuario creado: ${newUser.username} (${newUser.name}) con permisos ${newUser.role === 'admin' ? 'Administrador' : 'Empleado/Recepción'}`
     });
 
@@ -1462,9 +1462,9 @@ router.post('/admin/users/create', requireAdminOrStaffAuth, requireAdminOnly, as
 
 /**
  * 20. POST /api/bookings/admin/users/update-password
- * Cambia la contraseña de un usuario existente (Admin y Master Admin)
+ * Cambia la contraseña de un usuario existente (Exclusivo Admin Master)
  */
-router.post('/admin/users/update-password', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+router.post('/admin/users/update-password', requireAdminOrStaffAuth, requireMasterAdminOnly, async (req, res) => {
   try {
     const { userId, newPassword } = req.body;
 
@@ -1488,7 +1488,7 @@ router.post('/admin/users/update-password', requireAdminOrStaffAuth, requireAdmi
       cabin_name: 'Gestión Usuarios',
       previous_status: 'PASSWORD_PREVIA',
       new_status: 'PASSWORD_ACTUALIZADA',
-      changed_by: req.userRole === 'master_admin' ? 'Admin Master' : 'Administrador',
+      changed_by: 'Admin Master',
       notes: `Contraseña modificada para el usuario: ${targetUser.username}`
     });
 
@@ -1503,9 +1503,9 @@ router.post('/admin/users/update-password', requireAdminOrStaffAuth, requireAdmi
 
 /**
  * 21. POST /api/bookings/admin/users/delete
- * Elimina un usuario del sistema (Admin y Master Admin)
+ * Elimina un usuario del sistema (Exclusivo Admin Master)
  */
-router.post('/admin/users/delete', requireAdminOrStaffAuth, requireAdminOnly, async (req, res) => {
+router.post('/admin/users/delete', requireAdminOrStaffAuth, requireMasterAdminOnly, async (req, res) => {
   try {
     const { userId } = req.body;
     let users = await getSystemUsers();

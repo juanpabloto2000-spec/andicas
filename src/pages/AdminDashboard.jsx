@@ -214,6 +214,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         setRecaudosSubTab('caja_vivo');
       }
     } else if (userRole === 'admin') {
+      if (activeSection === 'usuarios') {
+        setActiveSection('agendamientos');
+      }
       if (personalizacionSubTab === 'medios_pago') {
         setPersonalizacionSubTab('general');
       }
@@ -668,7 +671,7 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         getTodayCashSession(targetKey),
         getCashClosuresHistory({}, targetKey),
         (isAdminOrMaster || isCancelacionesEnabled) ? getAdminCancellationRequests(targetKey) : Promise.resolve(null),
-        isAdminOrMaster ? getAdminUsers(targetKey) : Promise.resolve(null)
+        isMasterAdmin ? getAdminUsers(targetKey) : Promise.resolve(null)
       ]);
 
       // 1. Reservas & Bloqueos
@@ -2344,8 +2347,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               </motion.button>
             )}
 
-            {/* 4. Gestión de Usuarios / Empleados (Admin y Master) */}
-            {isAdminOrMaster && (
+            {/* 4. Gestión de Usuarios / Empleados (Exclusivo Admin Master) */}
+            {isMasterAdmin && (
               <motion.button
                 whileHover={{ x: 4 }}
                 whileTap={{ scale: 0.98 }}
@@ -5770,9 +5773,9 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         )}
 
         {/* ======================================================================= */}
-        {/* SECCIÓN 5: GESTIÓN DE USUARIOS / EMPLEADOS (ADMIN Y MASTER) */}
+        {/* SECCIÓN 5: GESTIÓN DE USUARIOS / EMPLEADOS (EXCLUSIVO ADMIN MASTER) */}
         {/* ======================================================================= */}
-        {activeSection === 'usuarios' && isAdminOrMaster && (
+        {activeSection === 'usuarios' && isMasterAdmin && (
           isUsersEnabled ? (() => {
             const manageableUsers = systemUsers.filter(u => u.username !== 'admin_master' && !u.username.includes('master'));
 
