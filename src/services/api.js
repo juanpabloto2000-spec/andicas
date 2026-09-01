@@ -921,6 +921,41 @@ export async function getAdminUsers(adminKey) {
 }
 
 /**
+ * 18B. Obtiene la lista pública de usuarios creados para la lista desplegable de login
+ */
+export async function getPublicSystemUsers() {
+  // 1. Directo a Supabase Cloud REST / SDK (< 50ms)
+  try {
+    const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
+    if (data?.description) {
+      const users = typeof data.description === 'string' ? JSON.parse(data.description) : data.description;
+      if (Array.isArray(users)) {
+        return users;
+      }
+    }
+  } catch (err) {}
+
+  // 2. Fetch REST directo de respaldo (< 50ms)
+  try {
+    const rawRes = await fetch(`${SUPABASE_URL}/rest/v1/cabins?id=eq.system_users&select=*`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (rawRes.ok) {
+      const rows = await rawRes.json();
+      if (rows && rows[0]?.description) {
+        const parsed = typeof rows[0].description === 'string' ? JSON.parse(rows[0].description) : rows[0].description;
+        if (Array.isArray(parsed)) return parsed;
+      }
+    }
+  } catch (e) {}
+
+  return [];
+}
+
+/**
  * 19. Crea un nuevo usuario en el sistema (Exclusivo Admin Master)
  */
 export async function createAdminUser({ username, password, name, role }, adminKey) {

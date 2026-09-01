@@ -30,6 +30,7 @@ import {
   getSiteCustomConfig,
   updateSiteCustomConfigAdmin,
   getAdminUsers,
+  getPublicSystemUsers,
   createAdminUser,
   updateAdminUser,
   updateAdminUserPassword,
@@ -71,9 +72,18 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const [loginUsersList, setLoginUsersList] = useState([
-    { username: 'admin_master', name: 'Admin Master', role: 'master_admin' }
-  ]);
+  const [loginUsersList, setLoginUsersList] = useState(() => {
+    try {
+      const cached = localStorage.getItem('andicas_cached_users_list');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [
+      { username: 'admin_master', name: 'Admin Master', role: 'master_admin' }
+    ];
+  });
 
   // Main Sidebar Navigation Section: 'agendamientos' | 'recaudos' | 'personalizacion' | 'usuarios'
   const [activeSection, setActiveSection] = useState('agendamientos');
@@ -119,17 +129,18 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
         });
       });
     }
-    setLoginUsersList(Array.from(userMap.values()));
+    const list = Array.from(userMap.values());
+    setLoginUsersList(list);
+    try {
+      localStorage.setItem('andicas_cached_users_list', JSON.stringify(list));
+    } catch (e) {}
   };
 
   const syncLoginUsersFromSupabase = async () => {
     try {
-      const { data } = await andicasSb.from('cabins').select('*').eq('id', 'system_users').maybeSingle();
-      if (data?.description) {
-        const parsed = typeof data.description === 'string' ? JSON.parse(data.description) : data.description;
-        if (Array.isArray(parsed)) {
-          syncLoginUsersFromList(parsed);
-        }
+      const users = await getPublicSystemUsers();
+      if (Array.isArray(users) && users.length > 0) {
+        syncLoginUsersFromList(users);
       }
     } catch (e) {}
   };
@@ -2050,6 +2061,8 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
               <div className="relative">
                 <select
                   value={usernameInput}
+                  onFocus={() => syncLoginUsersFromSupabase()}
+                  onClick={() => syncLoginUsersFromSupabase()}
                   onChange={(e) => {
                     setUsernameInput(e.target.value);
                     setPasswordInput('');
@@ -2063,13 +2076,16 @@ export default function AdminDashboard({ onNavigate, activeModules }) {
                       : (acc.role === 'admin' || acc.username === 'admin')
                         ? '🛡️' 
                         : '👤';
+                    const displayName = (acc.name && acc.name.toLowerCase() !== acc.username.toLowerCase())
+                      ? `${acc.name} (${acc.username})`
+                      : acc.username;
                     return (
                       <option
                         key={acc.username}
                         value={acc.username}
                         className="bg-jade-950 text-linen-100 py-1.5 font-bold"
                       >
-                        {icon} {acc.username}
+                        {icon} {displayName}
                       </option>
                     );
                   })}
